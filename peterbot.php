@@ -71,7 +71,7 @@ function take_profit($api, $best_buyer_price)
     foreach($tradelist as $trade)
     {
         $gain = (($best_buyer_price/$trade->price)*100 - 100);
-        print("price:{$trade->price} profit: $gain%\n");
+        print("price:{$trade->price} size:{$trade->size} profit: ".number_format($gain, 2)."%\n");
         if($gain > 7)
         {
           $ret = place_order($api, "market", "sell", null, null, $trade->size);
@@ -148,8 +148,8 @@ while(true)
   if($btc_balance > floatval(KEEP_MIN_BTC) && $eth_balance > floatval(KEEP_MIN_ETH))
   {
     print("\nbest abucoin buyer at  = $best_buyer ($best_buyer_vol)\n");
-    print("sell at $ecart_bids% of the price\n");
-    if($ecart_bids > 0 && abs($ecart_bids) > 1)
+    print("sell at ".number_format($ecart_bids, 2)."% of the price\n");
+    if($ecart_bids > 0 && abs($ecart_bids) > 2)
     {
       print("c'est pas mal de lui vendre.\n");
       //place sell order of maximum 0.02 eth
@@ -160,8 +160,8 @@ while(true)
     }
 
     print("\nbest abucoin seller at  = $best_seller ($best_seller_vol)\n");
-    print("buy at $ecart_asks% of the price\n");
-    if($ecart_asks < 0 && abs($ecart_asks) > 1)
+    print("buy at ".number_format($ecart_asks, 2)."% of the price\n");
+    if($ecart_asks < 0 && abs($ecart_asks) > 2)
       {
         print("c'est pas mal de lui acheter\n");
         //place buy order of maximum 0.02 eth
@@ -173,5 +173,6 @@ while(true)
   }
 
   take_profit($abucoinsApi, $best_buyer);
+  print("\n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n");
   sleep(30);
 }
