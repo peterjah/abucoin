@@ -2,7 +2,7 @@
 require_once('abucoin_api.php');
 
 @define('TRADE_FILE', 'tradelist');
-@define('KEEP_MIN_BTC', 0.08);
+@define('KEEP_MIN_BTC', 0.03);
 @define('KEEP_MIN_ETH', 0.65);
 
 function save_trade($ret)
@@ -68,10 +68,10 @@ function take_profit($api, $best_buyer_price)
   if($tradelist != null)
   {
     $keeporders = [];
-    foreach($tradelist as $trade)
+    foreach($tradelist as $idx => $trade)
     {
         $gain = (($best_buyer_price/$trade->price)*100 - 100);
-        print("price:{$trade->price} size:{$trade->size} profit: ".number_format($gain, 2)."%\n");
+        print("$idx - price:{$trade->price} size:{$trade->size} profit: ".number_format($gain, 2)."%\n");
         if($gain > 7)
         {
           $ret = place_order($api, "market", "sell", null, null, $trade->size);
@@ -102,9 +102,10 @@ $eth_account = $abucoinsApi->jsonRequest('GET', '/accounts/10502694-ETH', null);
 $eth_balance = $eth_account->available;
 $btc_account = $abucoinsApi->jsonRequest('GET', '/accounts/10502694-BTC', null);
 $btc_balance = $btc_account->available;
-print("btc balance = btc_balance\n");
-print("eth balance = eth_balance\n");
+print("btc balance = $btc_balance\n");
+print("eth balance = $eth_balance\n");
 
+$nbTrades=0;
 while(true)
 {
   //eth ticker
@@ -149,30 +150,32 @@ while(true)
   {
     print("\nbest abucoin buyer at  = $best_buyer ($best_buyer_vol)\n");
     print("sell at ".number_format($ecart_bids, 2)."% of the price\n");
-    if($ecart_bids > 0 && abs($ecart_bids) > 2)
+    if($ecart_bids > 0 && abs($ecart_bids) > 1.2)
     {
       print("c'est pas mal de lui vendre.\n");
       //place sell order of maximum 0.02 eth
-      if($best_buyer_vol > 0.02)
-        $best_buyer_vol = 0.02;
+      if($best_buyer_vol > 0.03)
+        $best_buyer_vol = 0.03;
 
         place_order($abucoinsApi, "limit", "sell", $best_buyer, $best_buyer_vol);
+        $nbTrades++;
     }
 
     print("\nbest abucoin seller at  = $best_seller ($best_seller_vol)\n");
     print("buy at ".number_format($ecart_asks, 2)."% of the price\n");
-    if($ecart_asks < 0 && abs($ecart_asks) > 2)
+    if($ecart_asks < 0 && abs($ecart_asks) > 1)
       {
         print("c'est pas mal de lui acheter\n");
         //place buy order of maximum 0.02 eth
-        if($best_seller_vol > 0.02)
-          $best_seller_vol = 0.02;
+        if($best_seller_vol > 0.03)
+          $best_seller_vol = 0.03;
 
           place_order($abucoinsApi, "limit", "buy", $best_seller, $best_seller_vol);
+          $nbTrades++;
       }
   }
 
   take_profit($abucoinsApi, $best_buyer);
-  print("\n $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ \n");
+  print("\n $$$$$$$$$$$$$$$$$$$$$$ $nbTrades trades filled $$$$$$$$$$$$$$$$$$$$$$$$ \n");
   sleep(30);
 }
