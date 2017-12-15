@@ -17,6 +17,7 @@ function save_trade($ret)
              "price" => $ret->price,
              "size" => $ret->size,
              "time" => $ret->created_at,
+             "fees" => $ret->fill_fees,
              "id" => $ret->id,
              ];
   $tradelist = [];

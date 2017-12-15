@@ -24,7 +24,7 @@ foreach($tradelist as $trade )
   {
     $meanbuyprice = ( $meanbuyprice*$totalbuy + $trade->size * $trade->price ) / ($totalbuy + $trade->size);
     $totalbuy += $trade->size;
-    $btc_balance -= $trade->size * $trade->price;
+    $btc_balance -= $trade->size * $trade->price - $trade->fees;
     $eth_balance += $trade->size;
   }
   else
@@ -32,7 +32,7 @@ foreach($tradelist as $trade )
     $meansellprice = ( $meansellprice*$totalsell + $trade->size * $trade->price ) / ($totalsell + $trade->size);
     $totalsell += $trade->size;
 
-    $btc_balance += $trade->size * $trade->price;
+    $btc_balance += $trade->size * $trade->price - $trade->fees;
     $eth_balance -= $trade->size;
   }
 }
