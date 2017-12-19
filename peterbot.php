@@ -16,12 +16,12 @@ $cryptoMaj = strtoupper($crypto);
 @define('BUY_FILE', "buy_$crypto.list");
 
 @define('KEEP_MIN_BTC', $keep_min_btc);
-@define("KEEP_MIN_CRYPT", $keep_min_crypto);
-@define("SELL_TRESHOLD", 1.2);
-@define("BUY_TRESHOLD", 1);
-@define("MAX_TX_BTC", 0.0005);
+@define('KEEP_MIN_CRYPT', $keep_min_crypto);
+@define('SELL_TRESHOLD', 1.2);
+@define('BUY_TRESHOLD', 1);
+@define('MAX_TX_BTC', 0.0005);
 @define('PROFIT_TRESHOLD', 5);
-
+print KEEP_MIN_CRYPT;
 
 $keys = json_decode(file_get_contents("private.keys"));
 $configAbucoins = [
@@ -67,13 +67,13 @@ function place_order($abucoinsApi, $type, $side, $price, $volume, $funds = null)
             "side"=> $side,
             "type"=> $type,
              ];
-  var_dump($order);
+
   if($do_trade)
   {
     $ret = $abucoinsApi->jsonRequest('POST', '/orders', $order);
     sleep(1);
     var_dump($ret);
-    if($ret->status == "done" || $ret->status == "closed")
+    if(!isset($ret->message) && ($ret->status == "done" || $ret->status == "closed"))
     {
       save_trade($ret, $price);
       if($side == "buy")
@@ -86,7 +86,7 @@ function place_order($abucoinsApi, $type, $side, $price, $volume, $funds = null)
       }
       return $ret;
     }
-    else print("order failed with status: {$ret->status}\n");
+    else print("order failed with status: {$ret->message}\n");
     return null;
   }
 
@@ -219,7 +219,7 @@ while(true)
   //custom safety check
   if($ecart_bids > 0 && abs($ecart_bids) > SELL_TRESHOLD)
   {
-    if($balance > floatval(KEEP_MIN_CRYPT))
+    if($balance > KEEP_MIN_CRYPT)
     {
         print("c'est pas mal de lui vendre.\n");
         $size = $best['bids']['size'];
@@ -241,7 +241,7 @@ while(true)
 
   if($ecart_asks < 0 && abs($ecart_asks) > BUY_TRESHOLD)
     {
-      if($btc_balance > floatval(KEEP_MIN_BTC))
+      if($btc_balance > KEEP_MIN_BTC)
       {
         print("c'est pas mal de lui acheter\n");
         $size = $best['bids']['size'];
