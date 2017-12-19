@@ -1,21 +1,27 @@
 <?php
-@define('TRADE_FILE', 'tradelist');
+
+$crypto = @$argv[1];
+
+if(!$crypto && !ctype_lower($crypto))
+  exit("specify a crypto to trade: ex \"php peterbot.php eth\"");
+@define('CRYPTO', strtoupper($crypto));
+@define('TRADE_FILE', "tradelist_$crypto.list");
 
 $tradelist = json_decode(file_get_contents(TRADE_FILE));
 
 //eth ticker
-$price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=EUR"), true);
+$price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=".CRYPTO."&tsyms=EUR"), true);
 $ethPrice = $price['EUR'];
 //btc ticker
 $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=EUR"), true);
 $btcPrice = $price['EUR'];
 
-$price =  json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=BTC"), true);
+$price =  json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=".CRYPTO."&tsyms=BTC"), true);
 $ethPriceBtc = $price['BTC'];
-$init_eth_bal = $tradelist[1]->init_balance_eth;
-$init_btc_bal = $tradelist[0]->init_balance_btc;
-print "$init_eth_bal\n";
-print "$init_btc_bal\n";
+//$init_eth_bal = $tradelist[1]->init_balance_eth;
+//$init_btc_bal = $tradelist[0]->init_balance_btc;
+//print "$init_eth_bal\n";
+//print "$init_btc_bal\n";
 
 $totalbuy = 0;
 $meanbuyprice = 0;
