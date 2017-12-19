@@ -9,19 +9,17 @@ if(!$crypto && !ctype_lower($crypto))
 $keep_min_btc = $argv[2];
 $keep_min_crypto = $argv[3];
 
-$cryptoMaj = strtoupper($crypto);
-
-@define('CRYPTO', $cryptoMaj);
+@define('CRYPTO', strtoupper($crypto));
 @define('TRADE_FILE', "tradelist_$crypto.list");
 @define('BUY_FILE', "buy_$crypto.list");
+@define('PENDING_ORDERS_FILE', "pending_orders_$crypto.list");
 
 @define('KEEP_MIN_BTC', $keep_min_btc);
 @define('KEEP_MIN_CRYPT', $keep_min_crypto);
-@define('SELL_TRESHOLD', 1.2);
-@define('BUY_TRESHOLD', 1);
+@define('SELL_TRESHOLD', 1.5);
+@define('BUY_TRESHOLD', 0.9);
 @define('MAX_TX_BTC', 0.0005);
-@define('PROFIT_TRESHOLD', 5);
-print KEEP_MIN_CRYPT;
+@define('PROFIT_TRESHOLD', 8);
 
 $keys = json_decode(file_get_contents("private.keys"));
 $configAbucoins = [
@@ -33,18 +31,17 @@ print("Connect to abucoin\n");
 //Init API
 $abucoinsApi = new AbucoinsApi($configAbucoins);
 $product = $abucoinsApi->jsonRequest('GET', "/products/".CRYPTO."-BTC", null);
-@define("MIN_BUY_SIZE", $product->base_min_size);
-
-
+@define('MIN_BUY_SIZE', $product->base_min_size);
+@define('MIN_STEP_CRYPTO', $product->quote_increment);
 
 function save_trade($ret, $price = 0)
 {
   print("saving trade\n");
   $new_trade = ["side" => $ret->side,
              "price" => $price ?:$ret->price,
-             "size" => $ret->side == "limit" ? $ret->size : $ret->filled_size,
+             "size" => $ret->type == "limit" ? $ret->size : $ret->filled_size,
              "time" => $ret->created_at,
-             "fees" => $ret->fill_fees,
+             "fees" => $ret->type == "limit" ? 0 : $ret->fill_fees,
              "id" => $ret->id,
              ];
   $tradelist = [];
@@ -73,16 +70,19 @@ function place_order($abucoinsApi, $type, $side, $price, $volume, $funds = null)
     $ret = $abucoinsApi->jsonRequest('POST', '/orders', $order);
     sleep(1);
     var_dump($ret);
-    if(!isset($ret->message) && ($ret->status == "done" || $ret->status == "closed"))
+    if(isset($ret->status))
     {
-      save_trade($ret, $price);
-      if($side == "buy")
+      if($order['side'] == "market")
       {
-        $buylist = [];
-        if(file_exists(TRADE_FILE))
-          $buylist = json_decode(file_get_contents(BUY_FILE));
-        $buylist[] = ["price" => $price, "size" => $volume];
-        file_put_contents(BUY_FILE, json_encode($buylist));
+        save_trade($ret, $price);
+        if($side == "buy")
+        {
+          $buylist = [];
+          if(file_exists(TRADE_FILE))
+            $buylist = json_decode(file_get_contents(BUY_FILE));
+          $buylist[] = ["price" => $price, "size" => $volume];
+          file_put_contents(BUY_FILE, json_encode($buylist));
+        }
       }
       return $ret;
     }
@@ -95,7 +95,7 @@ function place_order($abucoinsApi, $type, $side, $price, $volume, $funds = null)
 function take_profit($api, $best_bids, $balance)
 {
   print("\ntake profit. best buy price: {$best_bids['price']}\n");
-
+  $nbtrades=0;
   $tradelist = [];
   if(file_exists(BUY_FILE))
     $tradelist = json_decode(file_get_contents(BUY_FILE));
@@ -118,10 +118,12 @@ function take_profit($api, $best_bids, $balance)
             $keeorders[] = $trade;
           }
 
-          $ret = place_order($api, "market", "sell", $trade->price, null, $size, $funds);
+          $ret = place_order($api, "market", "sell", $trade->price, $size, $funds);
           sleep(1);
           if(isset($ret) && $ret->status == "closed")
-            save_trade($ret);
+          {
+            $nbtrades++;
+          }
           else print "order failed";
           var_dump($ret);
         }
@@ -129,16 +131,36 @@ function take_profit($api, $best_bids, $balance)
     }
     file_put_contents(BUY_FILE, json_encode($keeporders));
   }
+  return $nbtrades;
 }
 
-function take_profit_limit($api, $product, $best_seller_price, $orderId)
+function take_profit_limit($api, $best_asks, $marketPrice, $balance)
 {
+  print("Take_profit_limit ask is {$best_asks['price']}\n");
+  $tradelist = [];
+  $nbtrades=0;
+  if(file_exists(PENDING_ORDERS_FILE))
+    $orderId = json_decode(file_get_contents(PENDING_ORDERS_FILE));
 
-  $tradelist = json_decode(file_get_contents(BUY_FILE));
-
-  if($tradelist != null)
+  if(isset($orderId) && $orderId->id != "")
   {
-    $lowerbuy=100;
+    $order = $api->jsonRequest('GET', "/orders/{$orderId->id}", null);
+    if($order->status == "closed")
+    {
+      print("Limit order {$orderId->id} passed!\n");
+      var_dump($order);
+      save_trade($order);
+      $nbtrades=1;
+    } else print("Limit order {$orderId->id} not passed\n");
+
+    $api->jsonRequest('DELETE', "/orders/$order->id", null);
+  }
+  if(file_exists(BUY_FILE))
+    $tradelist = json_decode(file_get_contents(BUY_FILE));
+
+  if(count($tradelist) > 0)
+  {
+    $lowerbuy=PHP_INT_MAX;
     foreach($tradelist as $trade)
     {
       if($trade->price < $lowerbuy)
@@ -147,28 +169,29 @@ function take_profit_limit($api, $product, $best_seller_price, $orderId)
         $lowertrade = $trade;
       }
     }
+    $size = $lowertrade->size;
     $sellprice = $lowertrade->price + $lowertrade->price * (PROFIT_TRESHOLD/100);
-    if($sellprice < $best_seller_price)
-      $sellprice = $best_seller_price - 0.0001;
-    print("place order at $sellprice\n");
-    if($orderId)
-    {
-      $inOrder = $abucoinsApi->jsonRequest('GET', "/orders/$orderId", null);
-      if($inOrder->status == "closed")
-        save_trade($inOrder);
-    }
-     var_dump($inOrder);
-    if(!isset($inOrder) || $inOrder->status == "closed")
-      {
-       $ret = place_order($api, $product, "limit", "sell", $sellprice, $lowertrade->size);
-       return $ret->id;
-      }
   }
-  return $orderId;
+  else
+  {
+    $size = $balance * 0.1; //place X% of the balance
+    $size = $size > MIN_BUY_SIZE ? $size : MIN_BUY_SIZE;
+    $sellprice = $marketPrice + $marketPrice * (PROFIT_TRESHOLD/100);
+  }
+  if($sellprice < $best_asks['price'])
+    $sellprice = $best_asks['price'] - MIN_STEP_CRYPTO;
+
+  print("place order of $size at $sellprice\n");
+
+  $ret = place_order($api, "limit", "sell", $sellprice, $size);
+  file_put_contents(PENDING_ORDERS_FILE, json_encode(["id" => $ret->id]));
+  $order = $api->jsonRequest('GET', "/orders/$ret->id", null);
+  //var_dump($order);
+  return $nbtrades;
 }
 
 //Balances
-$account = $abucoinsApi->jsonRequest('GET', "/accounts/10502694-{$cryptoMaj}", null);
+$account = $abucoinsApi->jsonRequest('GET', "/accounts/10502694-".CRYPTO, null);
 $balance = $account->available;
 $btc_account = $abucoinsApi->jsonRequest('GET', '/accounts/10502694-BTC', null);
 $btc_balance = $btc_account->available;
@@ -179,21 +202,21 @@ $nbTrades=0;
 while(true)
 {
   //ticker
-  $ticker = "https://min-api.cryptocompare.com/data/price?fsym={$cryptoMaj}&tsyms=BTC";
+  $ticker = "https://min-api.cryptocompare.com/data/price?fsym=".CRYPTO."&tsyms=BTC";
   $marketPrice = json_decode(file_get_contents($ticker), true);
   if($marketPrice == null)
     continue;
   $marketPrice = $marketPrice['BTC'];
 
   //Abucoins price
-  $ticker = $abucoinsApi->jsonRequest('GET', "/products/{$cryptoMaj}-BTC/ticker", null);
+  $ticker = $abucoinsApi->jsonRequest('GET', "/products/".CRYPTO."-BTC/ticker", null);
   $abuPrice = $ticker->price;
 
   print("cryptocompare $crypto price = $marketPrice\n");
   print("abucoins $crypto price = $abuPrice\n");
 
   //Get order book
-  $orderbook = $abucoinsApi->jsonRequest('GET', "/products/{$cryptoMaj}-BTC/book?level=2", null);
+  $orderbook = $abucoinsApi->jsonRequest('GET', "/products/".CRYPTO."-BTC/book?level=2", null);
 
   foreach( ['asks', 'bids'] as $side)
   {
@@ -259,9 +282,11 @@ while(true)
 
       } else print("not enough BTC\n");
     }
-
- // $orderId = take_profit_limit($abucoinsApi, $best_seller, $orderId);
-  take_profit($abucoinsApi, $best['bids'], $balance);
+  if($balance > KEEP_MIN_CRYPT)
+  {
+    $nbTrades += take_profit_limit($abucoinsApi, $best['asks'], $marketPrice, $balance);
+    //$nbTrades += take_profit($abucoinsApi, $best['bids'], $balance);
+  } else print("not enough $crypto to take profit\n");
   print("\n $$$$$$$$$$$$$$$$$$$$$$ $nbTrades trades filled $$$$$$$$$$$$$$$$$$$$$$$$ \n");
   sleep(30);
 }
