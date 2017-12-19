@@ -191,16 +191,19 @@ function take_profit_limit($api, $best_asks, $marketPrice, $balance)
 }
 
 //Balances
-$account = $abucoinsApi->jsonRequest('GET', "/accounts/10502694-".CRYPTO, null);
-$balance = $account->available;
-$btc_account = $abucoinsApi->jsonRequest('GET', '/accounts/10502694-BTC', null);
-$btc_balance = $btc_account->available;
-print("btc balance = $btc_balance\n");
-print("$crypto balance = $balance\n");
+
+
 $orderId=0;
 $nbTrades=0;
 while(true)
 {
+  $account = $abucoinsApi->jsonRequest('GET', "/accounts/10502694-".CRYPTO, null);
+  $btc_account = $abucoinsApi->jsonRequest('GET', '/accounts/10502694-BTC', null);
+  $balance = $account->available;
+  $btc_balance = $btc_account->available;
+  print("btc balance = $btc_balance\n");
+  print("$crypto balance = $balance\n");
+
   //ticker
   $ticker = "https://min-api.cryptocompare.com/data/price?fsym=".CRYPTO."&tsyms=BTC";
   $marketPrice = json_decode(file_get_contents($ticker), true);
