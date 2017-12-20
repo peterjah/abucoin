@@ -70,15 +70,15 @@ function place_order($abucoinsApi, $type, $side, $price, $volume, $funds = null)
     $ret = $abucoinsApi->jsonRequest('POST', '/orders', $order);
     sleep(1);
     var_dump($ret);
-    if(isset($ret->status))
+    if($ret->status != "")
     {
-      if($order['side'] == "market")
+      if($order['type'] == "market")
       {
         save_trade($ret, $price);
         if($side == "buy")
         {
           $buylist = [];
-          if(file_exists(TRADE_FILE))
+          if(file_exists(BUY_FILE))
             $buylist = json_decode(file_get_contents(BUY_FILE));
           $buylist[] = ["price" => $price, "size" => $volume];
           file_put_contents(BUY_FILE, json_encode($buylist));
