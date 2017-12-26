@@ -10,9 +10,9 @@ class AbucoinsApi
 
     public function __construct($settings)
     {
-        $this->secret = $settings['secret'];
-        $this->accesskey = $settings['access_key'];
-        $this->passphrase = $settings['passphrase'];
+        $this->secret = $settings->secret;
+        $this->accesskey = $settings->access_key;
+        $this->passphrase = $settings->passphrase;
         $this->timestamp = time();
     }
 

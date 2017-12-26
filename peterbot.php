@@ -21,15 +21,12 @@ $keep_min_crypto = $argv[3];
 @define('MAX_TX_BTC', 0.0005);
 @define('PROFIT_TRESHOLD', 8);
 
-$keys = json_decode(file_get_contents("private.keys"));
-$configAbucoins = [
-    'secret' => $keys->secret,
-    'access_key' => $keys->access_key,
-    'passphrase' => $keys->passphrase
-];
-print("Connect to abucoin\n");
 //Init API
-$abucoinsApi = new AbucoinsApi($configAbucoins);
+print("Connect to abucoin\n");
+$keys = json_decode(file_get_contents("private.keys"));
+$abucoinsApi = new AbucoinsApi($keys->abucoins);
+
+//Get product options
 $product = $abucoinsApi->jsonRequest('GET', "/products/".CRYPTO."-BTC", null);
 @define('MIN_BUY_SIZE', $product->base_min_size);
 @define('MIN_STEP_CRYPTO', $product->quote_increment);
