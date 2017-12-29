@@ -3,7 +3,7 @@
 $crypto = @$argv[1];
 
 if(!$crypto && !ctype_lower($crypto))
-  exit("specify a crypto to trade: ex \"php peterbot.php eth\"");
+  exit("specify a crypto: ex \"php trade_balance_sheet.php eth\"");
 @define('CRYPTO', strtoupper($crypto));
 @define('TRADE_FILE', "tradelist_$crypto.list");
 
@@ -51,13 +51,17 @@ foreach($tradelist as $trade )
   }
 }
 
-print("totalbuy = $totalbuy ETH\n");
+print("totalbuy = $totalbuy ".CRYPTO."\n");
 print("meanbuyprice = $meanbuyprice BTC\n");
-print("totalsell = $totalsell ETH\n");
+print("totalsell = $totalsell ".CRYPTO."\n");
 print("meansellprice = $meansellprice BTC\n\n");
+
+print("Mean gain: ".($totalsell*$meansellprice - $totalbuy*$meanbuyprice)." BTC\n");
 
 print("BTC BALANCE = $btc_balance BTC (=".($btc_balance*$btcPrice)."EUR\n");
 print("ETH BALANCE = $eth_balance ETH(=".($eth_balance*$ethPrice)."EUR\n");
 
 print("Total gain: ".($btc_balance*$btcPrice + $eth_balance*$ethPrice)."EUR\n");
-print("Total gain: ".($btc_balance + $eth_balance*$ethPriceBtc)."BTC\n");
+print("Total gain: ".($btc_balance + $eth_balance*$ethPriceBtc)."".CRYPTO."\n");
+
+
