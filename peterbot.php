@@ -67,7 +67,7 @@ function place_order($abucoinsApi, $type, $side, $price, $volume, $funds = null)
     $ret = $abucoinsApi->jsonRequest('POST', '/orders', $order);
     sleep(1);
     var_dump($ret);
-    if($ret->status != "")
+    if(isset($ret->status))
     {
       if($order['type'] == "market")
       {
@@ -77,7 +77,7 @@ function place_order($abucoinsApi, $type, $side, $price, $volume, $funds = null)
           $buylist = [];
           if(file_exists(BUY_FILE))
             $buylist = json_decode(file_get_contents(BUY_FILE));
-          $buylist[] = ["price" => $price, "size" => $volume];
+          $buylist[] = ["price" => $price, "size" => $volume, "id" => $ret->id];
           file_put_contents(BUY_FILE, json_encode($buylist));
         }
       }
@@ -131,37 +131,66 @@ function take_profit($api, $best_bids, $balance)
   return $nbtrades;
 }
 
+function delete_limit_order($api)
+{
+  $nbtrades=0;
+  if(file_exists(PENDING_ORDERS_FILE))
+    $orderId = json_decode(file_get_contents(PENDING_ORDERS_FILE));
+
+  if(isset($orderId->id) && $orderId->id != "")
+  {
+    $order = $api->jsonRequest('GET', "/orders/{$orderId->id}", null);
+    if($order->filled_size > 0)
+    {
+      if($order->status == "closed")
+      {
+        print("Limit order {$orderId->id} passed!\n");
+        var_dump($order);
+        save_trade($order);
+        $nbtrades=1;
+
+        //delete order from buy list
+        if($orderId->buyId != -1)
+        {
+          $buylist = json_decode(file_get_contents(BUY_FILE));
+          foreach( $buylist as $idx => $buy)
+            if($buy->id == $orderId->buyId)
+            {
+              unset($buylist[$idx]);
+              break;
+            }
+          file_put_contents(BUY_FILE, json_encode($buylist));
+        }
+        file_put_contents(PENDING_ORDERS_FILE, json_encode("{}"));
+      }
+      elseif ($order->status == "pending")
+      {
+
+      }
+    }
+    else print("Limit order {$orderId->id} not passed\n");
+
+    $api->jsonRequest('DELETE', "/orders/$order->id", null);
+  }
+  return $nbtrades;
+}
 function take_profit_limit($api, $best_asks, $marketPrice, $balance)
 {
   print("Take_profit_limit ask is {$best_asks['price']}\n");
   $tradelist = [];
   $nbtrades=0;
-  if(file_exists(PENDING_ORDERS_FILE))
-    $orderId = json_decode(file_get_contents(PENDING_ORDERS_FILE));
 
-  if(isset($orderId) && $orderId->id != "")
-  {
-    $order = $api->jsonRequest('GET', "/orders/{$orderId->id}", null);
-    if($order->status == "closed")
-    {
-      print("Limit order {$orderId->id} passed!\n");
-      var_dump($order);
-      save_trade($order);
-      $nbtrades=1;
-    } else print("Limit order {$orderId->id} not passed\n");
-
-    $api->jsonRequest('DELETE', "/orders/$order->id", null);
-  }
   if(file_exists(BUY_FILE))
     $tradelist = json_decode(file_get_contents(BUY_FILE));
 
-  if(count($tradelist) > 0)
+  if(!empty($tradelist))
   {
     $lowerbuy=PHP_INT_MAX;
     foreach($tradelist as $trade)
     {
       if($trade->price < $lowerbuy)
       {
+        $buyId = isset($trade->id)?$trade->id : -1;
         $lowerbuy = $trade->price;
         $lowertrade = $trade;
       }
@@ -171,6 +200,7 @@ function take_profit_limit($api, $best_asks, $marketPrice, $balance)
   }
   else
   {
+    $buyId = -1;
     $size = $balance * 0.1; //place X% of the balance
     $size = $size > MIN_BUY_SIZE ? $size : MIN_BUY_SIZE;
     $sellprice = $marketPrice + $marketPrice * (PROFIT_TRESHOLD/100);
@@ -181,9 +211,8 @@ function take_profit_limit($api, $best_asks, $marketPrice, $balance)
   print("place order of $size at $sellprice\n");
 
   $ret = place_order($api, "limit", "sell", $sellprice, $size);
-  file_put_contents(PENDING_ORDERS_FILE, json_encode(["id" => $ret->id]));
-  $order = $api->jsonRequest('GET', "/orders/$ret->id", null);
-  //var_dump($order);
+  if(isset($ret->status))
+    file_put_contents(PENDING_ORDERS_FILE, json_encode(["id" => $ret->id, "buyId" => $buyId]));
   return $nbtrades;
 }
 
@@ -215,8 +244,14 @@ while(true)
   print("cryptocompare $crypto price = $marketPrice\n");
   print("abucoins $crypto price = $abuPrice\n");
 
+
+  //delete limit orders to avoid buy/sell our own order
+  $nbTrades += delete_limit_order($abucoinsApi);
+
   //Get order book
   $orderbook = $abucoinsApi->jsonRequest('GET', "/products/".CRYPTO."-BTC/book?level=2", null);
+  if(!$orderbook)
+  continue;
 
   foreach( ['asks', 'bids'] as $side)
   {
