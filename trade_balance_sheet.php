@@ -62,6 +62,6 @@ print("BTC BALANCE = $btc_balance BTC (=".number_format($btc_balance*$btcPrice, 
 print(CRYPTO." BALANCE = $eth_balance ".CRYPTO."(=".number_format($eth_balance*$ethPrice, 2)."EUR)\n");
 
 print("Total gain: ".number_format($btc_balance*$btcPrice + $eth_balance*$ethPrice, 2)." EUR\n");
-print("Total gain: ".number_format($btc_balance + $eth_balance*$ethPriceBtc, 5)." BTC"\n");
+print("Total gain: ".number_format($btc_balance + $eth_balance*$ethPriceBtc, 5)." BTC\n");
 
 
