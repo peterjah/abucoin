@@ -9,7 +9,7 @@ if(!$crypto && !ctype_lower($crypto))
 
 $tradelist = json_decode(file_get_contents(TRADE_FILE));
 
-//eth ticker
+//ticker
 $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=".CRYPTO."&tsyms=EUR"), true);
 $ethPrice = $price['EUR'];
 //btc ticker
@@ -58,10 +58,10 @@ print("meansellprice = $meansellprice BTC\n\n");
 
 print("Mean gain: ".($totalsell*$meansellprice - $totalbuy*$meanbuyprice)." BTC\n");
 
-print("BTC BALANCE = $btc_balance BTC (=".($btc_balance*$btcPrice)."EUR\n");
-print("ETH BALANCE = $eth_balance ETH(=".($eth_balance*$ethPrice)."EUR\n");
+print("BTC BALANCE = $btc_balance BTC (=".number_format($btc_balance*$btcPrice, 2)."EUR)\n");
+print(CRYPTO." BALANCE = $eth_balance ".CRYPTO."(=".number_format($eth_balance*$ethPrice, 2)."EUR)\n");
 
-print("Total gain: ".($btc_balance*$btcPrice + $eth_balance*$ethPrice)."EUR\n");
-print("Total gain: ".($btc_balance + $eth_balance*$ethPriceBtc)."".CRYPTO."\n");
+print("Total gain: ".number_format($btc_balance*$btcPrice + $eth_balance*$ethPrice, 2)." EUR\n");
+print("Total gain: ".number_format($btc_balance + $eth_balance*$ethPriceBtc, 5)." ".CRYPTO."\n");
 
 
