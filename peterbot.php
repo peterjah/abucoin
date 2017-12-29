@@ -156,7 +156,7 @@ function delete_limit_order($api)
           foreach( $buylist as $idx => $buy)
             if($buy->id == $orderId->buyId)
             {
-              unset($buylist[$idx]);
+              unset($buylist->$idx);
               break;
             }
           file_put_contents(BUY_FILE, json_encode($buylist));
