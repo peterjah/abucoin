@@ -1,5 +1,5 @@
 <?php
-require_once('abucoin_api.php');
+require_once('../common/abucoin_api.php');
 
 $crypto = @$argv[1];
 
@@ -23,7 +23,7 @@ $keep_min_crypto = $argv[3];
 
 //Init API
 print("Connect to abucoin\n");
-$keys = json_decode(file_get_contents("private.keys"));
+$keys = json_decode(file_get_contents("../common/private.keys"));
 $abucoinsApi = new AbucoinsApi($keys->abucoins);
 
 //Get product options
