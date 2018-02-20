@@ -15,7 +15,7 @@ class CryptopiaApi
     public function jsonRequest($path, array $datas = array())
     {
         $public_set = array( "GetCurrencies", "GetTradePairs", "GetMarkets", "GetMarket", "GetMarketHistory", "GetMarketOrders" );
-        $private_set = array( "GetBalance", "GetDepositAddress", "GetOpenOrders", "GetTradeHistory", "GetTransactions", "SubmitTrade", "CancelTrade", "SubmitTip" );
+        //$private_set = array( "GetBalance", "GetDepositAddress", "GetOpenOrders", "GetTradeHistory", "GetTransactions", "SubmitTrade", "CancelTrade", "SubmitTip" );
         $ch = curl_init();
         $url = static::API_URL . "$path";
         $nonce = time();
@@ -24,7 +24,14 @@ class CryptopiaApi
         $hmacsignature = base64_encode( hash_hmac("sha256", $signature, base64_decode( $this->privateKey ), true ) );
         $header_value = "amx " . $this->publicKey . ":" . $hmacsignature . ":" . $nonce;
 
-        if ( !in_array( $path ,$public_set ) ) {
+        $i = 1;
+        $pathLength = count(explode('/', $path));
+        while($i < $pathLength)
+        {
+          $path = dirname($path);
+          $i++;
+        }
+        if ( !in_array($path ,$public_set ) ) {
           curl_setopt($ch, CURLOPT_HTTPHEADER, array(
           'Content-Type: application/json; charset=utf-8',
           "Authorization: $header_value",
@@ -39,6 +46,15 @@ class CryptopiaApi
         curl_setopt($ch, CURLOPT_FRESH_CONNECT, TRUE); // Do Not Cache
         $server_output = curl_exec($ch);
         curl_close($ch);
-        return json_decode($server_output);
+
+        $response = json_decode($server_output);
+        if(isset($response->Success))
+        {
+          if ($response->Success)
+            return $response->Data;
+          else
+            return $response->Error;
+        }
+        else return $response->Message;
     }
 }

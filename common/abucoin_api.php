@@ -7,6 +7,7 @@ class AbucoinsApi
     protected $secret;
     protected $passphrase;
     protected $timestamp;
+    public $nApicalls;
 
     public function __construct($settings)
     {
@@ -14,10 +15,12 @@ class AbucoinsApi
         $this->accesskey = $settings->access_key;
         $this->passphrase = $settings->passphrase;
         $this->timestamp = time();
+        $this->nApicalls = 0;
     }
 
     public function jsonRequest($method, $path, $datas)
     {
+        $this->nApicalls++;
         $this->timestamp = time();
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
@@ -45,6 +48,11 @@ class AbucoinsApi
         $timestamp = $timestamp ? $timestamp : time();
         $what = $timestamp . $method . $request_path . $body;
         return base64_encode(hash_hmac("sha256", $what, base64_decode($this->secret), true));
+    }
+
+    public function getApiCall()
+    {
+      return $this->nApicalls;
     }
 
 }
