@@ -182,7 +182,7 @@ function place_limit_order($api, $alt, $side, $price, $volume)
     }
   }
 
-  if ($error != '')
+  if ($error == '')
   {
     save_trade($ret, $price);
     return $trade_id;
