@@ -111,7 +111,7 @@ class OrderBook
           $lowest_ask['size'] += $book->Sell[$i]->Volume;
           $i++;
         }
-
+      var_dump($best);
       return $best;
     }
     else throw "wrong api provided";
@@ -170,9 +170,12 @@ function place_limit_order($api, $alt, $side, $price, $volume)
            ];
     $ret = $api->jsonRequest('SubmitTrade', $order);
     sleep(1);
+    print "cryptopia trade says:\n";
     var_dump($ret);
-    if(!$ret->Success)
-      $error = $ret->Error;
+    if(!isset($ret->Success))
+    {
+      $error = $ret;
+    }
     else
     {
       $trade_id = $ret->Data->OrderId;

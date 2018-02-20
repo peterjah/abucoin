@@ -9,7 +9,7 @@ $CryptopiaApi = new CryptopiaApi($keys->cryptopia);
 $profit = 0;
 while(true)
 {
-  foreach( ['GNT' ,'HSR', 'LTC', 'XMR', 'STRAT', 'ETC', 'TRX', 'ETH', 'ARK', 'BCH', 'REP'] as $alt)
+  foreach( ['GNT' ,'HSR', 'LTC', 'XMR', 'STRAT', 'ETC', 'TRX', 'ETH', 'ARK', 'BCH', 'REP', 'DASH'] as $alt)
   {
     $AbuOrderbook = new OrderBook($abucoinsApi, "$alt-BTC");
     $abuBook = $AbuOrderbook->book;
@@ -71,14 +71,19 @@ while(true)
       fclose($handle);
 
       if($btc_to_spend < $btc_bal)
-        place_limit_order($CryptopiaApi, $alt, 'buy', $cryptBook['asks']['price'], $tradeSize);
+      {
+        if($tradeSize < $balance)
+        {
+          place_limit_order($abucoinsApi, $alt, 'sell', $abuBook['bids']['price'], $tradeSize);
+          place_limit_order($CryptopiaApi, $alt, 'buy', $cryptBook['asks']['price'], $tradeSize);
+        }
+        else
+          print "not enough $alt \n";
+      }
       else
         print "not enough BTC \n";
 
-      if($tradeSize < $balance)
-        place_limit_order($abucoinsApi, $alt, 'sell', $abuBook['bids']['price'], $tradeSize);
-      else
-        print "not enough $alt \n";
+
     }
 
     sleep(2);
