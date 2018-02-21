@@ -11,6 +11,7 @@ class product
   public $min_order_size_alt;
   public $min_order_size_btc;
   public $fees;
+  public $increment;
 
   public function __construct($api, $product_id)
   {
@@ -21,6 +22,7 @@ class product
       $this->id = $product_id;
       $product = $this->api->jsonRequest('GET', "/products/{$this->id}", null);
       $this->min_order_size_alt = $product->base_min_size;
+      $this->increment = $product->quote_increment;
       $this->fees = 0; //til end of March
     }
     elseif($api instanceof CryptopiaApi)
@@ -41,7 +43,7 @@ class product
 class OrderBook
 {
   protected $api;
-  protected $product;
+  public $product;
 
   public $book;
   public $fees;
@@ -111,30 +113,17 @@ class OrderBook
           $lowest_ask['size'] += $book->Sell[$i]->Volume;
           $i++;
         }
-      var_dump($best);
       return $best;
     }
     else throw "wrong api provided";
   }
 }
 
-function save_trade($ret, $price = 0)
+function save_trade($exchange, $id, $alt, $side, $size, $price)
 {
   print("saving trade\n");
-  //~ $new_trade = ["side" => $ret->side,
-             //~ "price" => $price ?:$ret->price,
-             //~ "size" => $ret->type == "limit" ? $ret->size : $ret->filled_size,
-             //~ "time" => $ret->created_at,
-             //~ "fees" => $ret->type == "limit" ? 0 : $ret->fill_fees,
-             //~ "id" => $ret->id,
-             //~ ];
-  //~ $tradelist = [];
-  //~ if(file_exists(TRADE_FILE))
-  //~ {
-    //~ $tradelist = json_decode(file_get_contents(TRADE_FILE));
-  //~ }
-  //~ $tradelist[] = $new_trade;
-  //~ file_put_contents(TRADE_FILE, json_encode($tradelist));
+  $trade_str = "$exchange: trade $id: $side $size $alt at $price\n";
+  file_put_contents('trades',$trade_str,FILE_APPEND);
 }
 
 function place_limit_order($api, $alt, $side, $price, $volume)
@@ -152,13 +141,15 @@ function place_limit_order($api, $alt, $side, $price, $volume)
     var_dump($order);
     $ret = $api->jsonRequest('POST', '/orders', $order);
     sleep(1);
+    print "abucoin trade says:\n";
     var_dump($ret);
 
     if(!isset($ret->status))
-      $error = $ret->message;
+      $error = $ret->message ?: 'unknown error';
     else
     {
-      $trade_id = $ret->id;
+      save_trade('Abucoins', $ret->id, $alt, $side, $volume, $price);
+      return $ret->id;
     }
   }
   elseif($api instanceof CryptopiaApi)
@@ -172,21 +163,22 @@ function place_limit_order($api, $alt, $side, $price, $volume)
     sleep(1);
     print "cryptopia trade says:\n";
     var_dump($ret);
-    if(!isset($ret->Success))
+    if(!isset($ret->OrderId) && !isset($ret->FilledOrders))
     {
-      $error = $ret;
+      $error = $ret ?: 'unknown error';
     }
     else
     {
-      $trade_id = $ret->Data->OrderId;
+      $trade_id = $ret->OrderId ?:$ret->FilledOrders[0];
+      save_trade('Cryptopia', $trade_id, $alt, $side, $volume, $price);
+      return $trade_id;
     }
   }
 
-  if ($error == '')
-  {
-    save_trade($ret, $price);
-    return $trade_id;
-  }
-  else
-    throw new Exception("order failed with status: $error\n");
+  throw new Exception("order failed with status: $error\n");
+}
+
+function ceiling($number, $significance = 1)
+{
+    return ( is_numeric($number) && is_numeric($significance) ) ? (ceil($number/$significance)*$significance) : false;
 }
