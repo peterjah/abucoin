@@ -9,7 +9,7 @@ $CryptopiaApi = new CryptopiaApi($keys->cryptopia);
 $profit = 0;
 while(true)
 {
-  foreach( ['GNT' ,'HSR', 'LTC', 'XMR', 'STRAT', 'ETC', 'TRX', 'ETH', 'ARK', 'BCH', 'REP', 'DASH'] as $alt)
+  foreach( ['GNT' ,'HSR', 'LTC', 'XMR', 'STRAT', 'ETC', 'TRX', 'ETH', 'ARK', 'BCH', 'REP', 'DASH', 'ZEC'] as $alt)
   {
     print "Testing $alt trade\n";
     $AbuOrderbook = new OrderBook($abucoinsApi, "$alt-BTC");
