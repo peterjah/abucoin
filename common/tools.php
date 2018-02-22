@@ -159,6 +159,7 @@ function place_limit_order($api, $alt, $side, $price, $volume)
           'Rate' =>  $price,
           'Amount' => $volume,
            ];
+    var_dump($order);           
     $ret = $api->jsonRequest('SubmitTrade', $order);
     sleep(1);
     print "cryptopia trade says:\n";

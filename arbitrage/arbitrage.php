@@ -17,21 +17,6 @@ while(true)
     $CryptOrderbook = new OrderBook($CryptopiaApi, "$alt-BTC");
     $cryptBook = $CryptOrderbook->book;
 
-    //~ print "buy {$abuBook['asks']['size']}$alt on Abucoins at {$abuBook['asks']['price']}BTC\n";
-    //~ print "sell {$cryptBook['bids']['size']}$alt on Cryptopia at {$cryptBook['bids']['price']}BTC\n";
-     $gain_percent = (($cryptBook['bids']['price']/$abuBook['asks']['price'])-1)*100;
-    //~ print "gain $gain_percent%\n";
-    $tradeSize = $cryptBook['bids']['size'] > $abuBook['asks']['size'] ? $abuBook['asks']['size'] : $cryptBook['bids']['size'];
-    $gain1 = $tradeSize * ($cryptBook['bids']['price']*((100-$CryptOrderbook->fees)/100) - $abuBook['asks']['price']);
-     $gain1_str = "gain1: buy $tradeSize $alt on abu sell cryptop: ".$gain1."BTC (".number_format($gain_percent,2)."%)\n";
-    //~ print "$gain1_str";
-    if($gain1>0)
-    {
-      $profit+=$gain1;
-      file_put_contents('gain1',$gain1_str,FILE_APPEND);
-    }
-
-
     $gain_percent = (($cryptBook['bids']['price']/$abuBook['asks']['price'])-1)*100 - $CryptOrderbook->fees;
     $tradeSize = $cryptBook['bids']['size'] > $abuBook['asks']['size'] ? $abuBook['asks']['size'] : $cryptBook['bids']['size'];
     $gain = $tradeSize * ($cryptBook['bids']['price']*((100-$CryptOrderbook->fees)/100) - $abuBook['asks']['price']);
@@ -120,7 +105,7 @@ while(true)
       print "GAIN ".number_format($gain_percent,2)."%\n";
 
       //truncate tradesize
-      $tradeSize = ceiling($tradeSize, $CryptOrderbook->product->$increment);
+      $tradeSize = ceiling($tradeSize, $CryptOrderbook->product->increment);
 
       if($btc_to_spend < $btc_bal)
       {
