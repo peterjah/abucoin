@@ -24,6 +24,7 @@ class product
       $this->min_order_size_alt = $product->base_min_size;
       $this->increment = $product->quote_increment;
       $this->fees = 0; //til end of March
+      $this->min_order_size_btc = 0;
     }
     elseif($api instanceof CryptopiaApi)
     {
@@ -32,7 +33,7 @@ class product
       foreach( $pairs as $pair)
         if($pair->Label == str_replace('_', '/', $this->id))
         {
-          $this->min_order_size_alt = $pair->MinimumTrade;
+          $this->min_order_size_alt = $this->increment = $pair->MinimumTrade;
           $this->min_order_size_btc = $pair->MinimumBaseTrade;
           $this->fees = $pair->TradeFee;
         }
@@ -42,11 +43,10 @@ class product
 
 class OrderBook
 {
-  protected $api;
+  public $api;
   public $product;
-
   public $book;
-  public $fees;
+
 
   public function __construct($api, $product_id)
   {
@@ -122,7 +122,7 @@ class OrderBook
 function save_trade($exchange, $id, $alt, $side, $size, $price)
 {
   print("saving trade\n");
-  $trade_str = "$exchange: trade $id: $side $size $alt at $price\n";
+  $trade_str = date("Y-m-d H:i:s").": $exchange: trade $id: $side $size $alt at $price\n";
   file_put_contents('trades',$trade_str,FILE_APPEND);
 }
 
@@ -159,7 +159,7 @@ function place_limit_order($api, $alt, $side, $price, $volume)
           'Rate' =>  $price,
           'Amount' => $volume,
            ];
-    var_dump($order);           
+    var_dump($order);
     $ret = $api->jsonRequest('SubmitTrade', $order);
     sleep(1);
     print "cryptopia trade says:\n";
@@ -177,6 +177,71 @@ function place_limit_order($api, $alt, $side, $price, $volume)
   }
 
   throw new Exception("order failed with status: $error\n");
+}
+
+function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
+{
+  $sell_api = $sell_market->api;
+  $buy_api = $buy_market->api;
+
+  //retrive alt to trade
+  if(preg_match('/(.*)[_-]BTC/', $sell_market->product->id, $matches))
+    $alt = $matches[1];
+  print "do arbitrage for $alt\n";
+
+  $btc_bal = $buy_api->getBalance('BTC');
+  $alt_bal = $sell_api->getBalance($alt);
+
+  print "balances: $btc_bal BTC; $alt_bal $alt \n";
+
+  $min_buy_btc = $buy_market->product->min_order_size_btc;
+  $min_buy_alt = $buy_market->product->min_order_size_alt;
+  $min_sell_btc = $sell_market->product->min_order_size_btc;
+  $min_sell_alt = $sell_market->product->min_order_size_alt;
+
+  $btc_to_spend = $buy_price * $tradeSize;
+  if($btc_to_spend > 0.005)//dont be greedy for testing !!
+  {
+    $btc_to_spend = 0.005;
+    $tradeSize = $btc_to_spend / $buy_price;
+  }
+  if($alt_bal > 0 && $tradeSize > $alt_bal)
+    $tradeSize = $alt_bal;
+
+  if($btc_to_spend < $min_buy_btc || $btc_to_spend < $min_sell_btc)
+  {
+    print "insufisent tradesize to process. min_buy_btc = $min_buy_btc min_sell_btc = $min_sell_btc BTC\n";
+    return;
+  }
+
+  if($tradeSize < $min_sell_alt || $tradeSize < $min_buy_alt)
+  {
+    print "insufisent tradesize to process. min_sell_alt = $min_sell_alt min_buy_alt = $min_buy_alt $alt\n";
+    return;
+  }
+
+  //ceil tradesize
+  $tradeSize = ceiling($tradeSize, $buy_market->product->increment);
+
+  print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price BTC\n";
+  print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC\n";
+
+  if($btc_to_spend < $btc_bal)
+  {
+    if($tradeSize <= $alt_bal)
+    {
+      print "btc_to_spend = $btc_to_spend for $tradeSize $alt\n";
+
+      place_limit_order($buy_api, $alt, 'buy', $buy_price, $tradeSize);
+      place_limit_order($sell_api, $alt, 'sell', $sell_price, $tradeSize);
+
+      return $btc_to_spend;
+    }
+    else
+      print "not enough $alt \n";
+  }
+  else
+    print "not enough BTC \n";
 }
 
 function ceiling($number, $significance = 1)
