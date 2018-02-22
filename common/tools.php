@@ -83,7 +83,7 @@ class OrderBook
       }
       return $best;
     }
-    elseif($this->api instanceof CryptopiaApi)//todo: Minimum total trade is 0.00050000 BTC"
+    elseif($this->api instanceof CryptopiaApi)//todo: factorize and tweek
     {
       $book = $this->api->jsonRequest("GetMarketOrders/{$this->product->id}/10");
 
@@ -208,23 +208,23 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
   if($alt_bal > 0 && $tradeSize > $alt_bal)
     $tradeSize = $alt_bal;
 
+  print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price BTC = ".($buy_price*$tradeSize)."BTC\n";
+  print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC = ".($buy_price*$tradeSize)."BTC\n";
+
   if($btc_to_spend < $min_buy_btc || $btc_to_spend < $min_sell_btc)
-  {
+  { //will be removed by tweeking orderbook feed
     print "insufisent tradesize to process. min_buy_btc = $min_buy_btc min_sell_btc = $min_sell_btc BTC\n";
-    return;
+    return null;
   }
 
   if($tradeSize < $min_sell_alt || $tradeSize < $min_buy_alt)
   {
     print "insufisent tradesize to process. min_sell_alt = $min_sell_alt min_buy_alt = $min_buy_alt $alt\n";
-    return;
+    return null;
   }
 
   //ceil tradesize
   $tradeSize = ceiling($tradeSize, $buy_market->product->increment);
-
-  print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price BTC\n";
-  print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC\n";
 
   if($btc_to_spend < $btc_bal)
   {
@@ -242,6 +242,7 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
   }
   else
     print "not enough BTC \n";
+  return null;
 }
 
 function ceiling($number, $significance = 1)
