@@ -5,11 +5,13 @@ class CryptopiaApi
 
     protected $publicKey;
     protected $privateKey;
+    public $name;
 
     public function __construct($settings)
     {
         $this->publicKey = $settings->publicKey;
         $this->privateKey = $settings->privateKey;
+        $this->name = 'Cryptopia';
     }
 
     public function jsonRequest($path, array $datas = array())
@@ -55,6 +57,16 @@ class CryptopiaApi
           else
             return $response->Error;
         }
-        else return $response->Message;
+        else
+        {
+          var_dump($response);
+          throw new Exception('Unknown api error');
+        }
+    }
+
+    function getBalance($crypto)
+    {
+       $account = self::jsonRequest("GetBalance",['Currency'=> $crypto]);
+       return $account[0]->Available;
     }
 }

@@ -8,6 +8,7 @@ class AbucoinsApi
     protected $passphrase;
     protected $timestamp;
     public $nApicalls;
+    public $name;
 
     public function __construct($settings)
     {
@@ -16,6 +17,7 @@ class AbucoinsApi
         $this->passphrase = $settings->passphrase;
         $this->timestamp = time();
         $this->nApicalls = 0;
+        $this->name = 'Abucoins';
     }
 
     public function jsonRequest($method, $path, $datas)
@@ -50,9 +52,10 @@ class AbucoinsApi
         return base64_encode(hash_hmac("sha256", $what, base64_decode($this->secret), true));
     }
 
-    public function getApiCall()
+    function getBalance($crypto)
     {
-      return $this->nApicalls;
+       $account = self::jsonRequest('GET', "/accounts/10502694-$crypto", null);
+       return $account->available;
     }
 
 }
