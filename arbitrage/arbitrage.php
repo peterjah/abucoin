@@ -24,9 +24,10 @@ while(true)
       //SELL Cryptopia => BUY Abucoins
       $sell_price = $cryptBook['bids']['price'];
       $buy_price = $abuBook['asks']['price'];
+      var_dump($sell_price); var_dump($buy_price);
       $tradeSize = $cryptBook['bids']['size'] > $abuBook['asks']['size'] ? $abuBook['asks']['size'] : $cryptBook['bids']['size'];
       $gain_percent = ((($sell_price *((100-$CryptOrderbook->product->fees)/100))/
-                      ($buy_price *((100-$AbuOrderbook->product->fees)/100)))-1)*100;
+                      ($buy_price *((100+$AbuOrderbook->product->fees)/100)))-1)*100;
 
       //print("GAIN= $gain_percent\n");
       if($gain_percent>0.1 && $gain_percent < 20 /*price should be double checked for cryptopia*/)
@@ -52,8 +53,9 @@ while(true)
       $tradeSize = $cryptBook['asks']['size'] > $abuBook['bids']['size'] ? $abuBook['bids']['size'] : $cryptBook['asks']['size'];
 
       $gain_percent = ((($sell_price *((100-$AbuOrderbook->product->fees)/100))/
-                      ($buy_price *((100-$CryptOrderbook->product->fees)/100)))-1)*100;
-      //print("GAIN= $gain_percent\n");
+                      ($buy_price *((100+$CryptOrderbook->product->fees)/100)))-1)*100;
+
+
       if($gain_percent>0.1 && $gain_percent < 20 /*price should be double checked for cryptopia*/)
       {
         print "SELL Abucoins => BUY Cryptopia: GAIN ".number_format($gain_percent,3)."%\n";
