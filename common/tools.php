@@ -71,13 +71,13 @@ class OrderBook
 
       foreach( ['asks', 'bids'] as $side)
       {
-        $best[$side]['price'] = $book->$side[0][0];
-        $best[$side]['size'] = $book->$side[0][1];
+        $best[$side]['price'] = floatval($book->$side[0][0]);
+        $best[$side]['size'] = floatval($book->$side[0][1]);
         $i=1;
         while($best[$side]['size'] < $this->product->min_order_size_alt)
         {
-          $best[$side]['price'] = ($best[$side]['price'] * $best[$side]['size'] + $book->$side[$i][0] * $book->$side[$i][1]) / 2;
-          $best[$side]['size'] += $book->$side[$i][1];
+          $best[$side]['price'] = floatval(($best[$side]['price'] * $best[$side]['size'] + $book->$side[$i][0] * $book->$side[$i][1]) / 2);
+          $best[$side]['size'] += floatval($book->$side[$i][1]);
           $i++;
         }
       }
