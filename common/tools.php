@@ -181,6 +181,9 @@ function place_limit_order($api, $alt, $side, $price, $volume)
 
 function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
 {
+  if($sell_price<$buy_price)
+    throw new \Exception("wtf");
+
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
 
