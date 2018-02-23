@@ -66,15 +66,15 @@ class OrderBook
     {
       $book = $this->api->jsonRequest('GET', "/products/{$this->product->id}/book?level=2", null);
 
-      if(!isset($book->asks) || !isset($book->bids) || !isset($this->product->min_order_size_alt))
+      if(!isset($book->asks[0][0]) || !isset($book->bids[0][0]) || !isset($this->product->min_order_size_alt))
         return null;
-
       foreach( ['asks', 'bids'] as $side)
       {
         $best[$side]['price'] = floatval($book->$side[0][0]);
         $best[$side]['size'] = floatval($book->$side[0][1]);
         $i=1;
-        while($best[$side]['size'] < $this->product->min_order_size_alt)
+        while(($best[$side]['size'] < $this->product->min_order_size_alt
+              || $best[$side]['size'] * $best[$side]['price'] < 0.0005 ) && $i<50) //todo: ajust book with cryptopia minimum tradesize... change architecure (one class for twos markets)
         {
           $best[$side]['price'] = floatval(($best[$side]['price'] * $best[$side]['size'] + $book->$side[$i][0] * $book->$side[$i][1]) / 2);
           $best[$side]['size'] += floatval($book->$side[$i][1]);
@@ -85,9 +85,10 @@ class OrderBook
     }
     elseif($this->api instanceof CryptopiaApi)//todo: factorize and tweek
     {
-      $book = $this->api->jsonRequest("GetMarketOrders/{$this->product->id}/10");
+      $ordercount = 25;
+      $book = $this->api->jsonRequest("GetMarketOrders/{$this->product->id}/$ordercount");
 
-      if(!isset($book->Sell) || !isset($book->Buy) || !isset($this->product->min_order_size_alt))
+      if(!isset($book->Sell) || !isset($book->Buy) || !isset($this->product->min_order_size_btc))
         return null;
 
         //bids
@@ -95,19 +96,19 @@ class OrderBook
         $highest_bid['price'] = $book->Buy[0]->Price;
         $highest_bid['size'] = $book->Buy[0]->Volume;
         $i=1;
-        while($highest_bid['size'] * $highest_bid['price'] < $this->product->min_order_size_alt)
+        while($highest_bid['size'] * $highest_bid['price'] < $this->product->min_order_size_btc && $i<$ordercount)
         {
           $highest_bid['price'] = ($highest_bid['price'] * $highest_bid['size'] + $book->Buy[$i]->Total) / 2;
           $highest_bid['size'] += $book->Buy[$i]->Volume;
           $i++;
         }
-
         //asks
         $lowest_ask = &$best['asks'];
         $lowest_ask['price'] = $book->Sell[0]->Price;
         $lowest_ask['size'] = $book->Sell[0]->Volume;
         $i=1;
-        while($lowest_ask['size'] * $lowest_ask['price'] < $this->product->min_order_size_btc)
+
+        while($lowest_ask['size'] * $lowest_ask['price'] < $this->product->min_order_size_btc && $i<$ordercount)
         {
           $lowest_ask['price'] = ($lowest_ask['price'] * $lowest_ask['size'] + $book->Sell[$i]->Total) / 2;
           $lowest_ask['size'] += $book->Sell[$i]->Volume;
@@ -181,8 +182,8 @@ function place_limit_order($api, $alt, $side, $price, $volume)
 
 function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
 {
-  if($sell_price<$buy_price)
-    throw new \Exception("wtf");
+  //~ if($sell_price <= $buy_price)
+    //~ throw new \Exception("wtf");
 
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
@@ -203,9 +204,9 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
   $min_sell_alt = $sell_market->product->min_order_size_alt;
 
   $btc_to_spend = $buy_price * $tradeSize;
-  if($btc_to_spend > 0.005)//dont be greedy for testing !!
+  if($btc_to_spend > 0.01)//dont be greedy for testing !!
   {
-    $btc_to_spend = 0.005;
+    $btc_to_spend = 0.01;
     $tradeSize = $btc_to_spend / $buy_price;
   }
   if($alt_bal > 0 && $tradeSize > $alt_bal)
@@ -226,8 +227,19 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
     return null;
   }
 
+  //prices double check
+  if( abs((($buy_api->getBestAsk($buy_market->product->id)['price']/$buy_price)-1)*100) > 2 ||
+      abs((($sell_api->getBestBid($sell_market->product->id)['price']/$sell_price)-1)*100) > 2 )
+    {
+      print "price double check failed.. maybe prices are wrong (buy:$buy_price, sell:$sell_price)\n";
+      return null;
+    }
+
+
   //ceil tradesize
   $tradeSize = ceiling($tradeSize, $buy_market->product->increment);
+  $buy_price = ceiling($buy_price, 0.00000001);
+  $sell_price = ceiling($sell_price, 0.00000001);
 
   if($btc_to_spend < $btc_bal)
   {

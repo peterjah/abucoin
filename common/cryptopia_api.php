@@ -67,6 +67,27 @@ class CryptopiaApi
     function getBalance($crypto)
     {
        $account = self::jsonRequest("GetBalance",['Currency'=> $crypto]);
-       return $account[0]->Available;
+       if(isset($account[0]->Available))
+         return $account[0]->Available;
+       else
+         return null;
+    }
+
+    function getBestAsk($product_id)
+    {
+       $book = self::jsonRequest("GetMarketOrders/{$product_id}/1");
+       if( isset($book->Sell[0]->Price) && isset($book->Sell[0]->Volume))
+         return ['price' => floatval($book->Sell[0]->Price), 'size' => floatval($book->Sell[0]->Volume) ];
+       else
+         return null;
+    }
+
+    function getBestBid($product_id)
+    {
+       $book = self::jsonRequest("GetMarketOrders/{$product_id}/1");
+       if( isset($book->Buy[0]->Price) && isset($book->Buy[0]->Volume))
+         return ['price' => floatval($book->Buy[0]->Price), 'size' => floatval($book->Buy[0]->Volume) ];
+       else
+         return null;
     }
 }

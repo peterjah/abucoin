@@ -24,20 +24,20 @@ while(true)
       //SELL Cryptopia => BUY Abucoins
       $sell_price = $cryptBook['bids']['price'];
       $buy_price = $abuBook['asks']['price'];
-      var_dump($sell_price); var_dump($buy_price);
+      //var_dump($sell_price); var_dump($buy_price);
       $tradeSize = $cryptBook['bids']['size'] > $abuBook['asks']['size'] ? $abuBook['asks']['size'] : $cryptBook['bids']['size'];
       $gain_percent = ((($sell_price *((100-$CryptOrderbook->product->fees)/100))/
                       ($buy_price *((100+$AbuOrderbook->product->fees)/100)))-1)*100;
 
       //print("GAIN= $gain_percent\n");
-      if($gain_percent>0.1 && $gain_percent < 20 /*price should be double checked for cryptopia*/)
+      if($gain_percent>0.1 && $gain_percent < 5 /*price should be double checked for cryptopia*/)
       {
         print "SELL Cryptopia => BUY Abucoins: GAIN ".number_format($gain_percent,3)."%\n";
         $tradeSize_btc = do_arbitrage($CryptOrderbook, $sell_price, $AbuOrderbook, $buy_price, $tradeSize);
         if($tradeSize_btc>0)
         {
           print("log tx\n");
-          $gain_btc = $tradeSize_btc*$gain_percent;
+          $gain_btc = $tradeSize_btc*$gain_percent/100;
           $profit+=$gain_btc;
           $trade_str = date("Y-m-d H:i:s").": +$gain_btc BTC\n";
           file_put_contents('gains',$trade_str,FILE_APPEND);
@@ -55,15 +55,14 @@ while(true)
       $gain_percent = ((($sell_price *((100-$AbuOrderbook->product->fees)/100))/
                       ($buy_price *((100+$CryptOrderbook->product->fees)/100)))-1)*100;
 
-
-      if($gain_percent>0.1 && $gain_percent < 20 /*price should be double checked for cryptopia*/)
+      if($gain_percent>0.1 && $gain_percent < 5 /*price should be double checked for cryptopia*/)
       {
         print "SELL Abucoins => BUY Cryptopia: GAIN ".number_format($gain_percent,3)."%\n";
         $tradeSize_btc = do_arbitrage($AbuOrderbook, $sell_price, $CryptOrderbook, $buy_price, $tradeSize);
         if($tradeSize_btc>0)
         {
           print("log tx\n");
-          $gain_btc = $tradeSize_btc*$gain_percent;
+          $gain_btc = $tradeSize_btc*$gain_percent/100;
           $profit+=$gain_btc;
           $trade_str = date("Y-m-d H:i:s").": +$gain_btc BTC\n";
           file_put_contents('gains',$trade_str,FILE_APPEND);
@@ -77,5 +76,6 @@ while(true)
 
     //sleep(1);
   }
+  print "~~~~~~~~~~~~~~abucoin api call: {$abucoinsApi->nApicalls}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
   print "~~~~~~~~~~~~~~cumulated profit: $profit BTC~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
 }

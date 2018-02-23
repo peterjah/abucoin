@@ -58,4 +58,22 @@ class AbucoinsApi
        return $account->available;
     }
 
+    function getBestAsk($product_id)
+    {
+       $book = self::jsonRequest('GET', "/products/{$product_id}/book?level=1", null);
+       if( isset($book->asks[0][0]) && isset($book->asks[0][1]))
+         return ['price' => floatval($book->asks[0][0]), 'size' => floatval($book->asks[0][1]) ];
+       else
+         return null;
+    }
+
+    function getBestBid($product_id)
+    {
+       $book = self::jsonRequest('GET', "/products/{$product_id}/book?level=1", null);
+       if( isset($book->bids[0][0]) && isset($book->bids[0][1]))
+         return ['price' => floatval($book->bids[0][0]), 'size' => floatval($book->bids[0][1]) ];
+       else
+         return null;
+    }
+
 }
