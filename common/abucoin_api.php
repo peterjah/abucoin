@@ -76,4 +76,13 @@ class AbucoinsApi
          return null;
     }
 
+    function getOrderStatus($product, $order_id)
+    {
+       $order = self::jsonRequest('GET', "/orders/{$order_id}", null);
+       $status = [ 'status' => $order->status,
+                   'filled' => floatval($order->filled_size),
+                   'side' => $order->side
+                 ];
+       return $status;
+    }
 }

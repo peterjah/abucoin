@@ -90,4 +90,18 @@ class CryptopiaApi
        else
          return null;
     }
+
+    function getOrderStatus($product, $order_id)
+    {
+       $trade_history = self::jsonRequest('GetTradeHistory',['Market'=> $product, 'Count' => 10]);
+       foreach ($trade_history as $trade)
+         if($trade->TradeId == $order_id)
+           $order = $trade;
+       $status = [ 'status' => null,
+                   'filled' => floatval($order->Amount),
+                   'side' => $order->Type
+                 ];
+       return $status;
+    }
+
 }

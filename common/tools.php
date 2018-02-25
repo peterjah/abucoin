@@ -52,7 +52,7 @@ class OrderBook
   {
     $this->api = $api;
     $this->product = new product($api, $product_id);
-    $this->book = self::getOrderBook();
+    $this->book = null;
   }
 
   function refresh()
@@ -70,14 +70,16 @@ class OrderBook
         return null;
       foreach( ['asks', 'bids'] as $side)
       {
-        $best[$side]['price'] = floatval($book->$side[0][0]);
+        $best[$side]['price'] = $best[$side]['order_price'] = floatval($book->$side[0][0]);
         $best[$side]['size'] = floatval($book->$side[0][1]);
         $i=1;
         while(($best[$side]['size'] < $this->product->min_order_size_alt
-              || $best[$side]['size'] * $best[$side]['price'] < 0.0005 ) && $i<50) //todo: ajust book with cryptopia minimum tradesize... change architecure (one class for twos markets)
+              || ($best[$side]['size'] * $best[$side]['price'] < 0.0005) ) && $i<50) //todo: ajust book with cryptopia minimum tradesize... change architecure (one class for twos markets)
         {
-          $best[$side]['price'] = floatval(($best[$side]['price'] * $best[$side]['size'] + $book->$side[$i][0] * $book->$side[$i][1]) / 2);
+          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book->$side[$i][0]*$book->$side[$i][1]) / ($book->$side[$i][1]+$best[$side]['size']));
           $best[$side]['size'] += floatval($book->$side[$i][1]);
+          $best[$side]['order_price'] = floatval($book->$side[$i][0]);
+          print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
           $i++;
         }
       }
@@ -93,25 +95,29 @@ class OrderBook
 
         //bids
         $highest_bid = &$best['bids'];
-        $highest_bid['price'] = $book->Buy[0]->Price;
+        $highest_bid['price'] = $highest_bid['order_price'] = $book->Buy[0]->Price;
         $highest_bid['size'] = $book->Buy[0]->Volume;
         $i=1;
         while($highest_bid['size'] * $highest_bid['price'] < $this->product->min_order_size_btc && $i<$ordercount)
         {
-          $highest_bid['price'] = ($highest_bid['price'] * $highest_bid['size'] + $book->Buy[$i]->Total) / 2;
-          $highest_bid['size'] += $book->Buy[$i]->Volume;
+          $highest_bid['price'] = floatval(($highest_bid['price']*$highest_bid['size'] + $book->Buy[$i]->Total) / ($highest_bid['size']+$book->Buy[$i]->Volume) );
+          $highest_bid['size'] += floatval($book->Buy[$i]->Volume);
+          $highest_bid['order_price'] = floatval($book->Buy[$i]->Price);
+          print "best highest_bid price={$highest_bid['price']} size={$highest_bid['size']}\n";
+
           $i++;
         }
         //asks
         $lowest_ask = &$best['asks'];
-        $lowest_ask['price'] = $book->Sell[0]->Price;
+        $lowest_ask['price'] = $lowest_ask['order_price'] = $book->Sell[0]->Price;
         $lowest_ask['size'] = $book->Sell[0]->Volume;
         $i=1;
-
         while($lowest_ask['size'] * $lowest_ask['price'] < $this->product->min_order_size_btc && $i<$ordercount)
         {
-          $lowest_ask['price'] = ($lowest_ask['price'] * $lowest_ask['size'] + $book->Sell[$i]->Total) / 2;
-          $lowest_ask['size'] += $book->Sell[$i]->Volume;
+          $lowest_ask['price'] = floatval(($lowest_ask['price']*$lowest_ask['size'] + $book->Sell[$i]->Total) / ($lowest_ask['size']+$book->Sell[$i]->Volume) );
+          $lowest_ask['size'] += floatval($book->Sell[$i]->Volume);
+          $lowest_ask['order_price'] = floatval($book->Sell[$i]->Price);
+          print "best lowest_ask price={$lowest_ask['price']} size={$lowest_ask['size']}\n";
           $i++;
         }
       return $best;
@@ -182,8 +188,8 @@ function place_limit_order($api, $alt, $side, $price, $volume)
 
 function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
 {
-  //~ if($sell_price <= $buy_price)
-    //~ throw new \Exception("wtf");
+  if($sell_price <= $buy_price)
+    throw new \Exception("wtf");
 
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
@@ -209,12 +215,18 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
     $btc_to_spend = 0.01;
     $tradeSize = $btc_to_spend / $buy_price;
   }
-  if($alt_bal > 0 && $tradeSize > $alt_bal)
+  if($btc_to_spend > $btc_bal)//Check btc balance
+  {
+    $btc_to_spend = $btc_bal;
+    $tradeSize = $btc_to_spend / $buy_price;
+  }
+  if($tradeSize > $alt_bal)//check alt balance
     $tradeSize = $alt_bal;
 
   print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price BTC = ".($buy_price*$tradeSize)."BTC\n";
   print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC = ".($buy_price*$tradeSize)."BTC\n";
 
+  //Some checks
   if($btc_to_spend < $min_buy_btc || $btc_to_spend < $min_sell_btc)
   { //will be removed by tweeking orderbook feed
     print "insufisent tradesize to process. min_buy_btc = $min_buy_btc min_sell_btc = $min_sell_btc BTC\n";
@@ -228,12 +240,12 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
   }
 
   //prices double check
-  if( abs((($buy_api->getBestAsk($buy_market->product->id)['price']/$buy_price)-1)*100) > 2 ||
-      abs((($sell_api->getBestBid($sell_market->product->id)['price']/$sell_price)-1)*100) > 2 )
-    {
-      print "price double check failed.. maybe prices are wrong (buy:$buy_price, sell:$sell_price)\n";
-      return null;
-    }
+  // if( abs((($buy_api->getBestAsk($buy_market->product->id)['price']/$buy_price)-1)*100) > 2 ||
+  //     abs((($sell_api->getBestBid($sell_market->product->id)['price']/$sell_price)-1)*100) > 2 )
+  //   {
+  //     print "price double check failed.. maybe prices are wrong (buy:$buy_price, sell:$sell_price)\n";
+  //     return null;
+  //   }
 
 
   //ceil tradesize
@@ -247,8 +259,11 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
     {
       print "btc_to_spend = $btc_to_spend for $tradeSize $alt\n";
 
-      place_limit_order($buy_api, $alt, 'buy', $buy_price, $tradeSize);
-      place_limit_order($sell_api, $alt, 'sell', $sell_price, $tradeSize);
+      $trade_id = place_limit_order($buy_api, $alt, 'buy', $buy_price, $tradeSize);
+      $buy_status = $buy_api->getOrderStatus($buy_market->product->id, $trade_id);
+      print "tradesize = $tradeSize buy_status={$buy_status['filled']}\n";
+      if ($buy_status['filled'] >0 )
+        place_limit_order($sell_api, $alt, 'sell', $sell_price, $buy_status['filled']);
 
       return $btc_to_spend;
     }
