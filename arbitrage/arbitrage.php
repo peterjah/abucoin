@@ -11,8 +11,6 @@ $profit = 0;
 $free_tx = ['toAbucoin' => ['ARK','BCH','ETC','STRAT','BCH'],
             'toCryptopia' => ['GNT','XMR']
             ];
-$get_btc_abucoins = true;
-$get_btc_cryptopia = false;
 
 print "retrieve balances\n";
 $abucoins_btc_bal = $abucoinsApi->getBalance('BTC');
@@ -25,10 +23,16 @@ foreach( ['GNT' ,'HSR', 'LTC', 'XMR', 'STRAT', 'ETC', 'TRX', 'ETH', 'ARK', 'BCH'
 }
 var_dump($cryptopia_alt_bal);
 var_dump($abucoins_alt_bal);
+var_dump($abucoins_btc_bal);
+var_dump($cryptopia_btc_bal);
+
 while(true)
 {
   foreach( ['GNT' ,'HSR', 'LTC', 'XMR', 'STRAT', 'ETC', 'TRX', 'ETH', 'ARK', 'BCH', 'REP', 'DASH', 'ZEC'] as $alt)
   {
+
+    $get_btc_abucoins = $abucoins_btc_bal > 0 ? false:true;
+    $get_btc_cryptopia = $cryptopia_btc_bal > 0 ? false:true;
     try
     {
       print "Testing $alt trade\n";

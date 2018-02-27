@@ -20,7 +20,9 @@ class product
     if($api instanceof AbucoinsApi)
     {
       $this->id = $product_id;
-      $product = $this->api->jsonRequest('GET', "/products/{$this->id}", null);
+      $product = null;
+      while( ($product = $this->api->jsonRequest('GET', "/products/{$this->id}", null)) ==null)
+       continue;
       $this->min_order_size_alt = $product->base_min_size;
       $this->increment = $product->quote_increment;
       $this->fees = 0; //til end of March
@@ -176,8 +178,8 @@ function place_limit_order($api, $alt, $side, $price, $volume)
     }
     else
     {
-      $trade_id = $ret->OrderId;
-      save_trade('Cryptopia', $trade_id, $alt, $side, $ret->FilledOrders, $price);
+      $trade_id = $ret->FilledOrders[0];
+      save_trade('Cryptopia', $trade_id, $alt, $side, $volume, $price);
       return $trade_id;
     }
   }
@@ -280,9 +282,13 @@ function do_arbitrage($sell_market, $sell_price, $alt_bal, $buy_market, $buy_pri
       if($buy_api instanceof CryptopiaApi)
       {
         sleep(1);
-        $buy_status = $buy_api->getOrderStatus($buy_market->product->id, $trade_id);
-        $buy_api->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => $trade_id]);
-        print ("new eval: filled {$buy_status['filled']} of $tradeSize $alt \n");
+        try 
+        {
+          $buy_status = $buy_api->getOrderStatus($buy_market->product->id, $trade_id);
+         var_dump($buy_status); 
+         $buy_api->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => $trade_id]);
+          print ("new eval: filled {$buy_status['filled']} of $tradeSize $alt \n");
+        } catch (Exception $e){}
       }
     }
     place_limit_order($sell_api, $alt, 'sell', $sell_price, $buy_status['filled']);
