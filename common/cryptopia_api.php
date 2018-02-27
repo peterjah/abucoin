@@ -5,6 +5,7 @@ class CryptopiaApi
 
     protected $publicKey;
     protected $privateKey;
+    public $nApicalls;
     public $name;
 
     public function __construct($settings)
@@ -12,10 +13,12 @@ class CryptopiaApi
         $this->publicKey = $settings->publicKey;
         $this->privateKey = $settings->privateKey;
         $this->name = 'Cryptopia';
+        $this->nApicalls = 0;
     }
 
     public function jsonRequest($path, array $datas = array())
     {
+        $this->nApicalls++;
         $public_set = array( "GetCurrencies", "GetTradePairs", "GetMarkets", "GetMarket", "GetMarketHistory", "GetMarketOrders" );
         //$private_set = array( "GetBalance", "GetDepositAddress", "GetOpenOrders", "GetTradeHistory", "GetTransactions", "SubmitTrade", "CancelTrade", "SubmitTip" );
         $ch = curl_init();
@@ -59,24 +62,37 @@ class CryptopiaApi
         }
         else
         {
-          var_dump($response);
+          isset($response) && var_dump($response);
           throw new Exception('Unknown api error');
         }
     }
 
     function getBalance($crypto)
     {
-       $account = self::jsonRequest("GetBalance",['Currency'=> $crypto]);
-       if(isset($account[0]->Available))
-         return $account[0]->Available;
-       else
-         return null;
+      $account = null;
+      while($account == null)
+      {
+        try {
+          $account = self::jsonRequest("GetBalance",['Currency'=> $crypto]);
+          //var_dump($account);
+          //isset($account[0]->Available) && var_dump($account[0]->Available);
+          if($account)
+            if(isset($account[0]->Available) && $account[0]->Available > 0.0000001)
+             return $account[0]->Available;
+
+        }
+        catch (Exception $e)
+        {
+          print $e;
+          sleep(1);
+        }
+      }
     }
 
     function getBestAsk($product_id)
     {
        $book = self::jsonRequest("GetMarketOrders/{$product_id}/1");
-       if( isset($book->Sell[0]->Price) && isset($book->Sell[0]->Volume))
+       if( isset($book->Sell[0]->Price, $book->Sell[0]->Volume))
          return ['price' => floatval($book->Sell[0]->Price), 'size' => floatval($book->Sell[0]->Volume) ];
        else
          return null;
@@ -85,7 +101,7 @@ class CryptopiaApi
     function getBestBid($product_id)
     {
        $book = self::jsonRequest("GetMarketOrders/{$product_id}/1");
-       if( isset($book->Buy[0]->Price) && isset($book->Buy[0]->Volume))
+       if( isset($book->Buy[0]->Price, $book->Buy[0]->Volume))
          return ['price' => floatval($book->Buy[0]->Price), 'size' => floatval($book->Buy[0]->Volume) ];
        else
          return null;
@@ -99,7 +115,8 @@ class CryptopiaApi
            $order = $trade;
        $status = [ 'status' => null,
                    'filled' => floatval($order->Amount),
-                   'side' => $order->Type
+                   'side' => $order->Type,
+                   'total' => floatval($order->Total)
                  ];
        return $status;
     }

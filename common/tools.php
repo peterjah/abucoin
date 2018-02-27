@@ -29,7 +29,7 @@ class product
     elseif($api instanceof CryptopiaApi)
     {
       $this->id = str_replace('-', '_', $product_id);
-      $pairs = $this->api->jsonRequest("GetTradePairs");
+      $pairs = $this->api->jsonRequest('GetTradePairs');
       foreach( $pairs as $pair)
         if($pair->Label == str_replace('_', '/', $this->id))
         {
@@ -66,7 +66,7 @@ class OrderBook
     {
       $book = $this->api->jsonRequest('GET', "/products/{$this->product->id}/book?level=2", null);
 
-      if(!isset($book->asks[0][0]) || !isset($book->bids[0][0]) || !isset($this->product->min_order_size_alt))
+      if(!isset($book->asks[0][0], $book->bids[0][0], $this->product->min_order_size_alt))
         return null;
       foreach( ['asks', 'bids'] as $side)
       {
@@ -79,7 +79,7 @@ class OrderBook
           $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book->$side[$i][0]*$book->$side[$i][1]) / ($book->$side[$i][1]+$best[$side]['size']));
           $best[$side]['size'] += floatval($book->$side[$i][1]);
           $best[$side]['order_price'] = floatval($book->$side[$i][0]);
-          print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
+          //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
           $i++;
         }
       }
@@ -90,7 +90,7 @@ class OrderBook
       $ordercount = 25;
       $book = $this->api->jsonRequest("GetMarketOrders/{$this->product->id}/$ordercount");
 
-      if(!isset($book->Sell) || !isset($book->Buy) || !isset($this->product->min_order_size_btc))
+      if(!isset($book->Sell, $book->Buy, $this->product->min_order_size_btc))
         return null;
 
         //bids
@@ -103,7 +103,7 @@ class OrderBook
           $highest_bid['price'] = floatval(($highest_bid['price']*$highest_bid['size'] + $book->Buy[$i]->Total) / ($highest_bid['size']+$book->Buy[$i]->Volume) );
           $highest_bid['size'] += floatval($book->Buy[$i]->Volume);
           $highest_bid['order_price'] = floatval($book->Buy[$i]->Price);
-          print "best highest_bid price={$highest_bid['price']} size={$highest_bid['size']}\n";
+          //print "best highest_bid price={$highest_bid['price']} size={$highest_bid['size']}\n";
 
           $i++;
         }
@@ -117,7 +117,7 @@ class OrderBook
           $lowest_ask['price'] = floatval(($lowest_ask['price']*$lowest_ask['size'] + $book->Sell[$i]->Total) / ($lowest_ask['size']+$book->Sell[$i]->Volume) );
           $lowest_ask['size'] += floatval($book->Sell[$i]->Volume);
           $lowest_ask['order_price'] = floatval($book->Sell[$i]->Price);
-          print "best lowest_ask price={$lowest_ask['price']} size={$lowest_ask['size']}\n";
+          //print "best lowest_ask price={$lowest_ask['price']} size={$lowest_ask['size']}\n";
           $i++;
         }
       return $best;
@@ -147,7 +147,6 @@ function place_limit_order($api, $alt, $side, $price, $volume)
                ];
     var_dump($order);
     $ret = $api->jsonRequest('POST', '/orders', $order);
-    sleep(1);
     print "abucoin trade says:\n";
     var_dump($ret);
 
@@ -171,14 +170,14 @@ function place_limit_order($api, $alt, $side, $price, $volume)
     sleep(1);
     print "cryptopia trade says:\n";
     var_dump($ret);
-    if(!isset($ret->OrderId) && !isset($ret->FilledOrders))
+    if(!isset($ret->FilledOrders))
     {
       $error = $ret ?: 'unknown error';
     }
     else
     {
-      $trade_id = $ret->OrderId ?:$ret->FilledOrders[0];
-      save_trade('Cryptopia', $trade_id, $alt, $side, $volume, $price);
+      $trade_id = $ret->OrderId;
+      save_trade('Cryptopia', $trade_id, $alt, $side, $ret->FilledOrders, $price);
       return $trade_id;
     }
   }
@@ -186,7 +185,7 @@ function place_limit_order($api, $alt, $side, $price, $volume)
   throw new Exception("order failed with status: $error\n");
 }
 
-function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
+function do_arbitrage($sell_market, $sell_price, $alt_bal, $buy_market, $buy_price, $btc_bal, $tradeSize)
 {
   if($sell_price <= $buy_price)
     throw new \Exception("wtf");
@@ -199,9 +198,6 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
     $alt = $matches[1];
   print "do arbitrage for $alt\n";
 
-  $btc_bal = $buy_api->getBalance('BTC');
-  $alt_bal = $sell_api->getBalance($alt);
-
   print "balances: $btc_bal BTC; $alt_bal $alt \n";
 
   $min_buy_btc = $buy_market->product->min_order_size_btc;
@@ -210,18 +206,35 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
   $min_sell_alt = $sell_market->product->min_order_size_alt;
 
   $btc_to_spend = $buy_price * $tradeSize;
-  if($btc_to_spend > 0.01)//dont be greedy for testing !!
+  if($btc_to_spend > 0.03)//dont be greedy for testing !!
   {
-    $btc_to_spend = 0.01;
+    $btc_to_spend = 0.03;
     $tradeSize = $btc_to_spend / $buy_price;
   }
   if($btc_to_spend > $btc_bal)//Check btc balance
   {
-    $btc_to_spend = $btc_bal;
-    $tradeSize = $btc_to_spend / $buy_price;
+    if($btc_bal > 0)
+    {
+      $btc_to_spend = $btc_bal -0.0000001; //keep a minimum of btc...
+      $tradeSize = $btc_to_spend / $buy_price;
+    }
+    else
+    {
+      print "not enough BTC \n";
+      return 0;
+    }
   }
+
   if($tradeSize > $alt_bal)//check alt balance
-    $tradeSize = $alt_bal;
+  {
+    if($alt_bal > 0)
+      $tradeSize = $alt_bal;
+    else
+    {
+      print "not enough $alt \n";
+      return 0;
+    }
+  }
 
   print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price BTC = ".($buy_price*$tradeSize)."BTC\n";
   print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC = ".($buy_price*$tradeSize)."BTC\n";
@@ -230,13 +243,13 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
   if($btc_to_spend < $min_buy_btc || $btc_to_spend < $min_sell_btc)
   { //will be removed by tweeking orderbook feed
     print "insufisent tradesize to process. min_buy_btc = $min_buy_btc min_sell_btc = $min_sell_btc BTC\n";
-    return null;
+    return 0;
   }
 
   if($tradeSize < $min_sell_alt || $tradeSize < $min_buy_alt)
   {
     print "insufisent tradesize to process. min_sell_alt = $min_sell_alt min_buy_alt = $min_buy_alt $alt\n";
-    return null;
+    return 0;
   }
 
   //prices double check
@@ -253,26 +266,30 @@ function do_arbitrage($sell_market, $sell_price, $buy_market, $buy_price, $trade
   $buy_price = ceiling($buy_price, 0.00000001);
   $sell_price = ceiling($sell_price, 0.00000001);
 
-  if($btc_to_spend < $btc_bal)
+
+  print "btc_to_spend = $btc_to_spend for $tradeSize $alt\n";
+
+  $trade_id = place_limit_order($buy_api, $alt, 'buy', $buy_price, $tradeSize);
+  $buy_status = $buy_api->getOrderStatus($buy_market->product->id, $trade_id);
+  print "tradesize = $tradeSize buy_status={$buy_status['filled']}\n";
+  if ($buy_status['filled'] > 0 )
   {
-    if($tradeSize <= $alt_bal)
+    if($buy_status['filled'] < $tradeSize)
     {
-      print "btc_to_spend = $btc_to_spend for $tradeSize $alt\n";
-
-      $trade_id = place_limit_order($buy_api, $alt, 'buy', $buy_price, $tradeSize);
-      $buy_status = $buy_api->getOrderStatus($buy_market->product->id, $trade_id);
-      print "tradesize = $tradeSize buy_status={$buy_status['filled']}\n";
-      if ($buy_status['filled'] >0 )
-        place_limit_order($sell_api, $alt, 'sell', $sell_price, $buy_status['filled']);
-
-      return $btc_to_spend;
+      print ("filled {$buy_status['filled']} of $tradeSize $alt \n");
+      if($buy_api instanceof CryptopiaApi)
+      {
+        sleep(1);
+        $buy_status = $buy_api->getOrderStatus($buy_market->product->id, $trade_id);
+        $buy_api->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => $trade_id]);
+        print ("new eval: filled {$buy_status['filled']} of $tradeSize $alt \n");
+      }
     }
-    else
-      print "not enough $alt \n";
-  }
-  else
-    print "not enough BTC \n";
-  return null;
+    place_limit_order($sell_api, $alt, 'sell', $sell_price, $buy_status['filled']);
+    return $buy_status['filled']*$buy_price;
+  }// handle the case when only first order is matched
+
+  return 0;
 }
 
 function ceiling($number, $significance = 1)

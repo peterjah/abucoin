@@ -55,13 +55,16 @@ class AbucoinsApi
     function getBalance($crypto)
     {
        $account = self::jsonRequest('GET', "/accounts/10502694-$crypto", null);
-       return $account->available;
+       if(isset($account->available) && floatval($account->available) > 0.0000001)
+         return floatval($account->available);
+       else
+         return 0;
     }
 
     function getBestAsk($product_id)
     {
        $book = self::jsonRequest('GET', "/products/{$product_id}/book?level=1", null);
-       if( isset($book->asks[0][0]) && isset($book->asks[0][1]))
+       if( isset($book->asks[0][0], $book->asks[0][1]))
          return ['price' => floatval($book->asks[0][0]), 'size' => floatval($book->asks[0][1]) ];
        else
          return null;
@@ -70,7 +73,7 @@ class AbucoinsApi
     function getBestBid($product_id)
     {
        $book = self::jsonRequest('GET', "/products/{$product_id}/book?level=1", null);
-       if( isset($book->bids[0][0]) && isset($book->bids[0][1]))
+       if( isset($book->bids[0][0], $book->bids[0][1]))
          return ['price' => floatval($book->bids[0][0]), 'size' => floatval($book->bids[0][1]) ];
        else
          return null;
@@ -81,7 +84,8 @@ class AbucoinsApi
        $order = self::jsonRequest('GET', "/orders/{$order_id}", null);
        $status = [ 'status' => $order->status,
                    'filled' => floatval($order->filled_size),
-                   'side' => $order->side
+                   'side' => $order->side,
+                   'total' => floatval($order->filled_size * $order->price)
                  ];
        return $status;
     }
