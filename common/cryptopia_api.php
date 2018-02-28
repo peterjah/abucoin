@@ -119,12 +119,16 @@ class CryptopiaApi
          return null;
     }
 
-    function getOrderStatus($product, $order_id)
+    function getOrderStatus($alt, $order_id)
     {
-       $trade_history = self::jsonRequest('GetTradeHistory',['Market'=> $product, 'Count' => 10]);
+       $trade_history = self::jsonRequest('GetTradeHistory',['Market'=> "{$alt}/BTC", 'Count' => 10]);
+       var_dump($trade_history);
        foreach ($trade_history as $trade)
          if($trade->TradeId == $order_id)
            $order = $trade;
+      if(!isset($order))
+        throw new CryptopiaAPIException('get order status failed');
+
        $status = [ 'status' => null,
                    'filled' => floatval($order->Amount),
                    'side' => $order->Type,
@@ -174,4 +178,43 @@ class CryptopiaApi
       return $list;
     }
 
+    function getProductInfo($alt)
+    {
+      $id = "{$alt}/BTC";
+      $products = self::jsonRequest('GetTradePairs');
+      foreach( $products as $product)
+        if($product->Label == $id)
+        {
+          $info['min_order_size_alt'] = $info['increment'] = $product->MinimumTrade;
+          $info['fees'] = $product->TradeFee;
+          $info['min_order_size_btc'] = $product->MinimumBaseTrade;
+          break;
+        }
+      return $info;
+    }
+
+   function getOrderBook($alt, $depth_btc = 0)
+   {
+     $id = "{$alt}_BTC";
+     $ordercount = 25;
+     $book = self::jsonRequest("GetMarketOrders/{$id}/$ordercount");
+
+     if(!isset($book->Sell, $book->Buy))
+       return null;
+     foreach( ['asks', 'bids'] as $side)
+     {
+       $offer = $side == 'asks' ? $book->Buy : $book->Sell;
+       $best[$side]['price'] = $best[$side]['order_price'] = floatval($offer[0]->Price);
+       $best[$side]['size'] = floatval($offer[0]->Volume);
+       $i=1;
+       while(($best[$side]['size'] * $best[$side]['price'] < $depth_btc) && $i<50/*should be useless*/)
+       {
+         $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $offer[$i]->Total) / ($best[$side]['size']+$offer[$i]->Volume) );
+         $best[$side]['size'] += floatval($offer[$i]->Volume);
+         $best[$side]['order_price'] = floatval($offer[$i]->Price);
+         $i++;
+       }
+     }
+     return $best;
+   }
 }

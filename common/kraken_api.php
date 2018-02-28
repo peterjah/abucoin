@@ -134,4 +134,20 @@ class KrakenApi
       }
       return $list;
     }
+
+    function getProductInfo($alt)
+    {
+      $id = "{$alt}XBT";
+      $products = null;
+      $products = self::jsonRequest('AssetPairs');
+      foreach($products['result'] as $product)
+        if($product['altname'] == $id)
+        {
+          $info['min_order_size_alt'] = $info['increment'] = pow(10,-1*$product['lot_decimals']);
+          $info['fees'] = $product['fees'][0/*depending on monthly spendings*/][1];
+          $info['min_order_size_btc'] = pow(10,-1*$product['pair_decimals']);
+          break;
+        }
+      return $info;
+    }
 }

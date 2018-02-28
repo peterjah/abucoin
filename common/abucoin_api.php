@@ -143,4 +143,43 @@ class AbucoinsApi
 
       return $list;
     }
+
+    function getProductInfo($alt)
+    {
+      $id = "{$alt}-BTC";
+      $product = null;
+      while( ($product = self::jsonRequest('GET', "/products/{$id}", null)) ==null)
+        continue;
+      $info['min_order_size_alt'] = $product->base_min_size;
+      $info['increment'] = $product->quote_increment;
+      $info['fees'] = 0; //til end of March
+      $info['min_order_size_btc'] = 0;
+      return $info;
+    }
+
+    function getOrderBook($alt, $depth_btc = 0)
+    {
+      $id = "{$alt}-BTC";
+      $book = self::jsonRequest('GET', "/products/{$id}/book?level=2", null);
+
+      if(!isset($book->asks[0][0], $book->bids[0][0]))
+        return null;
+      foreach( ['asks', 'bids'] as $side)
+      {
+        $best[$side]['price'] = $best[$side]['order_price'] = floatval($book->$side[0][0]);
+        $best[$side]['size'] = floatval($book->$side[0][1]);
+        $i=1;
+        while(($best[$side]['size'] * $best[$side]['price'] < $depth_btc) && $i<50/*max offers for level=2*/)
+        {
+          if (!isset($book->$side[$i][0], $book->$side[$i][1]))
+            break;
+          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book->$side[$i][0]*$book->$side[$i][1]) / ($book->$side[$i][1]+$best[$side]['size']));
+          $best[$side]['size'] += floatval($book->$side[$i][1]);
+          $best[$side]['order_price'] = floatval($book->$side[$i][0]);
+          //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
+          $i++;
+        }
+      }
+      return $best;
+    }
 }
