@@ -2,6 +2,18 @@
 
 require_once('../common/abucoin_api.php');
 require_once('../common/cryptopia_api.php');
+require_once('../common/kraken_api.php');
+
+function getMarket($market_name)
+{
+  $market_table = [ 'abucoins' => 'AbucoinsApi',
+                    'cryptopia' => 'CryptopiaApi',
+                    'kraken' => 'KrakenApi'
+                    ];
+  if( isset($market_table[$market_name]))
+    return new $market_table[$market_name]();
+  else throw "Unknown market \"$market_name\"";
+}
 
 class product
 {
@@ -13,15 +25,15 @@ class product
   public $fees;
   public $increment;
 
-  public function __construct($api, $product_id)
+  public function __construct($api, $alt)
   {
     $this->api = $api;
 
     if($api instanceof AbucoinsApi)
     {
-      $this->id = $product_id;
+      $this->id = "$alt-BTC";
       $product = null;
-      while( ($product = $this->api->jsonRequest('GET', "/products/{$this->id}", null)) ==null)
+      while( ($product = $api->jsonRequest('GET', "/products/{$this->id}", null)) ==null)
        continue;
       $this->min_order_size_alt = $product->base_min_size;
       $this->increment = $product->quote_increment;
@@ -30,14 +42,30 @@ class product
     }
     elseif($api instanceof CryptopiaApi)
     {
-      $this->id = str_replace('-', '_', $product_id);
-      $pairs = $this->api->jsonRequest('GetTradePairs');
-      foreach( $pairs as $pair)
-        if($pair->Label == str_replace('_', '/', $this->id))
+      $this->id = "$alt_BTC";
+      $products = $api->jsonRequest('GetTradePairs');
+      foreach( $products as $product)
+        if($product->Label == str_replace('_', '/', $this->id))
         {
-          $this->min_order_size_alt = $this->increment = $pair->MinimumTrade;
-          $this->min_order_size_btc = $pair->MinimumBaseTrade;
-          $this->fees = $pair->TradeFee;
+          $this->min_order_size_alt = $this->increment = $product->MinimumTrade;
+          $this->min_order_size_btc = $product->MinimumBaseTrade;
+          $this->fees = $product->TradeFee;
+        }
+    }
+    elseif($api instanceof KrakenApi)
+    {
+      $this->id = "{$alt}XBT";
+      $products = null;
+      $products = $api->jsonRequest('AssetPairs');
+      foreach($products['result'] as $product)
+        if($product['altname'] == $this->id)
+        {
+          $this->min_order_size_alt = $this->increment = pow(10,-1*$product['lot_decimals']);
+          print ("increment= {$this->increment}\n");
+          $this->min_order_size_btc = pow(10,-1*$product['pair_decimals']);
+          print ("increment= {$this->min_order_size_btc}\n");
+          $this->fees = $product['fees'][0/*depending on monthly spendings*/][1];
+          print ("fees= {$this->fees}\n");
         }
     }
   }
@@ -135,63 +163,8 @@ function save_trade($exchange, $id, $alt, $side, $size, $price)
   file_put_contents('trades',$trade_str,FILE_APPEND);
 }
 
-function place_limit_order($api, $alt, $side, $price, $volume)
-{
-  $error = '';
-  if($api instanceof AbucoinsApi)
-  {
-    $order = ['product_id' => "$alt-BTC",
-              'price'=> $price,
-              'size'=>  $volume,
-              'side'=> $side,
-              'type'=> 'limit',
-              'time_in_force' => 'IOC', // immediate or cancel
-               ];
-    var_dump($order);
-    $ret = $api->jsonRequest('POST', '/orders', $order);
-    print "abucoin trade says:\n";
-    var_dump($ret);
-
-    if(!isset($ret->status))
-      $error = $ret->message ?: 'unknown error';
-    else
-    {
-      save_trade('Abucoins', $ret->id, $alt, $side, $volume, $price);
-      return $ret->id;
-    }
-  }
-  elseif($api instanceof CryptopiaApi)
-  {
-    $order = ['Market' => "$alt/BTC",
-          'Type' => $side,
-          'Rate' =>  $price,
-          'Amount' => $volume,
-           ];
-    var_dump($order);
-    $ret = $api->jsonRequest('SubmitTrade', $order);
-    sleep(1);
-    print "cryptopia trade says:\n";
-    var_dump($ret);
-    if(!isset($ret->FilledOrders))
-    {
-      $error = $ret ?: 'unknown error';
-    }
-    else
-    {
-      $trade_id = $ret->FilledOrders[0];
-      save_trade('Cryptopia', $trade_id, $alt, $side, $volume, $price);
-      return $trade_id;
-    }
-  }
-
-  throw new Exception("order failed with status: $error\n");
-}
-
 function do_arbitrage($sell_market, $sell_price, $alt_bal, $buy_market, $buy_price, $btc_bal, $tradeSize)
 {
-  if($sell_price <= $buy_price)
-    throw new \Exception("wtf");
-
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
 
@@ -207,7 +180,7 @@ function do_arbitrage($sell_market, $sell_price, $alt_bal, $buy_market, $buy_pri
   $min_sell_btc = $sell_market->product->min_order_size_btc;
   $min_sell_alt = $sell_market->product->min_order_size_alt;
 
-  $btc_to_spend = $buy_price * $tradeSize;
+  $btc_to_spend = $buy_price * $tradeSize * ((1 + $buy_market->product->fees)/100);
   if($btc_to_spend > 0.03)//dont be greedy for testing !!
   {
     $btc_to_spend = 0.03;
@@ -217,7 +190,7 @@ function do_arbitrage($sell_market, $sell_price, $alt_bal, $buy_market, $buy_pri
   {
     if($btc_bal > 0)
     {
-      $btc_to_spend = $btc_bal -0.0000001; //keep a minimum of btc...
+      $btc_to_spend = $btc_bal -0.000001; //keep a minimum of btc...
       $tradeSize = $btc_to_spend / $buy_price;
     }
     else
@@ -254,15 +227,6 @@ function do_arbitrage($sell_market, $sell_price, $alt_bal, $buy_market, $buy_pri
     return 0;
   }
 
-  //prices double check
-  // if( abs((($buy_api->getBestAsk($buy_market->product->id)['price']/$buy_price)-1)*100) > 2 ||
-  //     abs((($sell_api->getBestBid($sell_market->product->id)['price']/$sell_price)-1)*100) > 2 )
-  //   {
-  //     print "price double check failed.. maybe prices are wrong (buy:$buy_price, sell:$sell_price)\n";
-  //     return null;
-  //   }
-
-
   //ceil tradesize
   $tradeSize = ceiling($tradeSize, $buy_market->product->increment);
   $buy_price = ceiling($buy_price, 0.00000001);
@@ -271,7 +235,7 @@ function do_arbitrage($sell_market, $sell_price, $alt_bal, $buy_market, $buy_pri
 
   print "btc_to_spend = $btc_to_spend for $tradeSize $alt\n";
 
-  $trade_id = place_limit_order($buy_api, $alt, 'buy', $buy_price, $tradeSize);
+  $trade_id = $buy_api->place_limit_order($alt, 'buy', $buy_price, $tradeSize);
   $buy_status = $buy_api->getOrderStatus($buy_market->product->id, $trade_id);
   print "tradesize = $tradeSize buy_status={$buy_status['filled']}\n";
   if ($buy_status['filled'] > 0 )
@@ -282,18 +246,19 @@ function do_arbitrage($sell_market, $sell_price, $alt_bal, $buy_market, $buy_pri
       if($buy_api instanceof CryptopiaApi)
       {
         sleep(1);
-        try 
+        try
         {
           $buy_status = $buy_api->getOrderStatus($buy_market->product->id, $trade_id);
-         var_dump($buy_status); 
+         var_dump($buy_status);
+         $tradeSize = $buy_status['filled'];
          $buy_api->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => $trade_id]);
           print ("new eval: filled {$buy_status['filled']} of $tradeSize $alt \n");
         } catch (Exception $e){}
       }
     }
-    place_limit_order($sell_api, $alt, 'sell', $sell_price, $buy_status['filled']);
-    return $buy_status['filled']*$buy_price;
-  }// handle the case when only first order is matched
+    $sell_api->place_limit_order($alt, 'sell', $sell_price, $tradeSize);
+    return $tradeSize*$buy_price;
+  }// handle properly the case when only first order is matched
 
   return 0;
 }
@@ -301,4 +266,9 @@ function do_arbitrage($sell_market, $sell_price, $alt_bal, $buy_market, $buy_pri
 function ceiling($number, $significance = 1)
 {
     return ( is_numeric($number) && is_numeric($significance) ) ? (ceil($number/$significance)*$significance) : false;
+}
+
+function findCommonProducts($market1, $market2)
+{
+  return array_intersect($market1->getProductList(), $market2->getProductList());
 }

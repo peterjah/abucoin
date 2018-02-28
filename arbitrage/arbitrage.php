@@ -2,76 +2,75 @@
 
 require_once('../common/tools.php');
 
-$keys = json_decode(file_get_contents("../common/private.keys"));
-$abucoinsApi = new AbucoinsApi($keys->abucoins);
-$CryptopiaApi = new CryptopiaApi($keys->cryptopia);
+$Api1 = getMarket($argv[1]);
+$Api2 = getMarket($argv[2]);
 
 $profit = 0;
 
-$free_tx = ['toAbucoin' => ['ARK','BCH','ETC','STRAT','BCH'],
+$free_tx = ['toAbucoin' => ['ARK','BCH','STRAT','ZEC'],
             'toCryptopia' => ['GNT','XMR']
             ];
 
 print "retrieve balances\n";
-$abucoins_btc_bal = $abucoinsApi->getBalance('BTC');
-$cryptopia_btc_bal = $CryptopiaApi->getBalance('BTC');
-foreach( ['GNT' ,'HSR', 'LTC', 'XMR', 'STRAT', 'ETC', 'TRX', 'ETH', 'ARK', 'BCH', 'REP', 'DASH', 'ZEC'] as $alt)
+$market1_btc_bal = $Api1->getBalance('BTC');
+$market2_btc_bal = $Api2->getBalance('BTC');
+
+$altcoins_list = findCommonProducts($Api1,$Api2);
+foreach( $altcoins_list as $alt)
 {
   sleep(1);
-  $cryptopia_alt_bal[$alt] = $CryptopiaApi->getBalance($alt) ?: 0;
-  $abucoins_alt_bal[$alt] = $abucoinsApi->getBalance($alt) ?: 0;
+  $market2_alt_bal[$alt] = $Api2->getBalance($alt) ?: 0;
+  $market1_alt_bal[$alt] = $Api1->getBalance($alt) ?: 0;
 }
-var_dump($cryptopia_alt_bal);
-var_dump($abucoins_alt_bal);
-var_dump($abucoins_btc_bal);
-var_dump($cryptopia_btc_bal);
+var_dump($market2_alt_bal);
+var_dump($market1_alt_bal);
+var_dump($market1_btc_bal);
+var_dump($market2_btc_bal);
 
 while(true)
 {
-  foreach( ['GNT' ,'HSR', 'LTC', 'XMR', 'STRAT', 'ETC', 'TRX', 'ETH', 'ARK', 'BCH', 'REP', 'DASH', 'ZEC'] as $alt)
+  foreach( $altcoins_list as $alt)
   {
 
-    $get_btc_abucoins = $abucoins_btc_bal > 0 ? false:true;
-    $get_btc_cryptopia = $cryptopia_btc_bal > 0 ? false:true;
+    $get_btc_market1 = $market1_btc_bal > 0.01 ?false:true;
+    $get_btc_market2 = $market2_btc_bal > 0.01 ?false:true;
     try
     {
       print "Testing $alt trade\n";
-      $AbuOrderbook = new OrderBook($abucoinsApi, "$alt-BTC");
-      $CryptOrderbook = new OrderBook($CryptopiaApi, "$alt-BTC");
+      $orderBook1 = new OrderBook($Api1, $alt);
+      $orderBook2 = new OrderBook($Api2, $alt);
 
       //SELL Cryptopia => BUY Abucoins
       $tradeSize_btc = 1; //dummy init
       while($tradeSize_btc > 0)
       {
 
-        if( ($alt_bal = $cryptopia_alt_bal[$alt]) == 0)
+        if( ($alt_bal = $market2_alt_bal[$alt]) == 0)
           break;
         //print("alt_bal=$alt_bal ");
-        if( ($btc_bal = $abucoins_btc_bal) == 0)
+        if( ($btc_bal = $market1_btc_bal) == 0)
           break;
         //print("btc_bal=$btc_bal \n");
-        $abuBook = $AbuOrderbook->refresh();
-        $cryptBook = $CryptOrderbook->refresh();
+        $book1 = $orderBook1->refresh();
+        $book2 = $orderBook2->refresh();
 
-        $sell_price = $cryptBook['bids']['price'];
-        $buy_price = $abuBook['asks']['price'];
+        $sell_price = $book2['bids']['price'];
+        $buy_price = $book1['asks']['price'];
         //var_dump($sell_price); var_dump($buy_price);
-        $tradeSize = $cryptBook['bids']['size'] > $abuBook['asks']['size'] ? $abuBook['asks']['size'] : $cryptBook['bids']['size'];
-        $gain_percent = ( ( ($sell_price *(1-($CryptOrderbook->product->fees/100)))/
-                           ($buy_price *(1+($AbuOrderbook->product->fees/100)) ) )-1)*100;
+        $tradeSize = $book2['bids']['size'] > $book1['asks']['size'] ? $book1['asks']['size'] : $book2['bids']['size'];
+        $gain_percent = ( ( ($sell_price *(1-($orderBook2->product->fees/100)))/
+                           ($buy_price *(1+($orderBook1->product->fees/100)) ) )-1)*100;
 
-        print("GAIN1= $gain_percent sell_price=$sell_price buy_price=$buy_price\n");
-
+        print "SELL {$Api2->name} => BUY {$Api1->name}: GAIN ".number_format($gain_percent,3)."%  sell_price=$sell_price buy_price=$buy_price\n";
         $gain_treshold = 0.05;
-        if(in_array($alt, $free_tx['toAbucoin']) || $get_btc_cryptopia)
+        if(in_array($alt, $free_tx['toAbucoin']) || $get_btc_market2)
           $gain_treshold = 0;
         if($gain_percent >= $gain_treshold)
         {
-          //~ print "SELL Cryptopia => BUY Abucoins: GAIN ".number_format($gain_percent,3)."%\n";
-          //~ print("sell_price = $sell_price buy_price = $buy_price\n");
-          //~ print("sell_order_price = {$cryptBook['bids']['order_price']} buy_order_price = {$abuBook['asks']['order_price']}\n");
-          //~ print ("tradeSize=$tradeSize\n");
-          $tradeSize_btc = do_arbitrage($CryptOrderbook, $cryptBook['bids']['order_price'], $alt_bal, $AbuOrderbook, $abuBook['asks']['order_price'], $btc_bal, $tradeSize);
+
+          if($sell_price <= $buy_price && $gain_treshold > 0)
+            throw new \Exception("wtf");
+          $tradeSize_btc = do_arbitrage($orderBook2, $book2['bids']['order_price'], $alt_bal, $orderBook1, $book1['asks']['order_price'], $btc_bal, $tradeSize);
           if($tradeSize_btc>0)
           {
             print("log tx\n");
@@ -81,10 +80,11 @@ while(true)
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //refresh balances
-            $abucoins_alt_bal[$alt] = $abucoinsApi->getBalance($alt);
-            $cryptopia_btc_bal = $CryptopiaApi->getBalance('BTC');
-            $abucoins_btc_bal = $abucoinsApi->getBalance('BTC');
-            $cryptopia_alt_bal[$alt] = $CryptopiaApi->getBalance($alt);
+            usleep(5000);
+            $market1_alt_bal[$alt] = $Api1->getBalance($alt);
+            $market2_btc_bal = $Api2->getBalance('BTC');
+            $market1_btc_bal = $Api1->getBalance('BTC');
+            $market2_alt_bal[$alt] = $Api2->getBalance($alt);
           }
           else
             $tradeSize_btc = 0;
@@ -103,45 +103,46 @@ while(true)
       $tradeSize_btc = 1; //dummy init
       while($tradeSize_btc > 0)
       {
-        if( ($alt_bal = $abucoins_alt_bal[$alt]) == 0)
+        if( ($alt_bal = $market1_alt_bal[$alt]) == 0)
           break;
         //print("alt_bal=$alt_bal ");
-        if( ($btc_bal = $cryptopia_btc_bal) == 0)
+        if( ($btc_bal = $market2_btc_bal) == 0)
           break;
         //print("btc_bal=$btc_bal \n");
-        $abuBook = $AbuOrderbook->refresh();
-        $cryptBook = $CryptOrderbook->refresh();
+        $book1 = $orderBook1->refresh();
+        $book2 = $orderBook2->refresh();
 
-        $sell_price = $abuBook['bids']['price'];
-        $buy_price = $cryptBook['asks']['price'];
-        $tradeSize = $cryptBook['asks']['size'] > $abuBook['bids']['size'] ? $abuBook['bids']['size'] : $cryptBook['asks']['size'];
+        $sell_price = $book1['bids']['price'];
+        $buy_price = $book2['asks']['price'];
+        $tradeSize = $book2['asks']['size'] > $book1['bids']['size'] ? $book1['bids']['size'] : $book2['asks']['size'];
 
-        $gain_percent = (( ($sell_price *(1-($AbuOrderbook->product->fees/100)))/
-                           ($buy_price *(1+($CryptOrderbook->product->fees/100))) )-1)*100;
-        print("GAIN2= $gain_percent sell_price=$sell_price buy_price=$buy_price\n");
-          //~ print("sell_price = $sell_price buy_price = $buy_price\n");
-          //~ print("sell_order_price = {$abuBook['bids']['order_price']} buy_order_price = {$cryptBook['asks']['order_price']}\n");
-          //~ print ("tradeSize=$tradeSize\n");
+        $gain_percent = (( ($sell_price *(1-($orderBook1->product->fees/100)))/
+                           ($buy_price *(1+($orderBook2->product->fees/100))) )-1)*100;
+        print "SELL {$Api1->name} => BUY {$Api2->name}: GAIN ".number_format($gain_percent,3)."%  sell_price=$sell_price buy_price=$buy_price\n";
+
         $gain_treshold = 0.05;
-        if(in_array($alt, $free_tx['toCryptopia']) || $get_btc_abucoins)
-          $gain_treshold = 0;
+        if(in_array($alt, $free_tx['toCryptopia']) || $get_btc_market1)
+          $gain_treshold = -0.2;
         if($gain_percent >= $gain_treshold )
         {
-          print "SELL Abucoins => BUY Cryptopia: GAIN ".number_format($gain_percent,3)."%\n";
-          $tradeSize_btc = do_arbitrage($AbuOrderbook, $abuBook['bids']['order_price'],$alt_bal , $CryptOrderbook, $cryptBook['asks']['order_price'], $btc_bal, $tradeSize);
+          if($sell_price <= $buy_price && $gain_treshold > 0)
+            throw new \Exception("wtf");
+
+          $tradeSize_btc = do_arbitrage($orderBook1, $book1['bids']['order_price'],$alt_bal , $orderBook2, $book2['asks']['order_price'], $btc_bal, $tradeSize);
           if($tradeSize_btc>0)
           {
             print("log tx\n");
             $gain_btc = $tradeSize_btc*$gain_percent/100;
             $profit+=$gain_btc;
-            $trade_str = date("Y-m-d H:i:s").": +$gain_btc BTC\n";
+            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //refresh balances
-            $abucoins_alt_bal[$alt] = $abucoinsApi->getBalance($alt);
-            $cryptopia_btc_bal = $CryptopiaApi->getBalance('BTC');
-            $abucoins_btc_bal = $abucoinsApi->getBalance('BTC');
-            $cryptopia_alt_bal[$alt] = $CryptopiaApi->getBalance($alt);
+            usleep(5000);
+            $market1_alt_bal[$alt] = $Api1->getBalance($alt);
+            $market2_btc_bal = $Api2->getBalance('BTC');
+            $market1_btc_bal = $Api1->getBalance('BTC');
+            $market2_alt_bal[$alt] = $Api2->getBalance($alt);
           }
           else
             $tradeSize_btc = 0;
@@ -156,6 +157,15 @@ while(true)
     }
 
   }
-  print "~~~~~~~~~~~~~~api calls: ".($abucoinsApi->nApicalls + $CryptopiaApi->nApicalls)."~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
+  try
+  {
+    //refresh BTC balances
+    $market2_btc_bal = $Api2->getBalance('BTC');
+    $market1_btc_bal = $Api1->getBalance('BTC');
+  }catch (Exception $e)
+  {
+    print $e;
+  }
+  print "~~~~~~~~~~~~~~api calls: ".($Api1->nApicalls + $Api2->nApicalls)."~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
   print "~~~~~~~~~~~~~~cumulated profit: $profit BTC~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
 }

@@ -1,4 +1,7 @@
 <?php
+
+class AbucoinsAPIException extends ErrorException {};
+
 class AbucoinsApi
 {
     const API_URL = 'https://api.abucoins.com';
@@ -7,40 +10,47 @@ class AbucoinsApi
     protected $secret;
     protected $passphrase;
     protected $timestamp;
+    protected $curl;
     public $nApicalls;
     public $name;
 
-    public function __construct($settings)
+    public function __construct()
     {
-        $this->secret = $settings->secret;
-        $this->accesskey = $settings->access_key;
-        $this->passphrase = $settings->passphrase;
+        $keys = json_decode(file_get_contents("../common/private.keys"));
+        $this->secret = $keys->abucoins->secret;
+        $this->accesskey = $keys->abucoins->access_key;
+        $this->passphrase = $keys->abucoins->passphrase;
         $this->timestamp = time();
         $this->nApicalls = 0;
         $this->name = 'Abucoins';
+        $this->curl = curl_init();
+    }
+    function __destruct()
+    {
+        curl_close($this->curl);
     }
 
     public function jsonRequest($method, $path, $datas)
     {
         $this->nApicalls++;
         $this->timestamp = time();
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-        curl_setopt($ch, CURLOPT_URL, static::API_URL . "$path");
+        //$ch = curl_init();
+        curl_setopt($this->curl/*$ch*/, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($this->curl/*$ch*/, CURLOPT_URL, static::API_URL . "$path");
         if ($method == 'POST') {
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($datas));
+            curl_setopt($this->curl/*$ch*/, CURLOPT_POST, 1);
+            curl_setopt($this->curl/*$ch*/, CURLOPT_POSTFIELDS, json_encode($datas));
         }
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        curl_setopt($this->curl/*$ch*/, CURLOPT_HTTPHEADER, array(
             'Content-Type: application/json',
             'AC-ACCESS-KEY: ' . $this->accesskey,
             'AC-ACCESS-TIMESTAMP: ' . $this->timestamp,
             'AC-ACCESS-PASSPHRASE: ' . $this->passphrase,
             'AC-ACCESS-SIGN: ' . $this->signature($path, $datas, $this->timestamp, $method),
         ));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        $server_output = curl_exec($ch);
-        curl_close($ch);
+        curl_setopt($this->curl/*$ch*/, CURLOPT_RETURNTRANSFER, true);
+        $server_output = curl_exec($this->curl/*$ch*/);
+        //curl_close($ch);
         return json_decode($server_output);
     }
 
@@ -55,7 +65,7 @@ class AbucoinsApi
     function getBalance($crypto)
     {
        $account = self::jsonRequest('GET', "/accounts/10502694-$crypto", null);
-       if(isset($account->available) && floatval($account->available) > 0.0000001)
+       if(isset($account->available) && floatval($account->available) > 0.000001)
          return floatval($account->available);
        else
          return 0;
@@ -88,5 +98,49 @@ class AbucoinsApi
                    'total' => floatval($order->filled_size * $order->price)
                  ];
        return $status;
+    }
+
+    function place_limit_order($alt, $side, $price, $size)
+    {
+      $order = ['product_id' => "$alt-BTC",
+                'price'=> $price,
+                'size'=>  $size,
+                'side'=> $side,
+                'type'=> 'limit',
+                'time_in_force' => 'IOC', // immediate or cancel
+                 ];
+      var_dump($order);
+      $ret = self::jsonRequest('POST', '/orders', $order);
+      print "{$this->name} trade says:\n";
+      var_dump($ret);
+
+      if(isset($ret->status))
+      {
+        self::save_trade($ret->id, $alt, $side, $size, $price);
+        return $ret->id;
+      }
+      else
+        throw new AbucoinsAPIException('place order failed');
+    }
+
+    function save_trade($id, $alt, $side, $size, $price)
+    {
+      print("saving trade\n");
+      $trade_str = date("Y-m-d H:i:s").": {$this->name}: trade $id: $side $size $alt at $price\n";
+      file_put_contents('trades',$trade_str,FILE_APPEND);
+    }
+
+    function getProductList()
+    {
+      $list = [];
+      $products = self::jsonRequest('GET', "/products", null);
+
+      foreach($products as $product)
+      if(preg_match('/([A-Z]+)-BTC/', $product->id) )
+      {
+        $list[] = $product->base_currency;
+      }
+
+      return $list;
     }
 }
