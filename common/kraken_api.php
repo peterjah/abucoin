@@ -46,8 +46,12 @@ class KrakenApi
      */
     public function jsonRequest($method, array $request = array())
     {
-        $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs');
+        if($this->nApicalls < PHP_INT_MAX)
+          $this->nApicalls++;
+        else
+          $this->nApicalls = 0;
 
+        $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs');
         if ( !in_array($method ,$public_set ) )
         { //private method
           if(!isset($request['nonce'])) {
@@ -90,7 +94,6 @@ class KrakenApi
     static function crypto2kraken($crypto)
     {
       $table = ['BTC' => 'XXBT',
-                'BTC' => 'XXBT',
                 'XRP' => 'XXRP',
                 'LTC' => 'XLTC',
                 'XLM' => 'XXLM',
@@ -100,17 +103,35 @@ class KrakenApi
                 'ZEC' => 'XZEC',
                 'XMR' => 'XXMR',
                 'EOS' => 'EOS',
-                'BCH' => 'BCH'
+                'BCH' => 'BCH',
+                'DASH' => 'DASH',
+                'GNO' => 'GNO'
                 ];
       return $table[$crypto];
     }
 
     function getBalance($crypto)
     {
+      $positions = self::jsonRequest('OpenOrders');
+      $crypto_in_order = 0;
+      if(isset($positions['result']) && count($positions['result']['open']))
+      {
+        foreach($positions['result']['open'] as $openOrder)
+        {
+          if($openOrder['descr']['pair'] == "{$crypto}XBT") //Sell orders
+          {
+            $crypto_in_order = $openOrder['vol'];
+          }
+          elseif($crypto == 'BTC' && $openOrder['descr']['type'] == 'buy')
+          {
+            $crypto_in_order = $openOrder['vol'] * $openOrder['descr']['price'];
+          }
+        }
+      }
        $balances = self::jsonRequest('Balance');
        $kraken_name = self::crypto2kraken($crypto);
        if(isset($balances['result'][$kraken_name]))
-         return floatval($balances['result'][$kraken_name]);
+         return floatval($balances['result'][$kraken_name] - $crypto_in_order);
        else
          return 0;
     }
@@ -143,11 +164,113 @@ class KrakenApi
       foreach($products['result'] as $product)
         if($product['altname'] == $id)
         {
-          $info['min_order_size_alt'] = $info['increment'] = pow(10,-1*$product['lot_decimals']);
+          $info['min_order_size_alt'] = self::minimumAltTrade($alt);
+          $info['increment'] = pow(10,-1*$product['lot_decimals']);
           $info['fees'] = $product['fees'][0/*depending on monthly spendings*/][1];
-          $info['min_order_size_btc'] = pow(10,-1*$product['pair_decimals']);
+          $info['min_order_size_btc'] = pow(10,-1*$product['pair_decimals']);//self::minimumAltTrade('BTC');??
           break;
         }
       return $info;
+    }
+
+    function place_limit_order($alt, $side, $price, $size)
+    {
+      $crypto = self::crypto2kraken($alt);
+      $size_str = rtrim(rtrim(sprintf('%.6F', $size), '0'), ".");
+      $price_str = rtrim(rtrim(sprintf('%.6F', $price), '0'), ".");
+
+      $order = ['pair' => "{$crypto}XXBT",
+                'type' => $side,
+                'ordertype' => 'limit',
+                'price' =>  $price_str,
+                'volume' => $size_str,
+                'expiretm' => '+20'
+               ];
+      var_dump($order);
+      $ret = self::jsonRequest('AddOrder', $order);
+      print "{$this->name} trade says:\n";
+      var_dump($ret);
+       if(count($ret['error']))
+         throw new CryptopiaAPIException("place order failed: {$ret['error'][0]}");
+       else {
+         $filled_size = $size;
+         $id = $ret['result']['txid'][0];
+         self::save_trade($id, $alt, $side, $size, $price);
+       }
+       return ['filled_size' => $filled_size, 'id' => $id];
+    }
+
+    function minimumAltTrade($alt)
+    {
+      $table = ['REP'=>0.3,
+                'BTC'=>0.002,
+                'BCH'=>0.002,
+                'DASH'=>0.03,
+                'DOGE'=>3000,
+                'EOS'=>3,
+                'ETH'=>0.02,
+                'ETC'=>0.3,
+                'ICN'=>2,
+                'LTC'=>0.1,
+                'MLN'=>0.1,
+                'XMR'=>0.1,
+                'XRP'=>30,
+                'XLM'=>300,
+                'ZEC'=>0.03,
+                'GNO'=>0.03
+              ];
+      return $table[$alt];
+    }
+
+    static function getPair($alt)
+    {
+      $table = ['XRP' => 'XXRPXXBT',
+                'LTC' => 'XLTCXXBT',
+                'XLM' => 'XXLMXBT',
+                'ETH' => 'XETHXXBT',
+                'ETC' => 'XETCXXBT',
+                'REP' => 'XREPXXBT',
+                'ZEC' => 'XZECXXBT',
+                'XMR' => 'XXMRXXBT',
+                'EOS' => 'EOSXBT',
+                'BCH' => 'BCHXBT',
+                'DASH' => 'DASHXBT',
+                'GNO' => 'GNOXBT'
+                ];
+      return $table[$alt];
+    }
+
+    function getOrderBook($alt, $depth_btc = 0)
+    {
+      $crypto = self::crypto2kraken($alt);
+      //$id = 'GNOXBT';
+      $id = self::getPair($alt);
+      $ordercount = 25;
+      $book = self::jsonRequest('Depth',['pair' => $id, 'count' => $ordercount]);
+
+      if(count($book['error']))
+        throw new CryptopiaAPIException("getOrderBook failed: {$book['error'][0]}");
+
+      $book = $book['result'][$id];
+
+      foreach( ['asks', 'bids'] as $side)
+      {
+        $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
+        $best[$side]['size'] = floatval($book[$side][0][1]);
+        $i=1;
+        while(($best[$side]['size'] * $best[$side]['price'] < $depth_btc) && $i < $ordercount)
+        {
+          if (!isset($book[$side][$i][0], $book[$side][$i][1]))
+            break;
+          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][1]) / ($book[$side][$i][1]+$best[$side]['size']));
+          $best[$side]['size'] += floatval($book[$side][$i][1]);
+          $best[$side]['order_price'] = floatval($book[$side][$i][0]);
+          //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
+          $i++;
+        }
+      }
+      return $best;
+
+
     }
 }
