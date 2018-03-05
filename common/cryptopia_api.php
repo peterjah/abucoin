@@ -28,7 +28,10 @@ class CryptopiaApi
 
     public function jsonRequest($path, array $datas = array())
     {
-        $this->nApicalls++;
+        if($this->nApicalls < PHP_INT_MAX)
+          $this->nApicalls++;
+        else
+          $this->nApicalls = 0;
         $public_set = array( "GetCurrencies", "GetTradePairs", "GetMarkets", "GetMarket", "GetMarketHistory", "GetMarketOrders" );
         //$private_set = array( "GetBalance", "GetDepositAddress", "GetOpenOrders", "GetTradeHistory", "GetTransactions", "SubmitTrade", "CancelTrade", "SubmitTip" );
         $ch = curl_init();
@@ -67,7 +70,7 @@ class CryptopiaApi
           if ($response->Success)
             return $response->Data;
           else
-            return $response->Error;
+            return ['error' => $response->Error];
         }
         else
         {
@@ -82,21 +85,26 @@ class CryptopiaApi
     function getBalance($crypto)
     {
       $account = null;
+      $nbtry = 0;
       while($account == null)
       {
         try {
           $account = self::jsonRequest("GetBalance",['Currency'=> $crypto]);
-          //var_dump($account);
-          //isset($account[0]->Available) && var_dump($account[0]->Available);
-          if($account)
-            if(isset($account[0]->Available) && $account[0]->Available > 0.000001)
-             return $account[0]->Available;
-
+          // var_dump($account);
+          // isset($account[0]->Available) && var_dump($account[0]->Available);
+          if(isset($account[0]->Available))
+            if( $account[0]->Available > 0.000001)
+               return $account[0]->Available;
+            else
+              return 0;
         }
         catch (Exception $e)
         {
+          $nbtry++;
           print $e;
           sleep(1);
+          if($nbtry > 5)
+            return 0;
         }
       }
     }
@@ -121,20 +129,27 @@ class CryptopiaApi
 
     function getOrderStatus($alt, $order_id)
     {
-       $trade_history = self::jsonRequest('GetTradeHistory',['Market'=> "{$alt}/BTC", 'Count' => 10]);
-       var_dump($trade_history);
-       foreach ($trade_history as $trade)
-         if($trade->TradeId == $order_id)
-           $order = $trade;
-      if(!isset($order))
-        throw new CryptopiaAPIException('get order status failed');
 
-       $status = [ 'status' => null,
-                   'filled' => floatval($order->Amount),
-                   'side' => $order->Type,
-                   'total' => floatval($order->Total)
-                 ];
-       return $status;
+      $open_orders = self::jsonRequest('GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 10]);
+      //$trade_history = self::jsonRequest('GetTradeHistory',['Market'=> "{$alt}/BTC", 'Count' => 10]);
+      foreach ($open_orders as $open_order)
+      if($open_order->OrderId == $order_id)
+         $order = $open_order;
+      var_dump($order);
+      if(!isset($order)) {//order has been filled
+        $status = 'closed';
+        $filled = -1;
+        $filled_btc = -1;
+      }
+      else {
+        $status = 'partially_filled';
+        $filled = $order->Amount - $order->Remaining;
+        $filled_btc = $filled * $order->Rate;
+      }
+      return  $status = [ 'status' => $status,
+                          'filled' => $filled,
+                          'filled_btc' => $filled_btc
+                        ];
     }
 
     function save_trade($id, $alt, $side, $size, $price)
@@ -157,9 +172,18 @@ class CryptopiaApi
       var_dump($ret);
       if(isset($ret->FilledOrders))
       {
-        $trade_id = isset($ret->FilledOrders[0]) ? $ret->FilledOrders[0] : $ret->OrderId/*order not filled completely*/;
-        self::save_trade($trade_id, $alt, $side, $size, $price);
-        return $trade_id;
+        if (count($ret->FilledOrders))
+        {
+          $filled_size = $size;
+          $id = $ret->FilledOrders[0];
+          self::save_trade($id, $alt, $side, $size, $price);
+        }
+        else
+        {
+          $filled_size = -1;//order not fully filled yet
+          $id = $ret->OrderId;
+        }
+        return ['filled_size' => $filled_size, 'id' => $id];
       }
       else
         throw new CryptopiaAPIException('place order failed');
@@ -203,11 +227,11 @@ class CryptopiaApi
        return null;
      foreach( ['asks', 'bids'] as $side)
      {
-       $offer = $side == 'asks' ? $book->Buy : $book->Sell;
+       $offer = $side == 'asks' ? $book->Sell : $book->Buy;
        $best[$side]['price'] = $best[$side]['order_price'] = floatval($offer[0]->Price);
        $best[$side]['size'] = floatval($offer[0]->Volume);
        $i=1;
-       while(($best[$side]['size'] * $best[$side]['price'] < $depth_btc) && $i<50/*should be useless*/)
+       while(($best[$side]['size'] * $best[$side]['price'] < $depth_btc) && $i < $ordercount)
        {
          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $offer[$i]->Total) / ($best[$side]['size']+$offer[$i]->Volume) );
          $best[$side]['size'] += floatval($offer[$i]->Volume);
@@ -216,5 +240,14 @@ class CryptopiaApi
        }
      }
      return $best;
+   }
+
+   function cancelOrder($orderId)
+   {
+     $ret = self::jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => $orderId]);
+     if(isset($ret['error']))
+       return false;
+     return true;
+
    }
 }

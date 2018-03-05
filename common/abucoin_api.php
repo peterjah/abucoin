@@ -20,7 +20,6 @@ class AbucoinsApi
         $this->secret = $keys->abucoins->secret;
         $this->accesskey = $keys->abucoins->access_key;
         $this->passphrase = $keys->abucoins->passphrase;
-        $this->timestamp = time();
         $this->nApicalls = 0;
         $this->name = 'Abucoins';
         $this->curl = curl_init();
@@ -32,8 +31,10 @@ class AbucoinsApi
 
     public function jsonRequest($method, $path, $datas)
     {
-        $this->nApicalls++;
-        $this->timestamp = time();
+        if($this->nApicalls < PHP_INT_MAX)
+          $this->nApicalls++;
+        else
+          $this->nApicalls = 0;
         //$ch = curl_init();
         curl_setopt($this->curl/*$ch*/, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($this->curl/*$ch*/, CURLOPT_URL, static::API_URL . "$path");
@@ -41,6 +42,7 @@ class AbucoinsApi
             curl_setopt($this->curl/*$ch*/, CURLOPT_POST, 1);
             curl_setopt($this->curl/*$ch*/, CURLOPT_POSTFIELDS, json_encode($datas));
         }
+        $this->timestamp = time();
         curl_setopt($this->curl/*$ch*/, CURLOPT_HTTPHEADER, array(
             'Content-Type: application/json',
             'AC-ACCESS-KEY: ' . $this->accesskey,
@@ -116,8 +118,9 @@ class AbucoinsApi
 
       if(isset($ret->status))
       {
-        self::save_trade($ret->id, $alt, $side, $size, $price);
-        return $ret->id;
+        if($ret->filled_size > 0)
+          self::save_trade($ret->id, $alt, $side, $ret->filled_size, $price);
+        return ['filled_size' => $ret->filled_size, 'id' => $ret->id];
       }
       else
         throw new AbucoinsAPIException('place order failed');
