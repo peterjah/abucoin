@@ -16,26 +16,32 @@ $market1_btc_bal = $Api1->getBalance('BTC');
 $market2_btc_bal = $Api2->getBalance('BTC');
 
 $altcoins_list = findCommonProducts($Api1,$Api2);
+
 foreach( $altcoins_list as $alt)
 {
   sleep(1);
   $market2_alt_bal[$alt] = $Api2->getBalance($alt) ?: 0;
   $market1_alt_bal[$alt] = $Api1->getBalance($alt) ?: 0;
 }
+
 var_dump($market2_alt_bal);
 var_dump($market1_alt_bal);
 var_dump($market1_btc_bal);
 var_dump($market2_btc_bal);
+$btc_start_cash = $market1_btc_bal + $market2_btc_bal;
 $gain_treshold = 0.05;
 $low_btc_treshold = -0.1;
+$nLoops = 0;
 while(true)
 {
   foreach( $altcoins_list as $alt)
   {
-
-    $get_btc_market1 = $market1_btc_bal > 0.01 ?false:true;
-    $get_btc_market2 = $market2_btc_bal > 0.01 ?false:true;
-
+    $btc_cash_roll = $market1_btc_bal + $market2_btc_bal;
+    $low_btc_market_tresh = ($btc_cash_roll)*0.1; //10% of total btc hodling
+    $get_btc_market1 = $market1_btc_bal > $low_btc_market_tresh ?false:true;
+    $get_btc_market2 = $market2_btc_bal > $low_btc_market_tresh ?false:true;
+    // print "Get back btc on {$Api1->name}".($get_btc_market1?"true":"false")."  tresh is $low_btc_market_tresh\n";
+    // print "Get back btc on {$Api2->name}".($get_btc_market2?"true":"false")."\n";
     try
     {
       print "Testing $alt trade\n";
@@ -78,7 +84,7 @@ while(true)
             print("log tx\n");
             $gain_btc = $tradeSize_btc*$gain_percent/100;
             $profit+=$gain_btc;
-            $trade_str = date("Y-m-d H:i:s").": +$gain_btc BTC\n";
+            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //refresh balances
@@ -156,17 +162,34 @@ while(true)
     {
       print $e;
     }
-
   }
   try
   {
     //refresh BTC balances
+    sleep(1);
     $market2_btc_bal = $Api2->getBalance('BTC');
     $market1_btc_bal = $Api1->getBalance('BTC');
+    print "{$Api2->name}:{$market2_btc_bal}BTC  {$Api1->name}:{$market1_btc_bal}BTC\n";
+    $btc_cash_roll = $market1_btc_bal + $market2_btc_bal;
   }catch (Exception $e)
   {
+    print "failed to get balances\n";
     print $e;
   }
+  if($nLoops == 20)
+  { // refresh all balances
+    foreach( $altcoins_list as $alt)
+    {
+      sleep(1);
+      $market2_alt_bal[$alt] = $Api2->getBalance($alt) ?: 0;
+      $market1_alt_bal[$alt] = $Api1->getBalance($alt) ?: 0;
+    }
+    $nLoops = 0;
+  }
+  else
+    $nLoops++;
+
   print "~~~~~~~~~~~~~~api calls: ".($Api1->nApicalls + $Api2->nApicalls)."~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
   print "~~~~~~~~~~~~~~cumulated profit: $profit BTC~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n";
+  print "~~~~~~~~~~~~~~Cash roll: $btc_cash_roll BTC, GAIN=".($btc_cash_roll-$btc_start_cash)."BTC~~~~~~~~~~~~~~~~~~~~~~\n\n";
 }
