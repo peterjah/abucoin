@@ -180,9 +180,12 @@ while(true)
   { // refresh all balances
     foreach( $altcoins_list as $alt)
     {
-      sleep(1);
-      $market2_alt_bal[$alt] = $Api2->getBalance($alt) ?: 0;
-      $market1_alt_bal[$alt] = $Api1->getBalance($alt) ?: 0;
+      try
+      {
+        sleep(1);
+        $market2_alt_bal[$alt] = $Api2->getBalance($alt) ?: 0;
+        $market1_alt_bal[$alt] = $Api1->getBalance($alt) ?: 0;
+      }catch (Exception $e){}
     }
     $nLoops = 0;
   }
