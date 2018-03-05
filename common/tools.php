@@ -78,9 +78,9 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
   $min_sell_alt = $sell_market->product->min_order_size_alt;
 
   $btc_amount = $buy_price * $tradeSize;
-  if($btc_amount > 0.03)//dont be greedy for testing !!
+  if($btc_amount > 0.005)//dont be greedy for testing !!
   {
-    $btc_amount = 0.03;
+    $btc_amount = 0.005;
     $tradeSize = $btc_amount / $buy_price;
   }
   $btc_to_spend_fee = ($btc_amount * (1 + $buy_market->product->fees/100));
@@ -110,9 +110,10 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
       return 0;
     }
   }
+  $btc_to_spend_fee = $buy_price*$tradeSize * (1 + $buy_market->product->fees/100);
 
-  print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price BTC = ".($buy_price*$tradeSize)."BTC\n";
-  print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC = ".($buy_price*$tradeSize)."BTC\n";
+  print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price BTC = ".($btc_to_spend_fee)."BTC\n";
+  print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC = ".($sell_price*$tradeSize)."BTC\n";
 
   //Some checks
   if($btc_to_spend_fee < $min_buy_btc || $btc_to_spend_fee < $min_sell_btc)
@@ -135,32 +136,50 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
 
   print "btc_to_spend_fee = $btc_to_spend_fee for $tradeSize $alt\n";
 
-  $trade_id = $buy_api->place_limit_order($alt, 'buy', $buy_price, $tradeSize);
-  //$buy_status = $buy_api->getOrderStatus($buy_market->product->alt, $trade_id);
-  print "tradesize = $tradeSize buy_status={$buy_status['filled']}\n";
-  if (false && $buy_status['filled'] > 0 )
+  $order_status = $buy_api->place_limit_order($alt, 'buy', $buy_price, $tradeSize);
+  print "tradesize = $tradeSize buy_status={$order_status['filled_size']}\n";
+
+  if($order_status['filled_size'] < $tradeSize)
   {
-    if($buy_status['filled'] < $tradeSize)
+
+    if($buy_api instanceof CryptopiaApi)
     {
-      print ("filled {$buy_status['filled']} of $tradeSize $alt \n");
-      if($buy_api instanceof CryptopiaApi)
+      try
       {
         sleep(1);
-        try
+        $buy_status = $buy_api->getOrderStatus($alt, $order_status['id']);
+        if($buy_status['status'] == 'partially_filled')
         {
-          $buy_status = $buy_api->getOrderStatus($buy_market->product->alt, $trade_id);
-         var_dump($buy_status);
-         $tradeSize = $buy_status['filled'];
-         $buy_api->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => $trade_id]);
           print ("new eval: filled {$buy_status['filled']} of $tradeSize $alt \n");
-        } catch (Exception $e){}
-      }
+          $tradeSize = $buy_status['filled'];
+        }
+      } catch (Exception $e){}
     }
-    $sell_api->place_limit_order($alt, 'sell', $sell_price, $tradeSize);
-    return $tradeSize*$buy_price;
-  }// handle properly the case when only first order is matched
-
-  return 0;
+    else
+      $tradeSize = $order_status['filled_size'];
+  }
+  if($tradeSize > 0)
+  {
+    $sell_status = $sell_api->place_limit_order($alt, 'sell', $sell_price, $tradeSize);
+    if($sell_status['filled_size'] != $tradeSize)
+    {
+      print "order size missmatchs. filled: {$sell_status['filled_size']} of $tradeSize\n"; //todo: proper log system
+      if($sell_api instanceof CryptopiaApi)
+        if($sell_api->cancelOrder($sell_status['id']))//order canceled
+          return 0;
+        else { //order maybe passed
+            $sell_api->save_trade($sell_status['id'], $alt, 'sell', $tradeSize, $sell_price);
+          return $tradeSize;
+        }
+    }
+  }
+  if( isset($buy_status) && $buy_status['status'] == 'partially_filled')
+  {
+    sleep(1);
+    if($sell_api instanceof CryptopiaApi)
+      $buy_api->cancelOrder($order_status['id']);
+  }
+  return $tradeSize*$buy_price;
 }
 
 function ceiling($number, $significance = 1)
