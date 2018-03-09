@@ -209,8 +209,8 @@ while(true)
   $alt_to_refresh = $altcoins_list[ ($nLoops % count($altcoins_list) )];
   try
   {
-    $market2_alt_bal[$alt] = $Api2->getBalance($alt) ?: 0;
-    $market1_alt_bal[$alt] = $Api1->getBalance($alt) ?: 0;
+    $market2_alt_bal[$alt] = $Api2->getBalance($alt_to_refresh) ?: 0;
+    $market1_alt_bal[$alt] = $Api1->getBalance($alt_to_refresh) ?: 0;
   }catch (Exception $e){}
 
   if($nLoops == PHP_INT_MAX)
