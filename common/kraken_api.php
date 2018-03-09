@@ -122,7 +122,7 @@ class KrakenApi
     {
       $balances = self::jsonRequest('Balance');
       $kraken_name = self::crypto2kraken($crypto);
-      var_dump($balances);
+      //var_dump($balances);
       if(isset($balances['result'][$kraken_name]) && floatval($balances['result'][$kraken_name] > 0) )
       {
         $positions = self::jsonRequest('OpenOrders');
