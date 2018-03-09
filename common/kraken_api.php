@@ -1,5 +1,5 @@
 <?php
-
+require_once('../common/tools.php');
 class KrakenAPIException extends ErrorException {};
 
 class KrakenApi
@@ -11,6 +11,7 @@ class KrakenApi
     protected $curl;    // curl handle
     public $nApicalls;
     public $name;
+    public $products;
 
     public function __construct()
     {
@@ -20,7 +21,6 @@ class KrakenApi
         $this->nApicalls = 0;
         $this->name = 'Kraken';
         $this->curl = curl_init();
-
         curl_setopt_array($this->curl, array(
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
@@ -28,6 +28,9 @@ class KrakenApi
             CURLOPT_POST => true,
             CURLOPT_RETURNTRANSFER => true)
         );
+
+        //App specifics
+        $this->products = [];
 
     }
 
@@ -87,6 +90,11 @@ class KrakenApi
         $result = json_decode($result, true);
         if(!is_array($result))
             throw new KrakenAPIException('JSON decode error');
+        if(isset($result['error'][0]) && $result['error'][0] == 'EAPI:Rate limit exceeded')
+        {
+          print "Kraken Api call limit reached\n";
+          sleep(15);
+        }
 
         return $result;
     }
@@ -112,28 +120,29 @@ class KrakenApi
 
     function getBalance($crypto)
     {
-      $positions = self::jsonRequest('OpenOrders');
-      $crypto_in_order = 0;
-      if(isset($positions['result']) && count($positions['result']['open']))
+      $balances = self::jsonRequest('Balance');
+      $kraken_name = self::crypto2kraken($crypto);
+      if(isset($balances['result'][$kraken_name]) && floatval($balances['result'][$kraken_name] > 0) )
       {
-        foreach($positions['result']['open'] as $openOrder)
+        $positions = self::jsonRequest('OpenOrders');
+        $crypto_in_order = 0;
+        if(isset($positions['result']) && count($positions['result']['open']))
         {
-          if($openOrder['descr']['pair'] == "{$crypto}XBT") //Sell orders
+          foreach($positions['result']['open'] as $openOrder)
           {
-            $crypto_in_order = $openOrder['vol'];
-          }
-          elseif($crypto == 'BTC' && $openOrder['descr']['type'] == 'buy')
-          {
-            $crypto_in_order = $openOrder['vol'] * $openOrder['descr']['price'];
+            if($openOrder['descr']['pair'] == "{$crypto}XBT") //Sell orders
+            {
+              $crypto_in_order = $openOrder['vol'];
+            }
+            elseif($crypto == 'BTC' && $openOrder['descr']['type'] == 'buy')
+            {
+              $crypto_in_order = $openOrder['vol'] * $openOrder['descr']['price'];
+            }
           }
         }
+        return floatval($balances['result'][$kraken_name] - $crypto_in_order);
       }
-       $balances = self::jsonRequest('Balance');
-       $kraken_name = self::crypto2kraken($crypto);
-       if(isset($balances['result'][$kraken_name]))
-         return floatval($balances['result'][$kraken_name] - $crypto_in_order);
-       else
-         return 0;
+      return 0;
     }
 
     function save_trade($id, $alt, $side, $size, $price)
@@ -166,26 +175,34 @@ class KrakenApi
         {
           $info['min_order_size_alt'] = self::minimumAltTrade($alt);
           $info['increment'] = pow(10,-1*$product['lot_decimals']);
-          $info['fees'] = $product['fees'][0/*depending on monthly spendings*/][1];
+          $info['fees'] = $product['fees'][0/*depending on monthly spendings*/][0];
           $info['min_order_size_btc'] = pow(10,-1*$product['pair_decimals']);//self::minimumAltTrade('BTC');??
+          $info['alt_price_decimals'] = $product['pair_decimals'];
+          //var_dump($product);
           break;
         }
       return $info;
     }
 
-    function place_limit_order($alt, $side, $price, $size)
+    function place_order($type, $alt, $side, $price, $size, $alt_price_decimals)
     {
+
       $crypto = self::crypto2kraken($alt);
-      $size_str = rtrim(rtrim(sprintf('%.6F', $size), '0'), ".");
-      $price_str = rtrim(rtrim(sprintf('%.6F', $price), '0'), ".");
+      $size_str = rtrim(rtrim(sprintf("%.6F", floordec($size,6)), '0'), ".");
 
       $order = ['pair' => "{$crypto}XXBT",
                 'type' => $side,
-                'ordertype' => 'limit',
-                'price' =>  $price_str,
+                'ordertype' => $type,
                 'volume' => $size_str,
                 'expiretm' => '+20'
                ];
+      if($type == 'limit')
+      {
+        $precision = pow(10,-1*$alt_price_decimals);
+        $price = $side == 'buy' ? ceiling($price,$precision) : floordec($price,$alt_price_decimals);
+        $price_str = rtrim(rtrim(sprintf("%.{$alt_price_decimals}F", $price), '0'), ".");
+        $order['price'] = $price_str;
+      }
       var_dump($order);
       $ret = self::jsonRequest('AddOrder', $order);
       print "{$this->name} trade says:\n";
@@ -193,7 +210,7 @@ class KrakenApi
        if(count($ret['error']))
          throw new CryptopiaAPIException("place order failed: {$ret['error'][0]}");
        else {
-         $filled_size = $size;
+         $filled_size = $size; //todo !!
          $id = $ret['result']['txid'][0];
          self::save_trade($id, $alt, $side, $size, $price);
        }
@@ -240,7 +257,7 @@ class KrakenApi
       return $table[$alt];
     }
 
-    function getOrderBook($alt, $depth_btc = 0)
+    function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
     {
       $crypto = self::crypto2kraken($alt);
       //$id = 'GNOXBT';
@@ -258,7 +275,9 @@ class KrakenApi
         $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
         $best[$side]['size'] = floatval($book[$side][0][1]);
         $i=1;
-        while(($best[$side]['size'] * $best[$side]['price'] < $depth_btc) && $i < $ordercount)
+        while( (($best[$side]['size'] * $best[$side]['price'] < $depth_btc)
+                || ($best[$side]['size'] < $depth_alt) )
+                && $i < $ordercount)
         {
           if (!isset($book[$side][$i][0], $book[$side][$i][1]))
             break;

@@ -11,6 +11,7 @@ class CryptopiaApi
     protected $curl;
     public $nApicalls;
     public $name;
+    public $products;
 
     public function __construct()
     {
@@ -20,6 +21,8 @@ class CryptopiaApi
         $this->name = 'Cryptopia';
         $this->nApicalls = 0;
         $this->curl = curl_init();
+        //App specifics
+        $this->products = [];
     }
     function __destruct()
     {
@@ -159,13 +162,19 @@ class CryptopiaApi
       file_put_contents('trades',$trade_str,FILE_APPEND);
     }
 
-    function place_limit_order($alt, $side, $price, $size)
+    function place_order($type, $alt, $side, $price, $size, $alt_price_decimals)
     {
+      var_dump($alt_price_decimals);
+      $min_trade_size_btc = $this->product[$alt]->min_order_size_btc;
+      $market_price = $side == 'buy' ? $price*2 : ceiling($min_trade_size_btc/$size, $alt_price_decimals);
+
+      var_dump($market_price);
       $order = ['Market' => "$alt/BTC",
                 'Type' => $side,
-                'Rate' =>  $price,
+                'Rate' =>  $type == 'limit' ? $price : $market_price,
                 'Amount' => $size,
                ];
+
       var_dump($order);
       $ret = self::jsonRequest('SubmitTrade', $order);
       print "{$this->name} trade says:\n";
@@ -174,7 +183,7 @@ class CryptopiaApi
       {
         if (count($ret->FilledOrders))
         {
-          $filled_size = $size;
+          $filled_size = $size; //it is the exact filled size ?
           $id = $ret->FilledOrders[0];
           self::save_trade($id, $alt, $side, $size, $price);
         }
@@ -212,12 +221,13 @@ class CryptopiaApi
           $info['min_order_size_alt'] = $info['increment'] = $product->MinimumTrade;
           $info['fees'] = $product->TradeFee;
           $info['min_order_size_btc'] = $product->MinimumBaseTrade;
+          $info['alt_price_decimals'] = $info['increment'];
           break;
         }
       return $info;
     }
 
-   function getOrderBook($alt, $depth_btc = 0)
+   function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
    {
      $id = "{$alt}_BTC";
      $ordercount = 25;
@@ -231,7 +241,9 @@ class CryptopiaApi
        $best[$side]['price'] = $best[$side]['order_price'] = floatval($offer[0]->Price);
        $best[$side]['size'] = floatval($offer[0]->Volume);
        $i=1;
-       while(($best[$side]['size'] * $best[$side]['price'] < $depth_btc) && $i < $ordercount)
+       while( (($best[$side]['size'] * $best[$side]['price'] < $depth_btc)
+              || ($best[$side]['size'] < $depth_alt) )
+              && $i < $ordercount)
        {
          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $offer[$i]->Total) / ($best[$side]['size']+$offer[$i]->Volume) );
          $best[$side]['size'] += floatval($offer[$i]->Volume);
@@ -244,7 +256,9 @@ class CryptopiaApi
 
    function cancelOrder($orderId)
    {
-     $ret = self::jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => $orderId]);
+     print ("canceling order $orderId\n");
+     $ret = self::jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);
+     var_dump($ret);
      if(isset($ret['error']))
        return false;
      return true;

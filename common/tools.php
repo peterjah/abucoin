@@ -17,23 +17,22 @@ function getMarket($market_name)
 
 class product
 {
-  protected $api;
-
   public $alt;
   public $min_order_size_alt;
   public $min_order_size_btc;
+  public $alt_price_decimals;
   public $fees;
   public $increment;
 
   public function __construct($api, $alt)
   {
-    $this->api = $api;
     $this->alt = $alt;
     $infos = $api->getProductInfo($alt);
     $this->min_order_size_alt = $infos['min_order_size_alt'];
     $this->increment = $infos['increment'];
     $this->fees = $infos['fees'];
     $this->min_order_size_btc = $infos['min_order_size_btc'];
+    $this->alt_price_decimals = $infos['alt_price_decimals'] ?: 8;
   }
 }
 
@@ -49,10 +48,11 @@ class OrderBook
     $this->book = null;
   }
 
-  function refreshBook($depth_btc)
+  function refreshBook($depth_btc, $depth_alt)
   {
-    $depth_btc = max($depth_btc,$this->product->min_order_size_btc);
-    return $this->api->getOrderBook($this->product->alt, $depth_btc);
+    $depth_btc = max($depth_btc, $this->product->min_order_size_btc);
+    $depth_alt = max($depth_alt, $this->product->min_order_size_alt);
+    return $this->api->getOrderBook($this->product->alt, $depth_btc, $depth_alt);
   }
 }
 
@@ -78,11 +78,11 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
   $min_sell_alt = $sell_market->product->min_order_size_alt;
 
   $btc_amount = $buy_price * $tradeSize;
-  if($btc_amount > 0.005)//dont be greedy for testing !!
-  {
-    $btc_amount = 0.005;
-    $tradeSize = $btc_amount / $buy_price;
-  }
+  // if($btc_amount > 0.005)//dont be greedy for testing !!
+  // {
+  //   $btc_amount = 0.005;
+  //   $tradeSize = $btc_amount / $buy_price;
+  // }
   $btc_to_spend_fee = ($btc_amount * (1 + $buy_market->product->fees/100));
   print "btc_amount = $btc_amount , $btc_to_spend_fee=$btc_to_spend_fee $alt\n";
   if($btc_to_spend_fee > $btc_bal)//Check btc balance
@@ -129,14 +129,15 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
   }
 
   //ceil tradesize
-  $tradeSize = ceiling($tradeSize, $buy_market->product->increment);
+  $tradeSize = floordec($tradeSize, strlen(substr(strrchr("{$buy_market->product->increment}", "."), 1)));
   $buy_price = ceiling($buy_price, 0.00000001);
-  $sell_price = ceiling($sell_price, 0.00000001);
+  $sell_price = floordec($sell_price, 8);
 
 
   print "btc_to_spend_fee = $btc_to_spend_fee for $tradeSize $alt\n";
 
-  $order_status = $buy_api->place_limit_order($alt, 'buy', $buy_price, $tradeSize);
+  $order_status = $buy_api->place_order('limit', $alt, 'buy', $buy_price, $tradeSize, $buy_market->product->alt_price_decimals);
+
   print "tradesize = $tradeSize buy_status={$order_status['filled_size']}\n";
 
   if($order_status['filled_size'] < $tradeSize)
@@ -146,12 +147,15 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
     {
       try
       {
-        sleep(1);
+        sleep(2);
         $buy_status = $buy_api->getOrderStatus($alt, $order_status['id']);
         if($buy_status['status'] == 'partially_filled')
         {
-          print ("new eval: filled {$buy_status['filled']} of $tradeSize $alt \n");
+          print ("new eval: id:{$order_status['id']} filled {$buy_status['filled']} of $tradeSize $alt \n");
           $tradeSize = $buy_status['filled'];
+          $buy_api->cancelOrder($order_status['id']);
+          if( $buy_status['filled'] > 0)
+            $buy_api->save_trade($order_status['id'], $alt, 'buy', $buy_status['filled'], $buy_price);
         }
       } catch (Exception $e){}
     }
@@ -160,24 +164,16 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
   }
   if($tradeSize > 0)
   {
-    $sell_status = $sell_api->place_limit_order($alt, 'sell', $sell_price, $tradeSize);
-    if($sell_status['filled_size'] != $tradeSize)
-    {
-      print "order size missmatchs. filled: {$sell_status['filled_size']} of $tradeSize\n"; //todo: proper log system
-      if($sell_api instanceof CryptopiaApi)
-        if($sell_api->cancelOrder($sell_status['id']))//order canceled
-          return 0;
-        else { //order maybe passed
-            $sell_api->save_trade($sell_status['id'], $alt, 'sell', $tradeSize, $sell_price);
-          return $tradeSize;
-        }
-    }
-  }
-  if( isset($buy_status) && $buy_status['status'] == 'partially_filled')
-  {
-    sleep(1);
-    if($sell_api instanceof CryptopiaApi)
-      $buy_api->cancelOrder($order_status['id']);
+    $i=0;
+    while(!isset($sell_status) && $i<3)
+      try{
+        $sell_status = $sell_api->place_order('market',$alt, 'sell', $sell_price, $tradeSize, $sell_market->product->alt_price_decimals);
+      }
+      catch(Exception $e){
+         //var_dump($e);
+         $i++;
+      }
+    var_dump($sell_status);
   }
   return $tradeSize*$buy_price;
 }
@@ -187,7 +183,11 @@ function ceiling($number, $significance = 1)
     return ( is_numeric($number) && is_numeric($significance) ) ? (ceil($number/$significance)*$significance) : false;
 }
 
+function floordec($number,$decimals=2){
+     return floor($number*pow(10,$decimals))/pow(10,$decimals);
+}
+
 function findCommonProducts($market1, $market2)
 {
-  return array_intersect($market1->getProductList(), $market2->getProductList());
+  return array_values(array_intersect($market1->getProductList(), $market2->getProductList()));
 }

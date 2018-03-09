@@ -13,6 +13,7 @@ class AbucoinsApi
     protected $curl;
     public $nApicalls;
     public $name;
+    public $products;
 
     public function __construct()
     {
@@ -23,6 +24,8 @@ class AbucoinsApi
         $this->nApicalls = 0;
         $this->name = 'Abucoins';
         $this->curl = curl_init();
+        //App specifics
+        $this->products = [];
     }
     function __destruct()
     {
@@ -102,15 +105,21 @@ class AbucoinsApi
        return $status;
     }
 
-    function place_limit_order($alt, $side, $price, $size)
+    function place_order($type, $alt, $side, $price, $size, $alt_price_decimals)
     {
       $order = ['product_id' => "$alt-BTC",
-                'price'=> $price,
                 'size'=>  $size,
                 'side'=> $side,
-                'type'=> 'limit',
-                'time_in_force' => 'IOC', // immediate or cancel
-                 ];
+                'type'=> $type,
+                ];
+
+      if($type == 'limit')
+      {
+        $order['price'] = $price;
+        $order['time_in_force'] = 'IOC';// immediate or cancel
+      }
+
+
       var_dump($order);
       $ret = self::jsonRequest('POST', '/orders', $order);
       print "{$this->name} trade says:\n";
@@ -120,6 +129,29 @@ class AbucoinsApi
       {
         if($ret->filled_size > 0)
           self::save_trade($ret->id, $alt, $side, $ret->filled_size, $price);
+        return ['filled_size' => $ret->filled_size, 'id' => $ret->id];
+      }
+      else
+        throw new AbucoinsAPIException('place order failed');
+    }
+
+    function place_market_order($alt, $side, $size)
+    {
+      $order = ['product_id' => "$alt-BTC",
+                'price'=> $price,
+                'size'=>  $size,
+                'side'=> $side,
+                'type'=> 'market',
+                 ];
+      var_dump($order);
+      $ret = self::jsonRequest('POST', '/orders', $order);
+      print "{$this->name} trade says:\n";
+      var_dump($ret);
+
+      if(isset($ret->status))
+      {
+        if($ret->filled_size > 0)
+          self::save_trade($ret->id, $alt, $side, $ret->filled_size, $ret->price);
         return ['filled_size' => $ret->filled_size, 'id' => $ret->id];
       }
       else
@@ -157,10 +189,11 @@ class AbucoinsApi
       $info['increment'] = $product->quote_increment;
       $info['fees'] = 0; //til end of March
       $info['min_order_size_btc'] = 0;
+      $info['alt_price_decimals'] = $info['increment'];
       return $info;
     }
 
-    function getOrderBook($alt, $depth_btc = 0)
+    function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
     {
       $id = "{$alt}-BTC";
       $book = self::jsonRequest('GET', "/products/{$id}/book?level=2", null);
@@ -172,7 +205,9 @@ class AbucoinsApi
         $best[$side]['price'] = $best[$side]['order_price'] = floatval($book->$side[0][0]);
         $best[$side]['size'] = floatval($book->$side[0][1]);
         $i=1;
-        while(($best[$side]['size'] * $best[$side]['price'] < $depth_btc) && $i<50/*max offers for level=2*/)
+        while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_btc)
+              || ($best[$side]['size'] < $depth_alt) )
+              && $i<50/*max offers for level=2*/)
         {
           if (!isset($book->$side[$i][0], $book->$side[$i][1]))
             break;
