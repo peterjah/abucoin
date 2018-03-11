@@ -135,7 +135,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
 
 
   print "btc_to_spend_fee = $btc_to_spend_fee for $tradeSize $alt\n";
-
+  //todo: use market order for kraken et perhaps cryptopia
   $order_status = $buy_api->place_order('limit', $alt, 'buy', $buy_price, $tradeSize, $buy_market->product->alt_price_decimals);
 
   print "tradesize = $tradeSize buy_status={$order_status['filled_size']}\n";

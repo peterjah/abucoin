@@ -67,13 +67,19 @@ class AbucoinsApi
         return base64_encode(hash_hmac("sha256", $what, base64_decode($this->secret), true));
     }
 
-    function getBalance($crypto)
+    function getBalance(...$cryptos)
     {
-       $account = self::jsonRequest('GET', "/accounts/10502694-$crypto", null);
-       if(isset($account->available) && floatval($account->available) > 0.000001)
-         return floatval($account->available);
-       else
-         return 0;
+      foreach($cryptos as $crypto)
+      {
+        $account = self::jsonRequest('GET', "/accounts/10502694-$crypto", null);
+        if(isset($account->available) && floatval($account->available) > 0.000001)
+          $res[$crypto] = floatval($account->available);
+        else
+          $res[$crypto] = 0;
+      }
+      if(count($res) == 1)
+       return array_pop($res);
+      else return $res;
     }
 
     function getBestAsk($product_id)

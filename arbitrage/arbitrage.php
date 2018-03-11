@@ -16,26 +16,26 @@ $market1_btc_bal = $Api1->getBalance('BTC');
 $market2_btc_bal = $Api2->getBalance('BTC');
 
 $altcoins_list = findCommonProducts($Api1,$Api2);
+$market2_alt_bal = call_user_func_array(array($Api2, "getBalance"),$altcoins_list);
+$market1_alt_bal = call_user_func_array(array($Api1, "getBalance"),$altcoins_list);
 
 foreach( $altcoins_list as $alt)
 {
-  sleep(1);
-  $market2_alt_bal[$alt] = $Api2->getBalance($alt) ?: 0;
-  $market1_alt_bal[$alt] = $Api1->getBalance($alt) ?: 0;
-
+  sleep(0.5);
   $orderBook1[$alt] = new OrderBook($Api1, $alt);//todo: integrade products book objects into api
   $Api1->product[$alt] = $orderBook1[$alt]->product;
   $orderBook2[$alt] = new OrderBook($Api2, $alt);
   $Api2->product[$alt] = $orderBook2[$alt]->product;
 }
-
+print " {$Api2->name} alt_bal:\n";
 var_dump($market2_alt_bal);
+print " {$Api1->name} alt_bal:\n";
 var_dump($market1_alt_bal);
 var_dump($market1_btc_bal);
 var_dump($market2_btc_bal);
 $btc_start_cash = $market1_btc_bal + $market2_btc_bal;
 @define('GAIN_TRESHOLD', 0.05);
-@define('LOW_BTC_TRESH', -0.05);
+@define('LOW_BTC_TRESH', -0.3);
 
 $nLoops = 0;
 while(true)
@@ -64,20 +64,30 @@ while(true)
         if( ($btc_bal = $market1_btc_bal) == 0)
           break;
         //print("btc_bal=$btc_bal \n");
-        $book1 = $orderBook1[$alt]->refreshBook($orderBook2[$alt]->product->min_order_size_btc,$orderBook2[$alt]->product->min_order_size_alt);
-        $book2 = $orderBook2[$alt]->refreshBook($orderBook1[$alt]->product->min_order_size_btc,$orderBook1[$alt]->product->min_order_size_alt);
+        $min_order_btc = max($orderBook1[$alt]->product->min_order_size_btc, $orderBook2[$alt]->product->min_order_size_btc);
+        $min_order_alt = max($orderBook1[$alt]->product->min_order_size_alt, $orderBook2[$alt]->product->min_order_size_alt);
+        $book1 = $orderBook1[$alt]->refreshBook($min_order_btc,$min_order_alt);
+        $book2 = $orderBook2[$alt]->refreshBook($min_order_btc,$min_order_alt);
 
         $sell_price = $book2['bids']['price'];
         $buy_price = $book1['asks']['price'];
         //var_dump($sell_price); var_dump($buy_price);
-        $tradeSize = min($book2['bids']['size'],$book1['asks']['size']);
+        $tradeSize = min($book2['bids']['size'], $book1['asks']['size']);
         $gain_percent = ( ( ($sell_price *(1-($orderBook2[$alt]->product->fees/100)))/
                            ($buy_price *(1+($orderBook1[$alt]->product->fees/100)) ) )-1)*100;
 
-        print "SELL {$Api2->name} => BUY {$Api1->name}: GAIN ".number_format($gain_percent,3)."%  sell_price=$sell_price buy_price=$buy_price\n";
+        //print "SELL {$Api2->name} => BUY {$Api1->name}: GAIN ".number_format($gain_percent,3)."%  sell_price=$sell_price buy_price=$buy_price\n";
+        //print "tradeSize=$tradeSize min {$book2['bids']['size']}, {$book1['asks']['size']}\n";
+
         $gain_treshold = GAIN_TRESHOLD;
         if(in_array($alt, $free_tx['toAbucoin']) || $get_btc_market2)
+        {
           $gain_treshold = LOW_BTC_TRESH;
+          $half_cash_alt = ($btc_cash_roll/2) * $book1['asks']['order_price'];
+          if($tradeSize >  $half_cash_alt && $gain_percent < 0)
+            $tradeSize = $half_cash_alt > $min_order_alt ? $half_cash_alt : $min_order_alt;
+        }
+
         if($gain_percent >= $gain_treshold)
         {
           //balance double check
@@ -99,10 +109,12 @@ while(true)
 
             //refresh balances
             sleep(1);
-            $market1_alt_bal[$alt] = $Api1->getBalance($alt);
-            $market2_btc_bal = $Api2->getBalance('BTC');
-            $market1_btc_bal = $Api1->getBalance('BTC');
-            $market2_alt_bal[$alt] = $Api2->getBalance($alt);
+            $balance1 = $Api1->getBalance('BTC', $alt); //todo: factorize balances
+            $market1_alt_bal[$alt] = $balance1[$alt];
+            $market1_btc_bal = $balance1['BTC'];
+            $balance2 = $Api2->getBalance('BTC', $alt);
+            $market2_btc_bal = $balance2['BTC'];
+            $market2_alt_bal[$alt] = $balance2[$alt];
           }
           else
             $tradeSize_btc = 0;
@@ -136,8 +148,10 @@ while(true)
         if( ($btc_bal = $market2_btc_bal) == 0)
           break;
         //print("btc_bal=$btc_bal \n");
-        $book1 = $orderBook1[$alt]->refreshBook($orderBook2[$alt]->product->min_order_size_btc,$orderBook2[$alt]->product->min_order_size_alt);
-        $book2 = $orderBook2[$alt]->refreshBook($orderBook1[$alt]->product->min_order_size_btc,$orderBook1[$alt]->product->min_order_size_alt);
+        $min_order_btc = max($orderBook1[$alt]->product->min_order_size_btc, $orderBook2[$alt]->product->min_order_size_btc);
+        $min_order_alt = max($orderBook1[$alt]->product->min_order_size_alt, $orderBook2[$alt]->product->min_order_size_alt);
+        $book1 = $orderBook1[$alt]->refreshBook($min_order_btc,$min_order_alt);
+        $book2 = $orderBook2[$alt]->refreshBook($min_order_btc,$min_order_alt);
 
         $sell_price = $book1['bids']['price'];
         $buy_price = $book2['asks']['price'];
@@ -145,11 +159,17 @@ while(true)
 
         $gain_percent = (( ($sell_price *(1-($orderBook1[$alt]->product->fees/100)))/
                            ($buy_price *(1+($orderBook2[$alt]->product->fees/100))) )-1)*100;
-        print "SELL {$Api1->name} => BUY {$Api2->name}: GAIN ".number_format($gain_percent,3)."%  sell_price=$sell_price buy_price=$buy_price\n";
+        //print "SELL {$Api1->name} => BUY {$Api2->name}: GAIN ".number_format($gain_percent,3)."%  sell_price=$sell_price buy_price=$buy_price\n";
+        //print "tradeSize=$tradeSize min {$book2['asks']['size']},{$book1['bids']['size']}\n";
 
         $gain_treshold = GAIN_TRESHOLD;
         if(in_array($alt, $free_tx['toCryptopia']) || $get_btc_market1)
+        {
           $gain_treshold = LOW_BTC_TRESH;
+          $half_cash_alt = ($btc_cash_roll/2) * $book2['asks']['order_price'];
+          if($tradeSize >  $half_cash_alt && $gain_percent < 0)
+            $tradeSize = $half_cash_alt > $min_order_alt ? $half_cash_alt : $min_order_alt;
+        }
         if($gain_percent >= $gain_treshold )
         {
           if($sell_price <= $buy_price && $gain_treshold > 0)
@@ -171,10 +191,13 @@ while(true)
 
             //refresh balances
             sleep(1);
-            $market1_alt_bal[$alt] = $Api1->getBalance($alt);
-            $market2_btc_bal = $Api2->getBalance('BTC');
-            $market1_btc_bal = $Api1->getBalance('BTC');
-            $market2_alt_bal[$alt] = $Api2->getBalance($alt);
+            $balance1 = $Api1->getBalance('BTC', $alt); //todo: factorize balances
+            $market1_alt_bal[$alt] = $balance1[$alt];
+            $market1_btc_bal = $balance1['BTC'];
+            $balance2 = $Api2->getBalance('BTC', $alt);
+            $market2_btc_bal = $balance2['BTC'];
+            $market2_alt_bal[$alt] = $balance2[$alt];
+
           }
           else
             $tradeSize_btc = 0;

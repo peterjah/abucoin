@@ -85,31 +85,38 @@ class CryptopiaApi
         }
     }
 
-    function getBalance($crypto)
+    function getBalance(...$cryptos)
     {
-      $account = null;
-      $nbtry = 0;
-      while($account == null)
+      $res = [];
+      foreach($cryptos as $crypto)
       {
-        try {
-          $account = self::jsonRequest("GetBalance",['Currency'=> $crypto]);
-          // var_dump($account);
-          // isset($account[0]->Available) && var_dump($account[0]->Available);
-          if(isset($account[0]->Available))
-            if( $account[0]->Available > 0.000001)
-               return $account[0]->Available;
-            else
-              return 0;
-        }
-        catch (Exception $e)
+        $account = null;
+        $nbtry = 0;
+        while($account == null)
         {
-          $nbtry++;
-          print $e;
-          sleep(1);
-          if($nbtry > 5)
-            return 0;
+          try
+          {
+            $account = self::jsonRequest("GetBalance",['Currency'=> $crypto]);
+             //var_dump($account);
+            if( isset($account[0]->Available))
+              $res[$crypto] = $account[0]->Available;
+            else
+              $res[$crypto] = 0;
+          }
+          catch (Exception $e)
+          {
+            $nbtry++;
+            print "failed to get balance for $crypto. retry $nbtry...\n";
+            sleep(1);
+            if($nbtry > 5)
+              return 0;
+          }
         }
       }
+
+      if(count($res) == 1)
+        return array_pop($res);
+      else return $res;
     }
 
     function getBestAsk($product_id)
