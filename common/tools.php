@@ -142,21 +142,19 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
 
   if($order_status['filled_size'] < $tradeSize)
   {
-
+    var_dump($order_status);
     if($buy_api instanceof CryptopiaApi)
     {
       try
       {
         sleep(2);
         $buy_status = $buy_api->getOrderStatus($alt, $order_status['id']);
-        if($buy_status['status'] == 'partially_filled')
-        {
-          print ("new eval: id:{$order_status['id']} filled {$buy_status['filled']} of $tradeSize $alt \n");
-          $tradeSize = $buy_status['filled'];
-          $buy_api->cancelOrder($order_status['id']);
-          if( $buy_status['filled'] > 0)
-            $buy_api->save_trade($order_status['id'], $alt, 'buy', $buy_status['filled'], $buy_price);
-        }
+        var_dump($buy_status);
+        $tradeSize = $buy_status['filled'];
+        $buy_api->cancelOrder($order_status['id']);
+        if( $buy_status['filled'] > 0 )
+          $buy_api->save_trade($order_status['id'], $alt, 'buy', $buy_status['filled'], $buy_price);
+
       } catch (Exception $e){}
     }
     else

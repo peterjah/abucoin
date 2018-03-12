@@ -73,7 +73,10 @@ class CryptopiaApi
           if ($response->Success)
             return $response->Data;
           else
+          {
+            print "krakenApi error: $response->Error \n";
             return ['error' => $response->Error];
+          }
         }
         else
         {
@@ -139,22 +142,25 @@ class CryptopiaApi
 
     function getOrderStatus($alt, $order_id)
     {
-
+      print "Canceling order $order_id \n";
       $open_orders = self::jsonRequest('GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 10]);
       //$trade_history = self::jsonRequest('GetTradeHistory',['Market'=> "{$alt}/BTC", 'Count' => 10]);
       foreach ($open_orders as $open_order)
-      if($open_order->OrderId == $order_id)
-         $order = $open_order;
+        if($open_order->OrderId == $order_id)
+        {
+           $order = $open_order;
+           break;
+        }
       var_dump($order);
-      if(!isset($order)) {//order has been filled
+      if(!isset($order)) {//order has not been filled?
         $status = 'closed';
-        $filled = -1;
-        $filled_btc = -1;
+        $filled = 0;
+        $filled_btc = 0;
       }
       else {
         $status = 'partially_filled';
-        $filled = $order->Amount - $order->Remaining;
-        $filled_btc = $filled * $order->Rate;
+        $filled = floatval($order->Amount - $order->Remaining);
+        $filled_btc = floatval($filled * $order->Rate);
       }
       return  $status = [ 'status' => $status,
                           'filled' => $filled,
