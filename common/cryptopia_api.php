@@ -151,7 +151,7 @@ class CryptopiaApi
            $order = $open_order;
            break;
         }
-
+      var_dump($open_order);
       if(!isset($order)) {//order has not been filled?
         $status = 'closed';
         $filled = 0;
@@ -179,7 +179,7 @@ class CryptopiaApi
     function place_order($type, $alt, $side, $price, $size)
     {
       $min_trade_size_btc = $this->product[$alt]->min_order_size_btc;
-      $market_price = $side == 'buy' ? $price*2 : ceiling(($min_trade_size_btc/$size) + $this->product[$alt]->increment, $this->product[$alt]->increment);
+      $market_price = $side == 'buy' ? $price /*todo: take btc balance tofind price*/: ceiling(($min_trade_size_btc/$size) + $this->product[$alt]->increment, $this->product[$alt]->increment);
 
       var_dump($market_price);
       $order = ['Market' => "$alt/BTC",

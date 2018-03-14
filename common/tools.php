@@ -69,15 +69,15 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
   $buy_api = $buy_market->api;
   //todo: always start by abucoins trade. always finish by kraken trade
   if($buy_api instanceof AbucoinsApi)
-    $first_action = 'buy';
+    $first_api = $buy_api;
   elseif($sell_api instanceof AbucoinsApi)
-    $first_action = 'sell';
+    $first_api = $sell_api;
   elseif($buy_api instanceof KrakenApi)
-    $first_action = 'buy';
+    $first_api = $sell_api;
   else
-    $first_action = 'sell';
+    $first_api = $buy_api;
 
-  print "buy_api= $buy_api->name sell_api= $sell_api->name first action: $first_action\n";
+  print "start with= $first_api->name \n";
   print "balances: $btc_bal BTC; $alt_bal $alt \n";
 
   $min_trade_btc = max($buy_market->product->min_order_size_btc, $sell_market->product->min_order_size_btc);
@@ -142,8 +142,8 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
   print "btc_to_spend_fee = $btc_to_spend_fee for $tradeSize $alt\n";
 
 
+  $first_action = $first_api == $buy_api ? 'buy' : 'sell';
   $price = $first_action == 'buy' ? $buy_price : $sell_price;
-  $first_api = $first_action == 'buy' ? $buy_api : $sell_api;
   $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize);
 
   print "tradesize = $tradeSize buy_status={$order_status['filled_size']}\n";
@@ -155,6 +155,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
     {
       try
       {
+        print ("Verify cryptopia trade...\n");
         sleep(10);
         $status = $first_api->getOrderStatus($alt, $order_status['id']);
         var_dump($status);
@@ -163,7 +164,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
         $debug_str = date("Y-m-d H:i:s")."canceled order: {$order_status['id']} tradeSize=$tradeSize filled:{$status['filled_size']}\n";
         file_put_contents('debug',$debug_str,FILE_APPEND);
         if( $status['filled'] > 0 )
-          $first_api->save_trade($order_status['id'], $alt, 'buy', $status['filled'], $price);
+          $first_api->save_trade($order_status['id'], $alt, $first_action, $status['filled'], $price);
         else
           $tradeSize = 0;
 
@@ -172,34 +173,47 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
     else
       $tradeSize = $order_status['filled_size'];
   }
+
+  $second_status = [];
   if($tradeSize > 0)
   {
     $i=0;
     while($i<5)
     {
       try{
-        $action = $first_action == 'buy' ? 'sell' : 'buy';
-        $price = $action == 'buy' ? $buy_price : $sell_price;
-        $api = $action == 'buy' ? $buy_api : $sell_api;
-        $status = $api->place_order('market',$alt, $action, $price, $tradeSize);
+        $second_api = $first_api == $buy_api ? $sell_api : $buy_api;
+        $second_action = $second_api == $buy_api ? 'buy' : 'sell';
+        $price = $second_action == 'buy' ? $buy_price : $sell_price;
+        $second_status = $second_api->place_order('market',$alt, $second_action, $price, $tradeSize);
         break;
       }
       catch(Exception $e){
-         print ("unable to $action retrying...\n");
+         print ("unable to $second_action retrying...\n");
          $i++;
       }
-      var_dump($status);
-      $debug_str = date("Y-m-d H:i:s")."unable to $action on {$api->name}: buy id: {$order_status['id']} tradeSize=$tradeSize at $price \n";
+      var_dump($second_status);
+      $debug_str = date("Y-m-d H:i:s")."unable to $second_action on {$second_api->name}: buy id: {$second_status['id']} tradeSize=$tradeSize at $price \n";
       file_put_contents('debug',$debug_str,FILE_APPEND);
     }
   }
-  if($first_api instanceof KrakenApi || $first_api instanceof CryptopiaApi)
+  //Second action
+  if($second_status['filled_size'] < $tradeSize)
   {
-    $buy_status = $first_api->getOrderStatus($alt, $order_status['id']);
-    if($buy_status['status'] == 'open')
+    if($second_api instanceof CryptopiaApi)
     {
-      $debug_str = date("Y-m-d H:i:s")."order missmatch on {$first_api->name}: {$order_status['id']} tradeSize=$tradeSize filled:{$buy_status['filled_size']}\n";
-      file_put_contents('debug',$debug_str,FILE_APPEND);
+      try
+      {
+        print ("Verify cryptopia trade...\n");
+        sleep(20);
+        $status = $second_api->getOrderStatus($alt, $second_status['id']);
+        var_dump($status);
+        $first_api->cancelOrder($order_status['id']);
+        $second_api->save_trade($second_status['id'], $alt, $second_action, $status['filled'], $price);
+
+        $debug_str = date("Y-m-d H:i:s")."order stil open on {$first_api->name}: {$order_status['id']} tradeSize=$tradeSize filled:{$status['filled_size']}\n";
+        file_put_contents('debug',$debug_str,FILE_APPEND);
+      }
+      catch(Exception $e){}
     }
   }
   return $tradeSize*$buy_price;

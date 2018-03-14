@@ -130,8 +130,10 @@ while(true)
       print $e;
       //refresh balances
       sleep(3);
-      $market1_alt_bal[$alt] = $Api1->getBalance($alt);
-      $market2_alt_bal[$alt] = $Api2->getBalance($alt);
+      try{
+        $market1_alt_bal[$alt] = $Api1->getBalance($alt);
+        $market2_alt_bal[$alt] = $Api2->getBalance($alt);
+      }catch (Exception $e){}
     }
     try
     {
@@ -234,6 +236,7 @@ while(true)
   $alt_to_refresh = $altcoins_list[ ($nLoops % count($altcoins_list) )];
   try
   {
+    var_dump($alt_to_refresh);
     $market2_alt_bal[$alt] = $Api2->getBalance($alt_to_refresh) ?: 0;
     $market1_alt_bal[$alt] = $Api1->getBalance($alt_to_refresh) ?: 0;
   }catch (Exception $e){}
