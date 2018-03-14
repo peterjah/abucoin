@@ -74,7 +74,7 @@ class CryptopiaApi
             return $response->Data;
           else
           {
-            print "krakenApi error: $response->Error \n";
+            print "Cryptopia Api error: $response->Error \n";
             return ['error' => $response->Error];
           }
         }
@@ -151,14 +151,15 @@ class CryptopiaApi
            $order = $open_order;
            break;
         }
-      var_dump($order);
+
       if(!isset($order)) {//order has not been filled?
         $status = 'closed';
         $filled = 0;
         $filled_btc = 0;
       }
       else {
-        $status = 'partially_filled';
+        var_dump($order);
+        $status = 'open';
         $filled = floatval($order->Amount - $order->Remaining);
         $filled_btc = floatval($filled * $order->Rate);
       }
@@ -175,11 +176,10 @@ class CryptopiaApi
       file_put_contents('trades',$trade_str,FILE_APPEND);
     }
 
-    function place_order($type, $alt, $side, $price, $size, $alt_price_decimals)
+    function place_order($type, $alt, $side, $price, $size)
     {
-      var_dump($alt_price_decimals);
       $min_trade_size_btc = $this->product[$alt]->min_order_size_btc;
-      $market_price = $side == 'buy' ? $price*2 : ceiling($min_trade_size_btc/$size, $alt_price_decimals);
+      $market_price = $side == 'buy' ? $price*2 : ceiling(($min_trade_size_btc/$size) + $this->product[$alt]->increment, $this->product[$alt]->increment);
 
       var_dump($market_price);
       $order = ['Market' => "$alt/BTC",
@@ -234,7 +234,7 @@ class CryptopiaApi
           $info['min_order_size_alt'] = $info['increment'] = $product->MinimumTrade;
           $info['fees'] = $product->TradeFee;
           $info['min_order_size_btc'] = $product->MinimumBaseTrade;
-          $info['alt_price_decimals'] = $info['increment'];
+          $info['alt_price_decimals'] = 8;//$info['increment'];
           break;
         }
       return $info;

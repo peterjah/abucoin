@@ -67,15 +67,21 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
 {
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
+  //todo: always start by abucoins trade. always finish by kraken trade
+  if($buy_api instanceof AbucoinsApi)
+    $first_action = 'buy';
+  elseif($sell_api instanceof AbucoinsApi)
+    $first_action = 'sell';
+  elseif($buy_api instanceof KrakenApi)
+    $first_action = 'buy';
+  else
+    $first_action = 'sell';
 
-  print "do arbitrage for $alt\n";
-
+  print "buy_api= $buy_api->name sell_api= $sell_api->name first action: $first_action\n";
   print "balances: $btc_bal BTC; $alt_bal $alt \n";
 
-  $min_buy_btc = $buy_market->product->min_order_size_btc;
-  $min_buy_alt = $buy_market->product->min_order_size_alt;
-  $min_sell_btc = $sell_market->product->min_order_size_btc;
-  $min_sell_alt = $sell_market->product->min_order_size_alt;
+  $min_trade_btc = max($buy_market->product->min_order_size_btc, $sell_market->product->min_order_size_btc);
+  $min_trade_alt = max($buy_market->product->min_order_size_alt, $sell_market->product->min_order_size_alt);
 
   $btc_amount = $buy_price * $tradeSize;
   // if($btc_amount > 0.005)//dont be greedy for testing !!
@@ -116,15 +122,15 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
   print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC = ".($sell_price*$tradeSize)."BTC\n";
 
   //Some checks
-  if($btc_to_spend_fee < $min_buy_btc || $btc_to_spend_fee < $min_sell_btc)
+  if($btc_to_spend_fee < $min_trade_btc)
   { //will be removed by tweeking orderbook feed
-    print "insufisent tradesize to process. btc_to_spend_fee=$btc_to_spend_fee min_buy_btc = $min_buy_btc min_sell_btc = $min_sell_btc BTC\n";
+    print "insufisent tradesize to process. btc_to_spend_fee=$btc_to_spend_fee min_trade_btc = $min_trade_btc BTC\n";
     return 0;
   }
 
-  if($tradeSize < $min_sell_alt || $tradeSize < $min_buy_alt)
+  if($tradeSize < $min_trade_alt)
   {
-    print "insufisent tradesize to process. min_sell_alt = $min_sell_alt min_buy_alt = $min_buy_alt $alt\n";
+    print "insufisent tradesize to process. tradeSize = $tradeSize min_trade_alt = $min_trade_alt $alt\n";
     return 0;
   }
 
@@ -133,27 +139,33 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
   $buy_price = ceiling($buy_price, 0.00000001);
   $sell_price = floordec($sell_price, 8);
 
-
   print "btc_to_spend_fee = $btc_to_spend_fee for $tradeSize $alt\n";
-  //todo: use market order for kraken et perhaps cryptopia
-  $order_status = $buy_api->place_order('limit', $alt, 'buy', $buy_price, $tradeSize, $buy_market->product->alt_price_decimals);
+
+
+  $price = $first_action == 'buy' ? $buy_price : $sell_price;
+  $first_api = $first_action == 'buy' ? $buy_api : $sell_api;
+  $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize);
 
   print "tradesize = $tradeSize buy_status={$order_status['filled_size']}\n";
 
   if($order_status['filled_size'] < $tradeSize)
   {
     var_dump($order_status);
-    if($buy_api instanceof CryptopiaApi)
+    if($first_api instanceof CryptopiaApi)
     {
       try
       {
-        sleep(2);
-        $buy_status = $buy_api->getOrderStatus($alt, $order_status['id']);
+        sleep(10);
+        $buy_status = $first_api->getOrderStatus($alt, $order_status['id']);
         var_dump($buy_status);
         $tradeSize = $buy_status['filled'];
-        $buy_api->cancelOrder($order_status['id']);
+        $first_api->cancelOrder($order_status['id']);
+        $debug_str = date("Y-m-d H:i:s")."canceled order: {$order_status['id']} tradeSize=$tradeSize filled:{$buy_status['filled_size']}\n";
+        file_put_contents('debug',$debug_str,FILE_APPEND);
         if( $buy_status['filled'] > 0 )
-          $buy_api->save_trade($order_status['id'], $alt, 'buy', $buy_status['filled'], $buy_price);
+          $first_api->save_trade($order_status['id'], $alt, 'buy', $buy_status['filled'], $buy_price);
+        else
+          $tradeSize = 0;
 
       } catch (Exception $e){}
     }
@@ -163,15 +175,32 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
   if($tradeSize > 0)
   {
     $i=0;
-    while(!isset($sell_status) && $i<3)
+    while($i<5)
+    {
       try{
-        $sell_status = $sell_api->place_order('market',$alt, 'sell', $sell_price, $tradeSize, $sell_market->product->alt_price_decimals);
+        $action = $first_action == 'buy' ? 'sell' : 'buy';
+        $price = $action == 'buy' ? $buy_price : $sell_price;
+        $api = $action == 'buy' ? $buy_api : $sell_api;
+        $status = $api->place_order('market',$alt, $action, $price, $tradeSize);
+        break;
       }
       catch(Exception $e){
-         //var_dump($e);
+         var_dump($e);
          $i++;
       }
-    var_dump($sell_status);
+      var_dump($status);
+      $debug_str = date("Y-m-d H:i:s")."unable to $action on {$api->name}: buy id: {$order_status['id']} tradeSize=$tradeSize at $price ". var_dump($e) ."\n";
+      file_put_contents('debug',$debug_str,FILE_APPEND);
+    }
+  }
+  if($first_api instanceof KrakenApi || $first_api instanceof CryptopiaApi)
+  {
+    $buy_status = $first_api->getOrderStatus($alt, $order_status['id']);
+    if($buy_status['status'] == 'open')
+    {
+      $debug_str = date("Y-m-d H:i:s")."order missmatch on {$first_api->name}: {$order_status['id']} tradeSize=$tradeSize filled:{$buy_status['filled_size']}\n";
+      file_put_contents('debug',$debug_str,FILE_APPEND);
+    }
   }
   return $tradeSize*$buy_price;
 }

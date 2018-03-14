@@ -22,7 +22,7 @@ $market1_alt_bal = call_user_func_array(array($Api1, "getBalance"),$altcoins_lis
 foreach( $altcoins_list as $alt)
 {
   sleep(0.5);
-  $orderBook1[$alt] = new OrderBook($Api1, $alt);//todo: integrade products book objects into api
+  $orderBook1[$alt] = new OrderBook($Api1, $alt);
   $Api1->product[$alt] = $orderBook1[$alt]->product;
   $orderBook2[$alt] = new OrderBook($Api2, $alt);
   $Api2->product[$alt] = $orderBook2[$alt]->product;
@@ -84,7 +84,7 @@ while(true)
         {
           $gain_treshold = LOW_BTC_TRESH;
           $half_cash_alt = ($btc_cash_roll/2) * $book1['asks']['order_price'];
-          if($tradeSize >  $half_cash_alt && $gain_percent < 0)
+          if( $tradeSize > $half_cash_alt && $gain_percent < 0)
             $tradeSize = $half_cash_alt > $min_order_alt ? $half_cash_alt : $min_order_alt;
         }
 
@@ -98,6 +98,7 @@ while(true)
 
           if($sell_price <= $buy_price && $gain_treshold > 0)
             throw new \Exception("wtf");
+          print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
           $tradeSize_btc = do_arbitrage($alt, $orderBook2[$alt], $book2['bids']['order_price'], $alt_bal, $orderBook1[$alt], $book1['asks']['order_price'], $btc_bal, $tradeSize);
           if($tradeSize_btc>0)
           {
@@ -109,9 +110,10 @@ while(true)
 
             //refresh balances
             sleep(1);
-            $balance1 = $Api1->getBalance('BTC', $alt); //todo: factorize balances
+            $balance1 = $Api1->getBalance('BTC', $alt);
             $market1_alt_bal[$alt] = $balance1[$alt];
             $market1_btc_bal = $balance1['BTC'];
+
             $balance2 = $Api2->getBalance('BTC', $alt);
             $market2_btc_bal = $balance2['BTC'];
             $market2_alt_bal[$alt] = $balance2[$alt];
@@ -179,7 +181,7 @@ while(true)
             $market1_alt_bal[$alt] = $alt_bal;
           else
              break;
-
+          print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
           $tradeSize_btc = do_arbitrage($alt, $orderBook1[$alt], $book1['bids']['order_price'],$alt_bal , $orderBook2[$alt], $book2['asks']['order_price'], $btc_bal, $tradeSize);
           if($tradeSize_btc>0)
           {

@@ -120,36 +120,42 @@ class KrakenApi
 
     function getBalance(...$cryptos)
     {
-      $balances = self::jsonRequest('Balance');
-      $positions = self::jsonRequest('OpenOrders');
+
       $res = [];
       //var_dump($cryptos);
-      foreach($cryptos as $crypto)
+      while (!isset($balances['result']) || !isset($positions['result']))
       {
-        $kraken_name = self::crypto2kraken($crypto);
-        //var_dump($balances);
-        if(isset($balances['result'][$kraken_name]) && floatval($balances['result'][$kraken_name] > 0) )
-        {
+        $balances = self::jsonRequest('Balance');
+        $positions = self::jsonRequest('OpenOrders');
 
-          $crypto_in_order = 0;
-          if(isset($positions['result']) && count($positions['result']['open']))
+        foreach($cryptos as $crypto)
+        {
+          $kraken_name = self::crypto2kraken($crypto);
+          $pair = self::getPair($crypto);
+          //var_dump($balances);
+          if(isset($balances['result'][$kraken_name]) && floatval($balances['result'][$kraken_name] > 0) )
           {
-            foreach($positions['result']['open'] as $openOrder)
+
+            $crypto_in_order = 0;
+            if(isset($positions['result']) && count($positions['result']['open']))
             {
-              if($openOrder['descr']['pair'] == "{$crypto}XBT") //Sell orders
+              foreach($positions['result']['open'] as $openOrder)
               {
-                $crypto_in_order += $openOrder['vol'];
-              }
-              elseif($crypto == 'BTC' && $openOrder['descr']['type'] == 'buy')
-              {
-                $crypto_in_order += $openOrder['vol'] * $openOrder['descr']['price'];
+                if($openOrder['descr']['pair'] == $pair) //Sell orders
+                {
+                  $crypto_in_order += $openOrder['vol'];
+                }
+                elseif($crypto == 'BTC' && $openOrder['descr']['type'] == 'buy')
+                {
+                  $crypto_in_order += $openOrder['vol'] * $openOrder['descr']['price'];
+                }
               }
             }
+            $res[$crypto] = floatval($balances['result'][$kraken_name] - $crypto_in_order);
           }
-          $res[$crypto] = floatval($balances['result'][$kraken_name] - $crypto_in_order);
+          else
+            $res[$crypto] = 0;
         }
-        else
-          $res[$crypto] = 0;
       }
       if(count($res) == 1)
         return array_pop($res);
@@ -181,12 +187,17 @@ class KrakenApi
       $id = "{$alt}XBT";
       $products = null;
       $products = self::jsonRequest('AssetPairs');
+      $pair = self::getPair($alt);
+
+      $tradeVolume = self::jsonRequest('TradeVolume', ['pair' => $pair]);
+      //var_dump($tradeVolume);
       foreach($products['result'] as $product)
         if($product['altname'] == $id)
         {
+          //var_dump($product);
           $info['min_order_size_alt'] = self::minimumAltTrade($alt);
           $info['increment'] = pow(10,-1*$product['lot_decimals']);
-          $info['fees'] = $product['fees'][0/*depending on monthly spendings*/][0];
+          $info['fees'] = floatval($tradeVolume['result']['fees'][$pair]['fee']);
           $info['min_order_size_btc'] = pow(10,-1*$product['pair_decimals']);//self::minimumAltTrade('BTC');??
           $info['alt_price_decimals'] = $product['pair_decimals'];
           //var_dump($product);
@@ -195,7 +206,7 @@ class KrakenApi
       return $info;
     }
 
-    function place_order($type, $alt, $side, $price, $size, $alt_price_decimals)
+    function place_order($type, $alt, $side, $price, $size)
     {
 
       $pair = self::getPair($alt);
@@ -209,6 +220,7 @@ class KrakenApi
                ];
       if($type == 'limit')
       {
+        $alt_price_decimals = $this->product[$alt]->alt_price_decimals;
         $precision = pow(10,-1*$alt_price_decimals);
         $price = $side == 'buy' ? ceiling($price,$precision) : floordec($price,$alt_price_decimals);
         $price_str = rtrim(rtrim(sprintf("%.{$alt_price_decimals}F", $price), '0'), ".");
@@ -263,7 +275,8 @@ class KrakenApi
                 'EOS' => 'EOSXBT',
                 'BCH' => 'BCHXBT',
                 'DASH' => 'DASHXBT',
-                'GNO' => 'GNOXBT'
+                'GNO' => 'GNOXBT',
+                'BTC' => null
                 ];
       return $table[$alt];
     }
@@ -300,7 +313,35 @@ class KrakenApi
         }
       }
       return $best;
-
-
     }
+
+    function getOrderStatus($alt = null, $order_id)
+    {
+      $open_orders = self::jsonRequest('OpenOrders');
+      if (isset($open_orders['result']))
+        $open_orders = $open_orders['result']['open'];
+
+      if(count($open_orders))
+      {
+          var_dump($open_orders);
+        foreach ($open_orders as $id => $open_order)
+          if($id == $order_id)
+          {
+              $status = 'open';
+              $filled = $open_order['vol_exec'];
+              $filled_btc = $open_order['cost'];
+             break;
+          }
+      }
+      if( !isset($status) )
+      { //todo get trade history to know if its fillet or canceled
+        $status = 'closed';
+        $filled = null;
+        $filled_btc = null;
+      }
+      return  $status = [ 'status' => $status,
+                          'filled' => $filled,
+                          'filled_btc' => $filled_btc
+                        ];
+   }
 }

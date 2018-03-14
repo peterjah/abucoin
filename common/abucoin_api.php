@@ -111,7 +111,7 @@ class AbucoinsApi
        return $status;
     }
 
-    function place_order($type, $alt, $side, $price, $size, $alt_price_decimals)
+    function place_order($type, $alt, $side, $price, $size)
     {
       $order = ['product_id' => "$alt-BTC",
                 'size'=>  $size,
@@ -135,29 +135,6 @@ class AbucoinsApi
       {
         if($ret->filled_size > 0)
           self::save_trade($ret->id, $alt, $side, $ret->filled_size, $price);
-        return ['filled_size' => $ret->filled_size, 'id' => $ret->id];
-      }
-      else
-        throw new AbucoinsAPIException('place order failed');
-    }
-
-    function place_market_order($alt, $side, $size)
-    {
-      $order = ['product_id' => "$alt-BTC",
-                'price'=> $price,
-                'size'=>  $size,
-                'side'=> $side,
-                'type'=> 'market',
-                 ];
-      var_dump($order);
-      $ret = self::jsonRequest('POST', '/orders', $order);
-      print "{$this->name} trade says:\n";
-      var_dump($ret);
-
-      if(isset($ret->status))
-      {
-        if($ret->filled_size > 0)
-          self::save_trade($ret->id, $alt, $side, $ret->filled_size, $ret->price);
         return ['filled_size' => $ret->filled_size, 'id' => $ret->id];
       }
       else
