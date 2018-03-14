@@ -156,14 +156,14 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
       try
       {
         sleep(10);
-        $buy_status = $first_api->getOrderStatus($alt, $order_status['id']);
-        var_dump($buy_status);
-        $tradeSize = $buy_status['filled'];
+        $status = $first_api->getOrderStatus($alt, $order_status['id']);
+        var_dump($status);
+        $tradeSize = $status['filled'];
         $first_api->cancelOrder($order_status['id']);
-        $debug_str = date("Y-m-d H:i:s")."canceled order: {$order_status['id']} tradeSize=$tradeSize filled:{$buy_status['filled_size']}\n";
+        $debug_str = date("Y-m-d H:i:s")."canceled order: {$order_status['id']} tradeSize=$tradeSize filled:{$status['filled_size']}\n";
         file_put_contents('debug',$debug_str,FILE_APPEND);
-        if( $buy_status['filled'] > 0 )
-          $first_api->save_trade($order_status['id'], $alt, 'buy', $buy_status['filled'], $buy_price);
+        if( $status['filled'] > 0 )
+          $first_api->save_trade($order_status['id'], $alt, 'buy', $status['filled'], $price);
         else
           $tradeSize = 0;
 
@@ -185,11 +185,11 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
         break;
       }
       catch(Exception $e){
-         var_dump($e);
+         print ("unable to $action retrying...\n");
          $i++;
       }
       var_dump($status);
-      $debug_str = date("Y-m-d H:i:s")."unable to $action on {$api->name}: buy id: {$order_status['id']} tradeSize=$tradeSize at $price ". var_dump($e) ."\n";
+      $debug_str = date("Y-m-d H:i:s")."unable to $action on {$api->name}: buy id: {$order_status['id']} tradeSize=$tradeSize at $price \n";
       file_put_contents('debug',$debug_str,FILE_APPEND);
     }
   }
