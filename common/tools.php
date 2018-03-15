@@ -63,10 +63,12 @@ function save_trade($exchange, $id, $alt, $side, $size, $price)
   file_put_contents('trades',$trade_str,FILE_APPEND);
 }
 
-function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $buy_price, $btc_bal, $tradeSize)
+function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
 {
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
+  $alt_bal = $sell_api->balances[$alt];
+  $btc_bal = $buy_api->balances['BTC'];
   //todo: always start by abucoins trade. always finish by kraken trade
   if($buy_api instanceof AbucoinsApi)
     $first_api = $buy_api;
@@ -144,8 +146,19 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
 
   $first_action = $first_api == $buy_api ? 'buy' : 'sell';
   $price = $first_action == 'buy' ? $buy_price : $sell_price;
-  $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize);
 
+  $i=0;
+  while($i<5)
+  {
+    try{
+      $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize);
+      break;
+    }
+    catch(Exception $e){
+       print ("unable to $first_action retrying...\n");
+       $i++;
+    }
+  }
   print "tradesize = $tradeSize buy_status={$order_status['filled_size']}\n";
 
   if($order_status['filled_size'] < $tradeSize)
@@ -190,11 +203,12 @@ function do_arbitrage($alt, $sell_market, $sell_price, $alt_bal, $buy_market, $b
       catch(Exception $e){
          print ("unable to $second_action retrying...\n");
          $i++;
+         var_dump($second_status);
+         $debug_str = date("Y-m-d H:i:s")."unable to $second_action (second action) on {$second_api->name}: tradeSize=$tradeSize at $price \n";
+         file_put_contents('debug',$debug_str,FILE_APPEND);
       }
-      var_dump($second_status);
-      $debug_str = date("Y-m-d H:i:s")."unable to $second_action on {$second_api->name}: buy id: {$second_status['id']} tradeSize=$tradeSize at $price \n";
-      file_put_contents('debug',$debug_str,FILE_APPEND);
     }
+
   }
   //Second action
   if($second_status['filled_size'] < $tradeSize)

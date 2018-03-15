@@ -11,9 +11,11 @@ class AbucoinsApi
     protected $passphrase;
     protected $timestamp;
     protected $curl;
+    protected $account_id;
     public $nApicalls;
     public $name;
     public $products;
+    public $balances;
 
     public function __construct()
     {
@@ -24,8 +26,13 @@ class AbucoinsApi
         $this->nApicalls = 0;
         $this->name = 'Abucoins';
         $this->curl = curl_init();
+
+        $accounts = self::jsonRequest('GET', "/accounts", null);
+        $this->account_id = preg_replace('/-[A-Z]+/','',$accounts[0]->id);
+
         //App specifics
         $this->products = [];
+        $this->balances = [];
     }
     function __destruct()
     {

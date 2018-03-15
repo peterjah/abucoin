@@ -12,6 +12,7 @@ class KrakenApi
     public $nApicalls;
     public $name;
     public $products;
+    public $balances;
 
     public function __construct()
     {
@@ -31,7 +32,7 @@ class KrakenApi
 
         //App specifics
         $this->products = [];
-
+        $this->balances = [];
     }
 
     function __destruct()

@@ -12,6 +12,7 @@ class CryptopiaApi
     public $nApicalls;
     public $name;
     public $products;
+    public $balances;
 
     public function __construct()
     {
@@ -23,6 +24,7 @@ class CryptopiaApi
         $this->curl = curl_init();
         //App specifics
         $this->products = [];
+        $this->balances = [];
     }
     function __destruct()
     {
