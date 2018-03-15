@@ -92,7 +92,13 @@ class CryptopiaApi
 
     function getBalance(...$cryptos)
     {
-      $res = [];
+      if( func_num_args() > 1)
+      {
+        $accounts = self::jsonRequest("GetBalance",['Currency'=> null]);
+        $currencies = array_column($accounts, 'Symbol');
+      }
+      //var_dump($accounts);
+      $res = []; //todo: try to get all balances in one api call
       foreach($cryptos as $crypto)
       {
         $account = null;
@@ -101,10 +107,17 @@ class CryptopiaApi
         {
           try
           {
-            $account = self::jsonRequest("GetBalance",['Currency'=> $crypto]);
+            if (func_num_args() > 1)
+            {
+               $key = array_search($crypto, $currencies)    ;
+               $account = $accounts[$key];
+            }
+            else
+              $account = self::jsonRequest("GetBalance",['Currency'=> $crypto])[0];
+
              //var_dump($account);
-            if( isset($account[0]->Available))
-              $res[$crypto] = $account[0]->Available;
+            if( isset($account->Available))
+              $res[$crypto] = $account->Available;
             else
               $res[$crypto] = 0;
           }

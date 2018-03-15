@@ -76,9 +76,22 @@ class AbucoinsApi
 
     function getBalance(...$cryptos)
     {
+      if( func_num_args() > 1)
+      {
+        $accounts = self::jsonRequest('GET', "/accounts", null);
+        $currencies = array_column($accounts, 'currency');
+      }
+
       foreach($cryptos as $crypto)
       {
-        $account = self::jsonRequest('GET', "/accounts/10502694-$crypto", null);
+        if (func_num_args() > 1)
+        {
+           $key = array_search($crypto, $currencies)    ;
+           $account = $accounts[$key];
+        }
+        else
+          $account = self::jsonRequest('GET', "/accounts/{$this->account_id}-$crypto", null);
+
         if(isset($account->available) && floatval($account->available) > 0.000001)
           $res[$crypto] = floatval($account->available);
         else
