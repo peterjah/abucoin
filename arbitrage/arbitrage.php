@@ -18,10 +18,9 @@ print "retrieve balances\n";
 $Api2->balances = call_user_func_array(array($Api2, "getBalance"), $crypto_list);
 $Api1->balances = call_user_func_array(array($Api1, "getBalance"), $crypto_list);
 
-print "create order books obj\n";
 foreach( $altcoins_list as $alt)
 {
-  sleep(0.5);
+  print "create $alt order books \n";
   $orderBook1[$alt] = new OrderBook($Api1, $alt);
   $Api1->product[$alt] = $orderBook1[$alt]->product;
 
@@ -104,7 +103,7 @@ while(true)
             print("log tx\n");
             $gain_btc = $tradeSize_btc*$gain_percent/100;
             $profit+=$gain_btc;
-            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC\n";
+            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //refresh balances
@@ -186,7 +185,7 @@ while(true)
             print("log tx\n");
             $gain_btc = $tradeSize_btc*$gain_percent/100;
             $profit+=$gain_btc;
-            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC\n";
+            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //refresh balances

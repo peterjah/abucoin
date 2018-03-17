@@ -157,6 +157,8 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     catch(Exception $e){
        print ("unable to $first_action retrying...\n");
        $i++;
+       $debug_str = date("Y-m-d H:i:s")."unable to $first_action (second action) on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
+       file_put_contents('debug',$debug_str,FILE_APPEND);
     }
   }
   print "tradesize = $tradeSize buy_status={$order_status['filled_size']}\n";
@@ -204,7 +206,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
          print ("unable to $second_action retrying...\n");
          $i++;
          var_dump($second_status);
-         $debug_str = date("Y-m-d H:i:s")."unable to $second_action (second action) on {$second_api->name}: tradeSize=$tradeSize at $price \n";
+         $debug_str = date("Y-m-d H:i:s")."unable to $second_action (second action) on {$second_api->name}: tradeSize=$tradeSize at $price. try $i\n";
          file_put_contents('debug',$debug_str,FILE_APPEND);
       }
     }
@@ -221,10 +223,10 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
         sleep(20);
         $status = $second_api->getOrderStatus($alt, $second_status['id']);
         var_dump($status);
-        $first_api->cancelOrder($order_status['id']);
+        $second_api->cancelOrder($second_status['id']);
         $second_api->save_trade($second_status['id'], $alt, $second_action, $status['filled'], $price);
 
-        $debug_str = date("Y-m-d H:i:s")."order stil open on {$first_api->name}: {$order_status['id']} tradeSize=$tradeSize filled:{$status['filled_size']}\n";
+        $debug_str = date("Y-m-d H:i:s")."order stil open on {$first_api->name}: {$second_status['id']} tradeSize=$tradeSize filled:{$status['filled_size']}\n";
         file_put_contents('debug',$debug_str,FILE_APPEND);
       }
       catch(Exception $e){}

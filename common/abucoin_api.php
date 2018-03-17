@@ -155,7 +155,7 @@ class AbucoinsApi
       {
         if($ret->filled_size > 0)
           self::save_trade($ret->id, $alt, $side, $ret->filled_size, $price);
-        return ['filled_size' => $ret->filled_size, 'id' => $ret->id];
+        return ['filled_size' => $ret->filled_size, 'id' => $ret->id, 'filled_btc' => $ret->executed_value];
       }
       else
         throw new AbucoinsAPIException('place order failed');

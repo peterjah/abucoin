@@ -193,8 +193,18 @@ class CryptopiaApi
 
     function place_order($type, $alt, $side, $price, $size)
     {
-      $min_trade_size_btc = $this->product[$alt]->min_order_size_btc;
-      $market_price = $side == 'buy' ? $price /*todo: take btc balance tofind price*/: ceiling(($min_trade_size_btc/$size) + $this->product[$alt]->increment, $this->product[$alt]->increment);
+      if($type == 'market')
+      {
+        $min_trade_size_btc = $this->product[$alt]->min_order_size_btc;
+        $market_price = $side == 'buy' ? $price: ceiling(($min_trade_size_btc/$size) + $this->product[$alt]->increment, $this->product[$alt]->increment);
+        if($side == 'buy')
+          $size = min($size , $this->balances['BTC']/$market_price);
+      }
+      else //limit
+        if($side == 'buy')
+          $size = min($size , $this->balances['BTC']/$price);
+     if($side == 'sell')
+        $size = min($size , $this->balances[$alt]);
 
       var_dump($market_price);
       $order = ['Market' => "$alt/BTC",
@@ -213,14 +223,16 @@ class CryptopiaApi
         {
           $filled_size = $size; //it is the exact filled size ?
           $id = $ret->FilledOrders[0];
+          $filled_btc = 0;
           self::save_trade($id, $alt, $side, $size, $price);
         }
         else
         {
           $filled_size = -1;//order not fully filled yet
+          $filled_btc = -1;
           $id = $ret->OrderId;
         }
-        return ['filled_size' => $filled_size, 'id' => $id];
+        return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc];
       }
       else
         throw new CryptopiaAPIException('place order failed');

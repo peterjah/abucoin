@@ -211,6 +211,12 @@ class KrakenApi
     {
 
       $pair = self::getPair($alt);
+      // safety check
+      if($side == 'buy')
+        $size = min($size , $this->balances['BTC']/$price);
+      else
+        $size = min($size , $this->balances[$alt]);
+
       $size_str = rtrim(rtrim(sprintf("%.6F", floordec($size,6)), '0'), ".");
 
       $order = ['pair' => $pair,
