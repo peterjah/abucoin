@@ -48,6 +48,8 @@ class AbucoinsApi
         //$ch = curl_init();
         curl_setopt($this->curl/*$ch*/, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($this->curl/*$ch*/, CURLOPT_URL, static::API_URL . "$path");
+        curl_setopt($this->curl/*$ch*/, CURLOPT_CONNECTTIMEOUT, 5);
+
         if ($method == 'POST') {
             curl_setopt($this->curl/*$ch*/, CURLOPT_POST, 1);
             curl_setopt($this->curl/*$ch*/, CURLOPT_POSTFIELDS, json_encode($datas));
@@ -186,8 +188,15 @@ class AbucoinsApi
     {
       $id = "{$alt}-BTC";
       $product = null;
-      while( ($product = self::jsonRequest('GET', "/products/{$id}", null)) ==null)
+      $i=0;
+      while( ($product = self::jsonRequest('GET', "/products/{$id}", null)) == null && $i<5)
+      {
+        $i++;
+        sleep(1);
         continue;
+      }
+      if($product == null)
+        throw new AbucoinsAPIException('failed to get product infos');
       $info['min_order_size_alt'] = $product->base_min_size;
       $info['increment'] = $product->quote_increment;
       $info['fees'] = 0; //til end of March

@@ -66,6 +66,7 @@ class CryptopiaApi
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($ch, CURLOPT_FRESH_CONNECT, TRUE); // Do Not Cache
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
         $server_output = curl_exec($ch);
         curl_close($ch);
 
@@ -103,7 +104,8 @@ class CryptopiaApi
       {
         $account = null;
         $nbtry = 0;
-        while($account == null)
+        $i=0;
+        while($account == null && $i<5)
         {
           try
           {
@@ -120,6 +122,7 @@ class CryptopiaApi
               $res[$crypto] = $account->Available;
             else
               $res[$crypto] = 0;
+            $i++;
           }
           catch (Exception $e)
           {
@@ -127,11 +130,12 @@ class CryptopiaApi
             print "failed to get balance for $crypto. retry $nbtry...\n";
             sleep(1);
             if($nbtry > 5)
-              return 0;
+              throw new CryptopiaAPIException('failed to get balances');
           }
         }
       }
-
+      if( !isset($res) )
+        throw new CryptopiaAPIException('failed to get balances');
       if(count($res) == 1)
         return array_pop($res);
       else return $res;

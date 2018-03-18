@@ -40,14 +40,6 @@ class KrakenApi
         curl_close($this->curl);
     }
 
-    /**
-     * Query public methods
-     *
-     * @param string $method method name
-     * @param array $request request parameters
-     * @return array request result on success
-     * @throws KrakenAPIException
-     */
     public function jsonRequest($method, array $request = array())
     {
         if($this->nApicalls < PHP_INT_MAX)
@@ -83,6 +75,7 @@ class KrakenApi
         curl_setopt($this->curl, CURLOPT_URL, self::API_URL . $path);
         curl_setopt($this->curl, CURLOPT_POSTFIELDS, $postdata);
         curl_setopt($this->curl, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($this->curl, CURLOPT_CONNECTTIMEOUT, 5);
         $result = curl_exec($this->curl);
         if($result===false)
             throw new KrakenAPIException('CURL error: ' . curl_error($this->curl));
@@ -124,7 +117,8 @@ class KrakenApi
 
       $res = [];
       //var_dump($cryptos);
-      while (!isset($balances['result']) || !isset($positions['result']))
+      $i=0;
+      while (!isset($balances['result']) || !isset($positions['result']) && $i<5)
       {
         $balances = self::jsonRequest('Balance');
         $positions = self::jsonRequest('OpenOrders');
@@ -157,7 +151,11 @@ class KrakenApi
           else
             $res[$crypto] = 0;
         }
+        $i++;
       }
+      if( !isset($res) )
+        throw new KrakenAPIException('failed to get balances');
+
       if(count($res) == 1)
         return array_pop($res);
       else return $res;

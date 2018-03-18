@@ -88,6 +88,7 @@ while(true)
 
         if($gain_percent >= $gain_treshold)
         {
+          print "balance double check\n";
           //balance double check
           if( ($alt_bal = $Api2->getBalance($alt)) > 0)
             $Api2->balances[$alt] = $alt_bal;
@@ -174,6 +175,7 @@ while(true)
           if($sell_price <= $buy_price && $gain_treshold > 0)
             throw new \Exception("wtf");
           //balance double check
+          print "balance double check\n";
           if( ($alt_bal = $Api1->getBalance($alt)) > 0)
             $Api1->balances[$alt] = $alt_bal;
           else
