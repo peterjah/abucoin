@@ -182,7 +182,7 @@ class CryptopiaApi
       if($type == 'market')
       {
         $book = $this->getOrderBook($alt, null, $size);
-        $offer = $second_action == 'buy' ? $book['asks'] : $book['bids'];
+        $offer = $side == 'buy' ? $book['asks'] : $book['bids'];
         $market_price = $offer['order_price'];
       }
 
@@ -217,7 +217,7 @@ class CryptopiaApi
           $id = $ret->OrderId;
           if($type == 'market')//should not happen
           {
-            $debug_str = date("Y-m-d H:i:s")." Should not happen order stil open on {$this->name}: {$second_status['id']} $second_action $tradeSize $alt @ $price filled:{$status['filled']}\n";
+            $debug_str = date("Y-m-d H:i:s")." Should not happen order stil open on {$this->name}: $id $side $alt @ $price filled:$filled_size\n";
             file_put_contents('debug',$debug_str,FILE_APPEND);
           }
         }
