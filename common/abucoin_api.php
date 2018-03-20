@@ -27,7 +27,7 @@ class AbucoinsApi
         $this->name = 'Abucoins';
         $this->curl = curl_init();
 
-        $accounts = self::jsonRequest('GET', "/accounts", null);
+        $accounts = $this->jsonRequest('GET', "/accounts", null);
         $this->account_id = preg_replace('/-[A-Z]+/','',$accounts[0]->id);
 
         //App specifics
@@ -80,7 +80,7 @@ class AbucoinsApi
     {
       if( func_num_args() > 1)
       {
-        $accounts = self::jsonRequest('GET', "/accounts", null);
+        $accounts = $this->jsonRequest('GET', "/accounts", null);
         $currencies = array_column($accounts, 'currency');
       }
 
@@ -92,7 +92,7 @@ class AbucoinsApi
            $account = $accounts[$key];
         }
         else
-          $account = self::jsonRequest('GET', "/accounts/{$this->account_id}-$crypto", null);
+          $account = $this->jsonRequest('GET', "/accounts/{$this->account_id}-$crypto", null);
 
         if(isset($account->available) && floatval($account->available) > 0.000001)
           $res[$crypto] = floatval($account->available);
@@ -106,7 +106,7 @@ class AbucoinsApi
 
     function getBestAsk($product_id)
     {
-       $book = self::jsonRequest('GET', "/products/{$product_id}/book?level=1", null);
+       $book = $this->jsonRequest('GET', "/products/{$product_id}/book?level=1", null);
        if( isset($book->asks[0][0], $book->asks[0][1]))
          return ['price' => floatval($book->asks[0][0]), 'size' => floatval($book->asks[0][1]) ];
        else
@@ -115,7 +115,7 @@ class AbucoinsApi
 
     function getBestBid($product_id)
     {
-       $book = self::jsonRequest('GET', "/products/{$product_id}/book?level=1", null);
+       $book = $this->jsonRequest('GET', "/products/{$product_id}/book?level=1", null);
        if( isset($book->bids[0][0], $book->bids[0][1]))
          return ['price' => floatval($book->bids[0][0]), 'size' => floatval($book->bids[0][1]) ];
        else
@@ -124,7 +124,7 @@ class AbucoinsApi
 
     function getOrderStatus($product, $order_id)
     {
-       $order = self::jsonRequest('GET', "/orders/{$order_id}", null);
+       $order = $this->jsonRequest('GET', "/orders/{$order_id}", null);
        $status = [ 'status' => $order->status,
                    'filled' => floatval($order->filled_size),
                    'side' => $order->side,
@@ -149,14 +149,14 @@ class AbucoinsApi
 
 
       var_dump($order);
-      $ret = self::jsonRequest('POST', '/orders', $order);
+      $ret = $this->jsonRequest('POST', '/orders', $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
 
       if(isset($ret->status))
       {
         if($ret->filled_size > 0)
-          self::save_trade($ret->id, $alt, $side, $ret->filled_size, $price);
+          $this->save_trade($ret->id, $alt, $side, $ret->filled_size, $price);
         return ['filled_size' => $ret->filled_size, 'id' => $ret->id, 'filled_btc' => $ret->executed_value];
       }
       else
@@ -173,7 +173,7 @@ class AbucoinsApi
     function getProductList()
     {
       $list = [];
-      $products = self::jsonRequest('GET', "/products", null);
+      $products = $this->jsonRequest('GET', "/products", null);
 
       foreach($products as $product)
       if(preg_match('/([A-Z]+)-BTC/', $product->id) )
@@ -208,7 +208,7 @@ class AbucoinsApi
     function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
     {
       $id = "{$alt}-BTC";
-      $book = self::jsonRequest('GET', "/products/{$id}/book?level=2", null);
+      $book = $this->jsonRequest('GET', "/products/{$id}/book?level=2", null);
 
       if(!isset($book->asks[0][0], $book->bids[0][0]))
         return null;

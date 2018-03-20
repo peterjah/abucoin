@@ -120,13 +120,13 @@ class KrakenApi
       $i=0;
       while (!isset($balances['result']) || !isset($positions['result']) && $i<5)
       {
-        $balances = self::jsonRequest('Balance');
-        $positions = self::jsonRequest('OpenOrders');
+        $balances = $this->jsonRequest('Balance');
+        $positions = $this->jsonRequest('OpenOrders');
 
         foreach($cryptos as $crypto)
         {
-          $kraken_name = self::crypto2kraken($crypto);
-          $pair = self::getPair($crypto);
+          $kraken_name = $this->crypto2kraken($crypto);
+          $pair = $this->getPair($crypto);
           //var_dump($balances);
           if(isset($balances['result'][$kraken_name]) && floatval($balances['result'][$kraken_name] > 0) )
           {
@@ -171,7 +171,7 @@ class KrakenApi
     function getProductList()
     {
       $list = [];
-      $products = self::jsonRequest('AssetPairs');
+      $products = $this->jsonRequest('AssetPairs');
 
       foreach($products['result'] as $product)
       if(preg_match('/([A-Z]+)XBT$/', $product['altname'], $matches) )
@@ -185,19 +185,19 @@ class KrakenApi
     {
       $id = "{$alt}XBT";
       $products = null;
-      $products = self::jsonRequest('AssetPairs');
-      $pair = self::getPair($alt);
+      $products = $this->jsonRequest('AssetPairs');
+      $pair = $this->getPair($alt);
 
-      $tradeVolume = self::jsonRequest('TradeVolume', ['pair' => $pair]);
+      $tradeVolume = $this->jsonRequest('TradeVolume', ['pair' => $pair]);
       //var_dump($tradeVolume);
       foreach($products['result'] as $product)
         if($product['altname'] == $id)
         {
           //var_dump($product);
-          $info['min_order_size_alt'] = self::minimumAltTrade($alt);
+          $info['min_order_size_alt'] = $this->minimumAltTrade($alt);
           $info['increment'] = pow(10,-1*$product['lot_decimals']);
           $info['fees'] = floatval($tradeVolume['result']['fees'][$pair]['fee']);
-          $info['min_order_size_btc'] = pow(10,-1*$product['pair_decimals']);//self::minimumAltTrade('BTC');??
+          $info['min_order_size_btc'] = pow(10,-1*$product['pair_decimals']);//$this->minimumAltTrade('BTC');??
           $info['alt_price_decimals'] = $product['pair_decimals'];
           //var_dump($product);
           break;
@@ -208,7 +208,7 @@ class KrakenApi
     function place_order($type, $alt, $side, $price, $size)
     {
 
-      $pair = self::getPair($alt);
+      $pair = $this->getPair($alt);
       // safety check
       if($side == 'buy')
         $size = min($size , $this->balances['BTC']/$price);
@@ -232,7 +232,7 @@ class KrakenApi
         $order['price'] = $price_str;
       }
       var_dump($order);
-      $ret = self::jsonRequest('AddOrder', $order);
+      $ret = $this->jsonRequest('AddOrder', $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
        if(count($ret['error']))
@@ -240,7 +240,7 @@ class KrakenApi
        else {
          $filled_size = $size; //todo !!
          $id = $ret['result']['txid'][0];
-         self::save_trade($id, $alt, $side, $size, $price);
+         $this->save_trade($id, $alt, $side, $size, $price);
        }
        return ['filled_size' => $filled_size, 'id' => $id];
     }
@@ -288,11 +288,11 @@ class KrakenApi
 
     function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
     {
-//      $crypto = self::crypto2kraken($alt);
+//      $crypto = $this->crypto2kraken($alt);
       //$id = 'GNOXBT';
-      $id = self::getPair($alt);
+      $id = $this->getPair($alt);
       $ordercount = 25;
-      $book = self::jsonRequest('Depth',['pair' => $id, 'count' => $ordercount]);
+      $book = $this->jsonRequest('Depth',['pair' => $id, 'count' => $ordercount]);
 
       if(count($book['error']))
         throw new CryptopiaAPIException("getOrderBook failed: {$book['error'][0]}");
@@ -322,7 +322,7 @@ class KrakenApi
 
     function getOrderStatus($alt = null, $order_id)
     {
-      $open_orders = self::jsonRequest('OpenOrders');
+      $open_orders = $this->jsonRequest('OpenOrders');
       if (isset($open_orders['result']))
         $open_orders = $open_orders['result']['open'];
 

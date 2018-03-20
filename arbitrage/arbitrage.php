@@ -22,10 +22,10 @@ foreach( $altcoins_list as $alt)
 {
   print "create $alt order books \n";
   $orderBook1[$alt] = new OrderBook($Api1, $alt);
-  $Api1->product[$alt] = $orderBook1[$alt]->product;
+  $Api1->products[$alt] = $orderBook1[$alt]->product;
 
   $orderBook2[$alt] = new OrderBook($Api2, $alt);
-  $Api2->product[$alt] = $orderBook2[$alt]->product;
+  $Api2->products[$alt] = $orderBook2[$alt]->product;
 }
 print " {$Api2->name} balances:\n";
 var_dump($Api2->balances);

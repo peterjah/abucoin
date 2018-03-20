@@ -95,7 +95,7 @@ class CryptopiaApi
     {
       if( func_num_args() > 1)
       {
-        $accounts = self::jsonRequest("GetBalance",['Currency'=> null]);
+        $accounts = $this->jsonRequest("GetBalance",['Currency'=> null]);
         $currencies = array_column($accounts, 'Symbol');
       }
       //var_dump($accounts);
@@ -115,7 +115,7 @@ class CryptopiaApi
                $account = $accounts[$key];
             }
             else
-              $account = self::jsonRequest("GetBalance",['Currency'=> $crypto])[0];
+              $account = $this->jsonRequest("GetBalance",['Currency'=> $crypto])[0];
 
              //var_dump($account);
             if( isset($account->Available))
@@ -141,29 +141,11 @@ class CryptopiaApi
       else return $res;
     }
 
-    function getBestAsk($product_id)
-    {
-       $book = self::jsonRequest("GetMarketOrders/{$product_id}/1");
-       if( isset($book->Sell[0]->Price, $book->Sell[0]->Volume))
-         return ['price' => floatval($book->Sell[0]->Price), 'size' => floatval($book->Sell[0]->Volume) ];
-       else
-         return null;
-    }
-
-    function getBestBid($product_id)
-    {
-       $book = self::jsonRequest("GetMarketOrders/{$product_id}/1");
-       if( isset($book->Buy[0]->Price, $book->Buy[0]->Volume))
-         return ['price' => floatval($book->Buy[0]->Price), 'size' => floatval($book->Buy[0]->Volume) ];
-       else
-         return null;
-    }
-
     function getOrderStatus($alt, $order_id)
     {
-      print "Canceling order $order_id \n";
-      $open_orders = self::jsonRequest('GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 10]);
-      //$trade_history = self::jsonRequest('GetTradeHistory',['Market'=> "{$alt}/BTC", 'Count' => 10]);
+      print "get order status of $order_id \n";
+      $open_orders = $this->jsonRequest('GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 10]);
+      //$trade_history = $this->jsonRequest('GetTradeHistory',['Market'=> "{$alt}/BTC", 'Count' => 10]);
       foreach ($open_orders as $open_order)
         if($open_order->OrderId == $order_id)
         {
@@ -199,18 +181,16 @@ class CryptopiaApi
     {
       if($type == 'market')
       {
-        $min_trade_size_btc = $this->product[$alt]->min_order_size_btc;
-        $market_price = $side == 'buy' ? $price: ceiling(($min_trade_size_btc/$size) + $this->product[$alt]->increment, $this->product[$alt]->increment);
-        if($side == 'buy')
-          $size = min($size , $this->balances['BTC']/$market_price);
+        $book = $this->getOrderBook($alt, null, $size);
+        $offer = $second_action == 'buy' ? $book['asks'] : $book['bids'];
+        $market_price = $offer['order_price'];
       }
-      else //limit
-        if($side == 'buy')
-          $size = min($size , $this->balances['BTC']/$price);
+
+     if($side == 'buy')
+        $size = min($size , $this->balances['BTC']/$price);
      if($side == 'sell')
         $size = min($size , $this->balances[$alt]);
 
-      var_dump($market_price);
       $order = ['Market' => "$alt/BTC",
                 'Type' => $side,
                 'Rate' =>  $type == 'limit' ? $price : $market_price,
@@ -218,7 +198,7 @@ class CryptopiaApi
                ];
 
       var_dump($order);
-      $ret = self::jsonRequest('SubmitTrade', $order);
+      $ret = $this->jsonRequest('SubmitTrade', $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
       if(isset($ret->FilledOrders))
@@ -228,13 +208,18 @@ class CryptopiaApi
           $filled_size = $size; //it is the exact filled size ?
           $id = $ret->FilledOrders[0];
           $filled_btc = 0;
-          self::save_trade($id, $alt, $side, $size, $price);
+          $this->save_trade($id, $alt, $side, $size, $price);
         }
         else
         {
           $filled_size = -1;//order not fully filled yet
           $filled_btc = -1;
           $id = $ret->OrderId;
+          if($type == 'market')//should not happen
+          {
+            $debug_str = date("Y-m-d H:i:s")." Should not happen order stil open on {$this->name}: {$second_status['id']} $second_action $tradeSize $alt @ $price filled:{$status['filled']}\n";
+            file_put_contents('debug',$debug_str,FILE_APPEND);
+          }
         }
         return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc];
       }
@@ -245,7 +230,7 @@ class CryptopiaApi
     function getProductList()
     {
       $list = [];
-      $products = self::jsonRequest('GetTradePairs');
+      $products = $this->jsonRequest('GetTradePairs');
       foreach($products as $product)
       if(preg_match('/([A-Z]+)\/BTC/', $product->Label) )
       {
@@ -258,7 +243,7 @@ class CryptopiaApi
     function getProductInfo($alt)
     {
       $id = "{$alt}/BTC";
-      $products = self::jsonRequest('GetTradePairs');
+      $products = $this->jsonRequest('GetTradePairs');
       foreach( $products as $product)
         if($product->Label == $id)
         {
@@ -275,7 +260,7 @@ class CryptopiaApi
    {
      $id = "{$alt}_BTC";
      $ordercount = 25;
-     $book = self::jsonRequest("GetMarketOrders/{$id}/$ordercount");
+     $book = $this->jsonRequest("GetMarketOrders/{$id}/$ordercount");
 
      if(!isset($book->Sell, $book->Buy))
        return null;
@@ -301,7 +286,7 @@ class CryptopiaApi
    function cancelOrder($orderId)
    {
      print ("canceling order $orderId\n");
-     $ret = self::jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);
+     $ret = $this->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);
      var_dump($ret);
      if(isset($ret['error']))
        return false;

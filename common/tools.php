@@ -157,7 +157,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     catch(Exception $e){
        print ("unable to $first_action retrying...\n");
        $i++;
-       $debug_str = date("Y-m-d H:i:s")."unable to $first_action (second action) on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
+       $debug_str = date("Y-m-d H:i:s")." unable to $first_action $alt (second action) on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
        file_put_contents('debug',$debug_str,FILE_APPEND);
     }
   }
@@ -174,15 +174,15 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
         sleep(10);
         $status = $first_api->getOrderStatus($alt, $order_status['id']);
         var_dump($status);
-        $tradeSize = $status['filled'];
-        $first_api->cancelOrder($order_status['id']);
-        $debug_str = date("Y-m-d H:i:s")."canceled order: {$order_status['id']} tradeSize=$tradeSize filled:{$status['filled_size']}\n";
-        file_put_contents('debug',$debug_str,FILE_APPEND);
-        if( $status['filled'] > 0 )
+        if( $status['status'] == 'closed' )
           $first_api->save_trade($order_status['id'], $alt, $first_action, $status['filled'], $price);
         else
-          $tradeSize = 0;
-
+        {
+          $tradeSize = $status['filled'];
+          $first_api->cancelOrder($order_status['id']);
+          $debug_str = date("Y-m-d H:i:s")." canceled order: {$order_status['id']} $alt tradeSize=$tradeSize filled:{$status['filled']}\n";
+          file_put_contents('debug',$debug_str,FILE_APPEND);
+        }
       } catch (Exception $e){}
     }
     else
@@ -206,32 +206,48 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
          print ("unable to $second_action retrying...\n");
          $i++;
          var_dump($second_status);
-         $debug_str = date("Y-m-d H:i:s")."unable to $second_action (second action) on {$second_api->name}: tradeSize=$tradeSize at $price. try $i\n";
+         $debug_str = date("Y-m-d H:i:s")." unable to $second_action $alt (second action) on {$second_api->name}: tradeSize=$tradeSize at $price. try $i\n";
          file_put_contents('debug',$debug_str,FILE_APPEND);
       }
     }
 
   }
-  //Second action
-  if($second_status['filled_size'] < $tradeSize)
-  {
-    if($second_api instanceof CryptopiaApi)
-    {
-      try
-      {
-        print ("Verify cryptopia trade...\n");
-        sleep(20);
-        $status = $second_api->getOrderStatus($alt, $second_status['id']);
-        var_dump($status);
-        $second_api->cancelOrder($second_status['id']);
-        $second_api->save_trade($second_status['id'], $alt, $second_action, $status['filled'], $price);
-
-        $debug_str = date("Y-m-d H:i:s")."order stil open on {$first_api->name}: {$second_status['id']} tradeSize=$tradeSize filled:{$status['filled_size']}\n";
-        file_put_contents('debug',$debug_str,FILE_APPEND);
-      }
-      catch(Exception $e){}
-    }
-  }
+  // //Second action
+  // if($second_status['filled_size'] < $tradeSize)
+  // {
+  //   if($second_api instanceof CryptopiaApi)
+  //   {
+  //     try
+  //     {
+  //       print ("Verify cryptopia trade...\n");
+  //       sleep(20);
+  //       $status = $second_api->getOrderStatus($alt, $second_status['id']);
+  //       $second_api->cancelOrder($second_status['id']);
+  //       var_dump($status);
+  //       if( $status['status'] == 'closed' )
+  //         $second_api->save_trade($second_status['id'], $alt, $second_action, $status['filled'], $price);
+  //       else {
+  //         $debug_str = date("Y-m-d H:i:s")." Should not happen order stil open on {$first_api->name}: {$second_status['id']} $second_action $tradeSize $alt @ $price filled:{$status['filled']}\n";
+  //         file_put_contents('debug',$debug_str,FILE_APPEND);
+  //
+  //         $book = $second_api->getOrderBook($alt, null, $tradeSize);
+  //         $offer = $second_action == 'buy' ? $book['asks'] : $book['bids'];
+  //
+  //         $second_status = $second_api->place_order('market',$alt, $second_action, $offer['order_price'], $tradeSize);
+  //         if($second_status['filled_size'] < $tradeSize)
+  //         {
+  //           $second_api->cancelOrder($second_status['id']);
+  //           return 0;
+  //         }
+  //         else {
+  //           $second_api->save_trade($second_status['id'], $alt, $second_action, $tradeSize, $offer['price']);
+  //         }
+  //       }
+  //
+  //     }
+  //     catch(Exception $e){}
+  //   }
+  // }
   return $tradeSize*$buy_price;
 }
 
