@@ -98,10 +98,11 @@ while(true)
           if($sell_price <= $buy_price && $gain_treshold > 0)
             throw new \Exception("wtf");
           print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
-          $tradeSize_btc = do_arbitrage($alt, $orderBook2[$alt], $book2['bids']['order_price'], $orderBook1[$alt], $book1['asks']['order_price'], $tradeSize);
-          if($tradeSize_btc>0)
+          $tradeSize = do_arbitrage($alt, $orderBook2[$alt], $book2['bids']['order_price'], $orderBook1[$alt], $book1['asks']['order_price'], $tradeSize);
+          if($tradeSize>0)
           {
             print("log tx\n");
+            $tradeSize_btc = $tradeSize * $book1['asks']['price'];
             $gain_btc = $tradeSize_btc*$gain_percent/100;
             $profit+=$gain_btc;
             $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
@@ -181,10 +182,11 @@ while(true)
           else
              break;
           print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
-          $tradeSize_btc = do_arbitrage($alt, $orderBook1[$alt], $book1['bids']['order_price'], $orderBook2[$alt], $book2['asks']['order_price'], $tradeSize);
-          if($tradeSize_btc>0)
+          $tradeSize = do_arbitrage($alt, $orderBook1[$alt], $book1['bids']['order_price'], $orderBook2[$alt], $book2['asks']['order_price'], $tradeSize);
+          if($tradeSize > 0)
           {
             print("log tx\n");
+            $tradeSize_btc = $tradeSize * $book1['asks']['price'];
             $gain_btc = $tradeSize_btc*$gain_percent/100;
             $profit+=$gain_btc;
             $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";

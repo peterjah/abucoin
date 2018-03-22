@@ -144,7 +144,14 @@ class CryptopiaApi
     function getOrderStatus($alt, $order_id)
     {
       print "get order status of $order_id \n";
-      $open_orders = $this->jsonRequest('GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 10]);
+      $i=0;
+      while($i<5)
+      {
+        try{
+          $open_orders = $this->jsonRequest('GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 10]);
+          break;
+        }catch (Exception $e){ $i++; sleep(0.5); print ("Failed to get status retrying...$i\n");}
+      }
       //$trade_history = $this->jsonRequest('GetTradeHistory',['Market'=> "{$alt}/BTC", 'Count' => 10]);
       foreach ($open_orders as $open_order)
         if($open_order->OrderId == $order_id)
@@ -219,6 +226,8 @@ class CryptopiaApi
           {
             $debug_str = date("Y-m-d H:i:s")." Should not happen order stil open on {$this->name}: $id $side $alt @ $price filled:$filled_size\n";
             file_put_contents('debug',$debug_str,FILE_APPEND);
+            $this->cancelOrder($id);
+            throw new CryptopiaAPIException('market order failed');
           }
         }
         return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc];
@@ -286,7 +295,14 @@ class CryptopiaApi
    function cancelOrder($orderId)
    {
      print ("canceling order $orderId\n");
-     $ret = $this->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);
+     $i=0;
+     while($i<5)
+     {
+       try{
+         $ret = $this->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);
+         break;
+       }catch (Exception $e){ $i++; sleep(0.5); print ("Failed to cancel order. retrying...$i\n");}
+     }
      var_dump($ret);
      if(isset($ret['error']))
        return false;
