@@ -190,7 +190,6 @@ class CryptopiaApi
       {
         $book = $this->getOrderBook($alt, null, $size);
         $offer = $side == 'buy' ? $book['asks'] : $book['bids'];
-        $market_price = $offer['order_price'];
       }
 
      if($side == 'buy')
@@ -200,7 +199,7 @@ class CryptopiaApi
 
       $order = ['Market' => "$alt/BTC",
                 'Type' => $side,
-                'Rate' =>  $type == 'limit' ? $price : $market_price,
+                'Rate' => $type == 'limit' ? $price : $offer['order_price'],
                 'Amount' => $size,
                ];
 
@@ -215,7 +214,7 @@ class CryptopiaApi
           $filled_size = $size; //it is the exact filled size ?
           $id = $ret->FilledOrders[0];
           $filled_btc = 0;
-          $this->save_trade($id, $alt, $side, $size, $price);
+          $this->save_trade($id, $alt, $side, $size, $type == 'limit' ? $price : $offer['price']);
         }
         else
         {

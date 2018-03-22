@@ -69,7 +69,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   $buy_api = $buy_market->api;
   $alt_bal = $sell_api->balances[$alt];
   $btc_bal = $buy_api->balances['BTC'];
-  //todo: always start by abucoins trade. always finish by kraken trade
+  //always start by abucoins trade. always finish by kraken trade
   if($buy_api instanceof AbucoinsApi)
     $first_api = $buy_api;
   elseif($sell_api instanceof AbucoinsApi)
@@ -86,11 +86,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   $min_trade_alt = max($buy_market->product->min_order_size_alt, $sell_market->product->min_order_size_alt);
 
   $btc_amount = $buy_price * $tradeSize;
-  // if($btc_amount > 0.005)//dont be greedy for testing !!
-  // {
-  //   $btc_amount = 0.005;
-  //   $tradeSize = $btc_amount / $buy_price;
-  // }
+
   $btc_to_spend_fee = ($btc_amount * (1 + $buy_market->product->fees/100));
   print "btc_amount = $btc_amount , $btc_to_spend_fee=$btc_to_spend_fee $alt\n";
   if($btc_to_spend_fee > $btc_bal)//Check btc balance
@@ -220,7 +216,6 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
          file_put_contents('debug',$debug_str,FILE_APPEND);
       }
     }
-
   }
   return $tradeSize;
 }

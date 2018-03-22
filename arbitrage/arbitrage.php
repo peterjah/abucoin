@@ -167,7 +167,7 @@ while(true)
         if(in_array($alt, $free_tx['toCryptopia']) || $get_btc_market1)
         {
           $gain_treshold = LOW_BTC_TRESH;
-          $half_cash_alt = ($btc_cash_roll/2) * $book2['asks']['order_price'];
+          $half_cash_alt = ($btc_cash_roll/2) / $book2['asks']['order_price'];
           if($tradeSize >  $half_cash_alt && $gain_percent < 0)
             $tradeSize = $half_cash_alt > $min_order_alt ? $half_cash_alt : $min_order_alt;
         }
