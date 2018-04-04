@@ -199,7 +199,7 @@ class AbucoinsApi
         throw new AbucoinsAPIException('failed to get product infos');
       $info['min_order_size_alt'] = $product->base_min_size;
       $info['increment'] = $product->quote_increment;
-      $info['fees'] = 0; //til end of March
+      $info['fees'] = 0.1;
       $info['min_order_size_btc'] = 0;
       $info['alt_price_decimals'] = $info['increment'];
       return $info;

@@ -107,7 +107,8 @@ class KrakenApi
                 'EOS' => 'EOS',
                 'BCH' => 'BCH',
                 'DASH' => 'DASH',
-                'GNO' => 'GNO'
+                'GNO' => 'GNO',
+                'ICN' => 'ICN'
                 ];
       return $table[$crypto];
     }
@@ -281,6 +282,7 @@ class KrakenApi
                 'BCH' => 'BCHXBT',
                 'DASH' => 'DASHXBT',
                 'GNO' => 'GNOXBT',
+                'ICN' => 'ICNXBT',
                 'BTC' => null
                 ];
       return $table[$alt];

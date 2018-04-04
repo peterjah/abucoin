@@ -12,7 +12,7 @@ function getMarket($market_name)
                     ];
   if( isset($market_table[$market_name]))
     return new $market_table[$market_name]();
-  else throw "Unknown market \"$market_name\"";
+  else throw new \Exception("Unknown market \"$market_name\"");
 }
 
 class product
@@ -33,6 +33,7 @@ class product
     $this->fees = $infos['fees'];
     $this->min_order_size_btc = $infos['min_order_size_btc'];
     $this->alt_price_decimals = $infos['alt_price_decimals'] ?: 8;
+    $this->alt_size_decimals = strlen(substr(strrchr("{$this->increment}", "."), 1));
   }
 }
 
@@ -85,10 +86,13 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   $min_trade_btc = max($buy_market->product->min_order_size_btc, $sell_market->product->min_order_size_btc);
   $min_trade_alt = max($buy_market->product->min_order_size_alt, $sell_market->product->min_order_size_alt);
 
+  $tradeSize_decimals = max($buy_market->product->alt_size_decimals , $buy_market->product->alt_size_decimals);
+  $tradeSize = floordec($tradeSize, $tradeSize_decimals);
+
   $btc_amount = $buy_price * $tradeSize;
 
   $btc_to_spend_fee = ($btc_amount * (1 + $buy_market->product->fees/100));
-  print "btc_amount = $btc_amount , $btc_to_spend_fee=$btc_to_spend_fee $alt\n";
+  print "btc_amount = $btc_amount , btc_to_spend_fee=$btc_to_spend_fee $alt\n";
   if($btc_to_spend_fee > $btc_bal)//Check btc balance
   {
     if($btc_bal > 0)
@@ -132,8 +136,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     return 0;
   }
 
-  //ceil tradesize
-  $tradeSize = floordec($tradeSize, strlen(substr(strrchr("{$buy_market->product->increment}", "."), 1)));
+
   $buy_price = ceiling($buy_price, 0.00000001);
   $sell_price = floordec($sell_price, 8);
 
@@ -144,7 +147,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   $price = $first_action == 'buy' ? $buy_price : $sell_price;
 
   $i=0;
-  while($i<5)
+  while(true)
   {
     try{
       $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize);
@@ -154,10 +157,10 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
        print ("unable to $first_action retrying...\n");
        sleep(0.5);
        $i++;
-       $debug_str = date("Y-m-d H:i:s")." unable to $first_action $alt (second action) on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
+       $debug_str = date("Y-m-d H:i:s")." unable to $first_action $alt (first action) on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
        file_put_contents('debug',$debug_str,FILE_APPEND);
        if($i == 5)
-         throw "unable to $first_action";
+         throw new \Exception("unable to $first_action");
     }
   }
   print "tradesize = $tradeSize buy_status={$order_status['filled_size']}\n";
@@ -175,7 +178,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
         var_dump($status);
         if( $status['status'] == 'closed' )
         {
-          $first_api->save_trade($order_status['id'], $alt, $first_action, $status['filled'], $price);
+          $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price);
           print ("order is closed...\n");
         }
         else
@@ -198,7 +201,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   if($tradeSize > 0)
   {
     $i=0;
-    while($i<5)
+    while($i<8)
     {
       try{
         $second_api = $first_api == $buy_api ? $sell_api : $buy_api;
