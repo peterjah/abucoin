@@ -7,10 +7,6 @@ $Api2 = getMarket($argv[2]);
 
 $profit = 0;
 
-$free_tx = ['toAbucoin' => [/*'ARK','BCH','STRAT','ZEC'*/],
-                            'toCryptopia' => [/*'XMR'*/]
-            ];
-
 $altcoins_list = findCommonProducts($Api1,$Api2);
 $crypto_list = $altcoins_list;
 $crypto_list[] = 'BTC';
@@ -78,7 +74,7 @@ while(true)
         //print "tradeSize=$tradeSize min {$book2['bids']['size']}, {$book1['asks']['size']}\n";
 
         $gain_treshold = GAIN_TRESHOLD;
-        if(in_array($alt, $free_tx['toAbucoin']) || $get_btc_market2)
+        if($get_btc_market2)
         {
           $gain_treshold = LOW_BTC_TRESH;
           $half_cash_alt = ($btc_cash_roll/2) * $book1['asks']['order_price'];
@@ -164,7 +160,7 @@ while(true)
         //print "tradeSize=$tradeSize min {$book2['asks']['size']},{$book1['bids']['size']}\n";
 
         $gain_treshold = GAIN_TRESHOLD;
-        if(in_array($alt, $free_tx['toCryptopia']) || $get_btc_market1)
+        if($get_btc_market1)
         {
           $gain_treshold = LOW_BTC_TRESH;
           $half_cash_alt = ($btc_cash_roll/2) / $book2['asks']['order_price'];
