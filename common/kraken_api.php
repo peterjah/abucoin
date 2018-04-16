@@ -282,7 +282,7 @@ class KrakenApi
                 'BCH' => 'BCHXBT',
                 'DASH' => 'DASHXBT',
                 'GNO' => 'GNOXBT',
-                'ICN' => 'ICNXBT',
+                'ICN' => 'XICNXXBT',
                 'BTC' => null
                 ];
       return $table[$alt];
