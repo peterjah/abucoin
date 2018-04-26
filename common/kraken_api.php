@@ -237,7 +237,7 @@ class KrakenApi
       print "{$this->name} trade says:\n";
       var_dump($ret);
        if(count($ret['error']))
-         throw new CryptopiaAPIException("place order failed: {$ret['error'][0]}");
+         throw new KrakenAPIException($ret['error'][0]);
        else {
          $filled_size = $size; //todo !!
          $id = $ret['result']['txid'][0];
@@ -297,7 +297,7 @@ class KrakenApi
       $book = $this->jsonRequest('Depth',['pair' => $id, 'count' => $ordercount]);
 
       if(count($book['error']))
-        throw new CryptopiaAPIException("getOrderBook failed: {$book['error'][0]}");
+        throw new KrakenAPIException($book['error'][0]);
 
       $book = $book['result'][$id];
 

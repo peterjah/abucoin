@@ -154,10 +154,10 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
       break;
     }
     catch(Exception $e){
-       print ("unable to $first_action retrying...\n");
+       print ("unable to $first_action retrying...: $e\n");
        sleep(0.5);
        $i++;
-       $debug_str = date("Y-m-d H:i:s")." unable to $first_action $alt (first action) on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
+       $debug_str = date("Y-m-d H:i:s")." unable to $first_action $alt (first action) [{$e->getMessage()}] on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
        file_put_contents('debug',$debug_str,FILE_APPEND);
        if($i == 5)
          throw new \Exception("unable to $first_action");
@@ -211,12 +211,14 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
         break;
       }
       catch(Exception $e){
-         print ("unable to $second_action retrying...\n");
+         print ("unable to $second_action retrying...: $e\n");
          $i++;
          sleep(0.5);
          var_dump($second_status);
-         $debug_str = date("Y-m-d H:i:s")." unable to $second_action $alt (second action) on {$second_api->name}: tradeSize=$tradeSize at $price. try $i\n";
+         $debug_str = date("Y-m-d H:i:s")." unable to $second_action $alt (second action) [{$e->getMessage()}] on {$second_api->name}: tradeSize=$tradeSize at $price. try $i\n";
          file_put_contents('debug',$debug_str,FILE_APPEND);
+         if($e =='EOrder:Insufficient funds' )
+           $tradeSize = $tradeSize*0.99;
       }
     }
   }
