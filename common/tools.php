@@ -3,12 +3,14 @@
 require_once('../common/abucoin_api.php');
 require_once('../common/cryptopia_api.php');
 require_once('../common/kraken_api.php');
+require_once('../common/cobinhood_api.php');
 
 function getMarket($market_name)
 {
   $market_table = [ 'abucoins' => 'AbucoinsApi',
                     'cryptopia' => 'CryptopiaApi',
-                    'kraken' => 'KrakenApi'
+                    'kraken' => 'KrakenApi',
+                    'cobinhood' => 'CobinhoodApi'
                     ];
   if( isset($market_table[$market_name]))
     return new $market_table[$market_name]();
