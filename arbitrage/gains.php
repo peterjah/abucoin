@@ -22,5 +22,6 @@ print ("gains: $gains = ".($gains*$btcPrice)."EUR\n");
 $abucoinsApi = getMarket('abucoins');
 $CryptopiaApi = getMarket('cryptopia');
 $KrakenApi = getMarket('kraken');
-$Cashroll = $CryptopiaApi->getBalance('BTC') + $abucoinsApi->getBalance('BTC') + $KrakenApi->getBalance('BTC');
+$CobinApi = getMarket('cobinhood');
+$Cashroll = $CryptopiaApi->getBalance('BTC') + $abucoinsApi->getBalance('BTC') + $KrakenApi->getBalance('BTC') + $CobinApi->getBalance('BTC');
 print ("Cashroll: $Cashroll BTC = ".($Cashroll*$btcPrice)."EUR\n");

@@ -45,26 +45,25 @@ class AbucoinsApi
           $this->nApicalls++;
         else
           $this->nApicalls = 0;
-        //$ch = curl_init();
-        curl_setopt($this->curl/*$ch*/, CURLOPT_CUSTOMREQUEST, $method);
-        curl_setopt($this->curl/*$ch*/, CURLOPT_URL, static::API_URL . "$path");
-        curl_setopt($this->curl/*$ch*/, CURLOPT_CONNECTTIMEOUT, 5);
+
+        curl_setopt($this->curl, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($this->curl, CURLOPT_URL, static::API_URL . "$path");
+        curl_setopt($this->curl, CURLOPT_CONNECTTIMEOUT, 5);
 
         if ($method == 'POST') {
-            curl_setopt($this->curl/*$ch*/, CURLOPT_POST, 1);
-            curl_setopt($this->curl/*$ch*/, CURLOPT_POSTFIELDS, json_encode($datas));
+            curl_setopt($this->curl, CURLOPT_POST, 1);
+            curl_setopt($this->curl, CURLOPT_POSTFIELDS, json_encode($datas));
         }
         $this->timestamp = time();
-        curl_setopt($this->curl/*$ch*/, CURLOPT_HTTPHEADER, array(
+        curl_setopt($this->curl, CURLOPT_HTTPHEADER, array(
             'Content-Type: application/json',
             'AC-ACCESS-KEY: ' . $this->accesskey,
             'AC-ACCESS-TIMESTAMP: ' . $this->timestamp,
             'AC-ACCESS-PASSPHRASE: ' . $this->passphrase,
             'AC-ACCESS-SIGN: ' . $this->signature($path, $datas, $this->timestamp, $method),
         ));
-        curl_setopt($this->curl/*$ch*/, CURLOPT_RETURNTRANSFER, true);
-        $server_output = curl_exec($this->curl/*$ch*/);
-        //curl_close($ch);
+        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
+        $server_output = curl_exec($this->curl);
         return json_decode($server_output);
     }
 
