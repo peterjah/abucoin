@@ -34,7 +34,7 @@ class product
     $this->increment = $infos['increment'];
     $this->fees = $infos['fees'];
     $this->min_order_size_btc = $infos['min_order_size_btc'];
-    $this->alt_price_decimals = $infos['alt_price_decimals'] ?: 8;
+    $this->alt_price_decimals = isset($infos['alt_price_decimals']) ? $infos['alt_price_decimals'] : 8;
     $this->alt_size_decimals = strlen(substr(strrchr("{$this->increment}", "."), 1));
   }
 }

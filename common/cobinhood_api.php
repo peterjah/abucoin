@@ -124,16 +124,16 @@ class CobinhoodApi
       foreach( ['asks', 'bids'] as $side)
       {
         $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
-        $best[$side]['size'] = floatval($book[$side][0][1]);
+        $best[$side]['size'] = floatval($book[$side][0][2]);
         $i=1;
         while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_btc)
               || ($best[$side]['size'] < $depth_alt) )
               && $i<50/*max offers for level=2*/)
         {
-          if (!isset($book[$side][$i][0], $book[$side][$i][1]))
+          if (!isset($book[$side][$i][0], $book[$side][$i][2]))
             break;
-          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][1]) / ($book[$side][$i][1]+$best[$side]['size']));
-          $best[$side]['size'] += floatval($book[$side][$i][1]);
+          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][2]) / ($book[$side][$i][2]+$best[$side]['size']));
+          $best[$side]['size'] += floatval($book[$side][$i][2]);
           $best[$side]['order_price'] = floatval($book[$side][$i][0]);
           //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
           $i++;
@@ -163,7 +163,6 @@ class CobinhoodApi
       $info['increment'] = $product['quote_increment'];
       $info['fees'] = 0;
       $info['min_order_size_btc'] = 0;
-      $info['alt_price_decimals'] = 6;
       return $info;
     }
 
