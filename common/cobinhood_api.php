@@ -73,7 +73,7 @@ class CobinhoodApi
     		$content = json_decode($content, true);
 
         if (null === $content && json_last_error() !== JSON_ERROR_NONE) {
-    			return ["error" => "json_decode() error"];
+          return ["error" => json_last_error_msg()];
     		} else if (false === $content["success"]) {
     			return ["error" => $content["error"]["error_code"]];
     		}
@@ -172,18 +172,18 @@ class CobinhoodApi
       $bidask = $table[$side];
 
       $order = ['trading_pair_id' => "$alt-BTC",
-                'size'=>  $size,
+                'size'=>  strval($size),
                 'side'=> $bidask,
                 'type'=> $type,
                 ];
 
       if($type == 'limit')
       {
-        $order['price'] = $price;
+        $order['price'] = strval($price);
       }
 
       var_dump($order);
-      $ret = $this->jsonRequest('POST', '/trading/orders', $order);
+      $ret = $this->jsonRequest('POST', '/trading/orders',null, $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
 
