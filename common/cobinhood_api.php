@@ -191,7 +191,7 @@ class CobinhoodApi
       {
         $status = $ret['result']['order'];
         if($ret['success'])
-          $this->save_trade($status['id'], $alt, $side, $status['filled'], $price);
+          $this->save_trade($status['id'], $alt, $side, $size, $price);
         return ['filled_size' => $status['filled'], 'id' => $status['id'], 'filled_btc' => null];
       }
       else

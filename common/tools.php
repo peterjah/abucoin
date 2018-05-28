@@ -196,7 +196,8 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
       }
     }
     else
-      $tradeSize = $order_status['filled_size'];
+      if($order_status['filled_size'] > 0)
+        $tradeSize = $order_status['filled_size'];
   }
 
   $second_status = [];
