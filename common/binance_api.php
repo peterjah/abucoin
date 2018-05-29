@@ -172,6 +172,7 @@ class BinanceApi
 
     function place_order($type, $alt, $side, $price, $size)
     {
+      $type = 'market';//Hack
       $table = ['sell' => 'SELL', 'buy' => 'BUY'];
       $table2 = ['market' => 'MARKET', 'limit' => 'LIMIT'];
       $orderSide = $table[$side];
@@ -194,15 +195,15 @@ class BinanceApi
       print "{$this->name} trade says:\n";
       var_dump($ret);
 
-      if(count($ret))
+      if($ret['code'] >= 0)
       {
         $status = $ret;;
         if($status['executedQty'] > 0)
-          $this->save_trade($status['id'], $alt, $side, $status['filled'], $price);
+          $this->save_trade($status['orderId'], $alt, $side, $status['executedQty'], $price);
         return ['filled_size' => $status['executedQty'], 'id' => $status['orderId'], 'filled_btc' => null];
       }
       else
-        throw new BinanceAPIException('place order failed');
+        throw new BinanceAPIException("place order failed: {$ret['msg']}");
     }
 
     function save_trade($id, $alt, $side, $size, $price)

@@ -130,13 +130,14 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
 
   print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price BTC = ".($btc_to_spend_fee)."BTC\n";
   print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC = ".($sell_price*$tradeSize)."BTC\n";
-
   //Some checks
   if($btc_to_spend_fee < $min_trade_btc)
   { //will be removed by tweeking orderbook feed
     print "insufisent tradesize to process. btc_to_spend_fee=$btc_to_spend_fee min_trade_btc = $min_trade_btc BTC\n";
     return 0;
   }
+  $precision = min($buy_market->product->alt_size_decimals,$sell_market->product->alt_size_decimals);
+  $tradeSize = round($tradeSize, $precision, PHP_ROUND_HALF_DOWN);
 
   if($tradeSize < $min_trade_alt)
   {

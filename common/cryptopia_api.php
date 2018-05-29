@@ -194,14 +194,14 @@ class CryptopiaApi
       }
 
      if($side == 'buy')
-        $size = min($size , $this->balances['BTC']/$price);
+        $new_size = min($size , $this->balances['BTC']/$price);
      if($side == 'sell')
-        $size = min($size , $this->balances[$alt]);
+        $new_size = min($size , $this->balances[$alt]);
 
       $order = ['Market' => "$alt/BTC",
                 'Type' => $side,
                 'Rate' => $type == 'limit' ? $price : $offer['order_price'],
-                'Amount' => $size,
+                'Amount' => $new_size,
                ];
 
       var_dump($order);
@@ -212,7 +212,7 @@ class CryptopiaApi
       {
         if (count($ret->FilledOrders))
         {
-          $filled_size = $size; //it is the exact filled size ?
+          $filled_size = $size; //approx size
           $id = $ret->FilledOrders[0];
           $filled_btc = 0;
           $this->save_trade($id, $alt, $side, $size, $type == 'limit' ? $price : $offer['price']);
