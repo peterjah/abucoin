@@ -4,13 +4,15 @@ require_once('../common/abucoin_api.php');
 require_once('../common/cryptopia_api.php');
 require_once('../common/kraken_api.php');
 require_once('../common/cobinhood_api.php');
+require_once('../common/binance_api.php');
 
 function getMarket($market_name)
 {
   $market_table = [ 'abucoins' => 'AbucoinsApi',
                     'cryptopia' => 'CryptopiaApi',
                     'kraken' => 'KrakenApi',
-                    'cobinhood' => 'CobinhoodApi'
+                    'cobinhood' => 'CobinhoodApi',
+                    'binance' => 'BinanceApi'
                     ];
   if( isset($market_table[$market_name]))
     return new $market_table[$market_name]();
@@ -35,7 +37,8 @@ class product
     $this->fees = $infos['fees'];
     $this->min_order_size_btc = $infos['min_order_size_btc'];
     $this->alt_price_decimals = isset($infos['alt_price_decimals']) ? $infos['alt_price_decimals'] : 8;
-    $this->alt_size_decimals = strlen(substr(strrchr("{$this->increment}", "."), 1));
+    $this->alt_size_decimals = isset($infos['alt_price_decimals']) ? $infos['alt_price_decimals']
+                                          : strlen(substr(strrchr("{$this->increment}", "."), 1));
   }
 }
 
@@ -72,15 +75,18 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   $buy_api = $buy_market->api;
   $alt_bal = $sell_api->balances[$alt];
   $btc_bal = $buy_api->balances['BTC'];
-  //always start by abucoins trade. always finish by kraken trade
-  if($buy_api instanceof AbucoinsApi)
-    $first_api = $buy_api;
-  elseif($sell_api instanceof AbucoinsApi)
+  if($sell_api->PriorityLevel < $buy_api->PriorityLevel) {
     $first_api = $sell_api;
-  elseif($buy_api instanceof KrakenApi)
-    $first_api = $sell_api;
-  else
+    $first_action = 'sell';
+    $second_api = $buy_api;
+    $second_action = 'buy';
+  }
+  else {
     $first_api = $buy_api;
+    $first_action = 'buy';
+    $second_api = $sell_api;
+    $second_action = 'sell';
+  }
 
   print "start with= $first_api->name \n";
   print "balances: $btc_bal BTC; $alt_bal $alt \n";
@@ -145,7 +151,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   print "btc_to_spend_fee = $btc_to_spend_fee for $tradeSize $alt\n";
 
 
-  $first_action = $first_api == $buy_api ? 'buy' : 'sell';
+
   $price = $first_action == 'buy' ? $buy_price : $sell_price;
 
   $i=0;
@@ -207,8 +213,6 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     while($i<8)
     {
       try{
-        $second_api = $first_api == $buy_api ? $sell_api : $buy_api;
-        $second_action = $second_api == $buy_api ? 'buy' : 'sell';
         $price = $second_action == 'buy' ? $buy_price : $sell_price;
         $second_status = $second_api->place_order('market',$alt, $second_action, $price, $tradeSize);
         break;

@@ -22,6 +22,7 @@ class CryptopiaApi
         $this->name = 'Cryptopia';
         $this->nApicalls = 0;
         $this->curl = curl_init();
+        $this->PriorityLevel = 0;
         //App specifics
         $this->products = [];
         $this->balances = [];

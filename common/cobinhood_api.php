@@ -34,10 +34,12 @@ class CobinhoodApi
         $this->api_key = $keys->cobinhood->api_key;
         $this->nApicalls = 0;
         $this->name = 'Cobinhood';
+        $this->PriorityLevel = 9;
 
         //App specifics
         $this->products = [];
         $this->balances = [];
+
     }
 
     public function jsonRequest($method = null, $path, $datas = null, $params = false)
@@ -170,6 +172,7 @@ class CobinhoodApi
     {
       $table = ['sell' => 'ask', 'buy' => 'bid'];
       $bidask = $table[$side];
+      $type = 'market';
 
       $order = ['trading_pair_id' => "$alt-BTC",
                 'size'=>  strval($size),

@@ -21,6 +21,8 @@ class KrakenApi
         $this->key = $keys->kraken->key;
         $this->nApicalls = 0;
         $this->name = 'Kraken';
+        $this->PriorityLevel = 15;
+
         $this->curl = curl_init();
         curl_setopt_array($this->curl, array(
             CURLOPT_SSL_VERIFYPEER => true,
@@ -208,7 +210,7 @@ class KrakenApi
 
     function place_order($type, $alt, $side, $price, $size)
     {
-
+      $type = 'market';
       $pair = $this->getPair($alt);
       // safety check
       if($side == 'buy')
