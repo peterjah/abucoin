@@ -195,7 +195,7 @@ class BinanceApi
       print "{$this->name} trade says:\n";
       var_dump($ret);
 
-      if($ret['code'] >= 0)
+      if( count($ret) && !isset($ret['code']))
       {
         $status = $ret;;
         if($status['executedQty'] > 0)
