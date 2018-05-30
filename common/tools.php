@@ -137,7 +137,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     return 0;
   }
   $precision = min($buy_market->product->alt_size_decimals,$sell_market->product->alt_size_decimals);
-  $tradeSize = round($tradeSize, $precision, PHP_ROUND_HALF_DOWN);
+  $tradeSize = floordec($tradeSize, $precision);
 
   if($tradeSize < $min_trade_alt)
   {
@@ -239,7 +239,7 @@ function ceiling($number, $significance = 1)
 }
 
 function floordec($number,$decimals=2){
-     return floor($number*pow(10,$decimals))/pow(10,$decimals);
+     return floor($number*pow(10,$decimals)+0.5)/pow(10,$decimals);
 }
 
 function findCommonProducts($market1, $market2)
