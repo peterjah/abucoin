@@ -19,9 +19,9 @@ if ($handle) {
 
 print ("gains: $gains = ".($gains*$btcPrice)."EUR\n");
 
-$abucoinsApi = getMarket('abucoins');
+$BinanceApi = getMarket('binance');
 $CryptopiaApi = getMarket('cryptopia');
 $KrakenApi = getMarket('kraken');
 $CobinApi = getMarket('cobinhood');
-$Cashroll = $CryptopiaApi->getBalance('BTC') + $abucoinsApi->getBalance('BTC') + $KrakenApi->getBalance('BTC') + $CobinApi->getBalance('BTC');
+$Cashroll = $CryptopiaApi->getBalance('BTC') + $BinanceApi->getBalance('BTC') + $KrakenApi->getBalance('BTC') + $CobinApi->getBalance('BTC');
 print ("Cashroll: $Cashroll BTC = ".($Cashroll*$btcPrice)."EUR\n");
