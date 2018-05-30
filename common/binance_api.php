@@ -166,7 +166,9 @@ class BinanceApi
       $info['increment'] = floatval($product["filters"][1]["stepSize"]);
       $info['fees'] = 0.05;
       $info['min_order_size_btc'] = floatval($product["filters"][0]["minPrice"]);
-      $info['alt_price_decimals'] = strlen(substr(strrchr($info['increment'], "."), 1));
+      $info['alt_size_decimals'] = strlen(substr(strrchr(floatval($product["filters"][1]["stepSize"]), "."), 1));
+      $info['alt_price_decimals'] = strlen(substr(strrchr(floatval($product["filters"][0]["tickSize"]), "."), 1));
+
       return $info;
     }
 

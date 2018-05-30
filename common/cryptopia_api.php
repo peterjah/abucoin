@@ -296,7 +296,7 @@ class CryptopiaApi
    {
      print ("canceling order $orderId\n");
      $i=0;
-     while($i<5)
+     while($i<10)
      {
        try{
          $ret = $this->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);

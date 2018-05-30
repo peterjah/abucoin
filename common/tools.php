@@ -37,7 +37,7 @@ class product
     $this->fees = $infos['fees'];
     $this->min_order_size_btc = $infos['min_order_size_btc'];
     $this->alt_price_decimals = isset($infos['alt_price_decimals']) ? $infos['alt_price_decimals'] : 8;
-    $this->alt_size_decimals = isset($infos['alt_price_decimals']) ? $infos['alt_price_decimals']
+    $this->alt_size_decimals = isset($infos['alt_size_decimals']) ? $infos['alt_size_decimals']
                                           : strlen(substr(strrchr("{$this->increment}", "."), 1));
   }
 }
@@ -94,8 +94,9 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   $min_trade_btc = max($buy_market->product->min_order_size_btc, $sell_market->product->min_order_size_btc);
   $min_trade_alt = max($buy_market->product->min_order_size_alt, $sell_market->product->min_order_size_alt);
 
-  $tradeSize_decimals = max($buy_market->product->alt_size_decimals , $buy_market->product->alt_size_decimals);
-  $tradeSize = floordec($tradeSize, $tradeSize_decimals);
+  $precision = min($buy_market->product->alt_size_decimals , $sell_market->product->alt_size_decimals);
+  print "round to alt_size_decimals precision: $precision\n";
+  $tradeSize = floordec($tradeSize, $precision);
 
   $btc_amount = $buy_price * $tradeSize;
 
@@ -107,7 +108,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     {
       $btc_to_spend_fee = $btc_bal; //keep a minimum of btc...
       $btc_amount = $btc_to_spend_fee * (1 - $buy_market->product->fees/100);
-      $tradeSize = ($btc_amount / $buy_price) - $buy_market->product->increment;
+      $tradeSize = floordec(($btc_amount / $buy_price),$precision);
     }
     else
     {
@@ -119,7 +120,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   if($tradeSize > $alt_bal)//check alt balance
   {
     if($alt_bal > 0)
-      $tradeSize = $alt_bal;
+      $tradeSize = floordec($alt_bal, $precision);
     else
     {
       print "not enough $alt \n";
@@ -136,15 +137,11 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     print "insufisent tradesize to process. btc_to_spend_fee=$btc_to_spend_fee min_trade_btc = $min_trade_btc BTC\n";
     return 0;
   }
-  $precision = min($buy_market->product->alt_size_decimals,$sell_market->product->alt_size_decimals);
-  $tradeSize = floordec($tradeSize, $precision);
-
   if($tradeSize < $min_trade_alt)
   {
     print "insufisent tradesize to process. tradeSize = $tradeSize min_trade_alt = $min_trade_alt $alt\n";
     return 0;
   }
-
 
   $buy_price = ceiling($buy_price, 0.00000001);
   $sell_price = floordec($sell_price, 8);
@@ -238,8 +235,11 @@ function ceiling($number, $significance = 1)
     return ( is_numeric($number) && is_numeric($significance) ) ? (ceil($number/$significance)*$significance) : false;
 }
 
-function floordec($number,$decimals=2){
-     return floor($number*pow(10,$decimals)+0.5)/pow(10,$decimals);
+function floordec($number,$precision = 0)
+{
+  if($precision == 0)
+    return floor($number);
+  return floor($number*pow(10,$precision))/pow(10,$precision);
 }
 
 function findCommonProducts($market1, $market2)
