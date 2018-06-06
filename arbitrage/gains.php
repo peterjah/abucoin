@@ -9,19 +9,22 @@ $btcPrice = $price['EUR'];
 
 if ($handle) {
     while (($line = fgets($handle)) !== false) {
-        preg_match('/.*: (.*) BTC/',$line,  $matches);
-        print "{$matches[1]} =".number_format($matches[1]*$btcPrice, 3)."EUR \n";
+        preg_match('/.*: (.*) BTC (.*)%$/',$line,  $matches);
+        print "{$matches[1]} =".number_format($matches[1]*$btcPrice, 3)."EUR ".number_format($matches[2], 2)."%\n";
         $gains += floatval($matches[1]);
     }
 
     fclose($handle);
 }
 
-print ("gains: $gains = ".($gains*$btcPrice)."EUR\n");
+print ("\ngains: $gains = ".($gains*$btcPrice)."EUR\n");
 
-$BinanceApi = getMarket('binance');
-$CryptopiaApi = getMarket('cryptopia');
-$KrakenApi = getMarket('kraken');
-$CobinApi = getMarket('cobinhood');
-$Cashroll = $CryptopiaApi->getBalance('BTC') + $BinanceApi->getBalance('BTC') + $KrakenApi->getBalance('BTC') + $CobinApi->getBalance('BTC');
-print ("Cashroll: $Cashroll BTC = ".($Cashroll*$btcPrice)."EUR\n");
+$Cashroll = 0;
+foreach (['binance','cryptopia','kraken','cobinhood'] as $market)
+{
+  $Api = getMarket($market);
+  $Balance = $Api->getBalance('BTC');
+  print ("$Api->name: $Balance BTC\n");
+  $Cashroll += $Balance;
+}
+print ("Total cashroll: $Cashroll BTC = ".($Cashroll*$btcPrice)."EUR\n");

@@ -68,6 +68,8 @@ class CryptopiaApi
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($ch, CURLOPT_FRESH_CONNECT, TRUE); // Do Not Cache
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+
         $server_output = curl_exec($ch);
         curl_close($ch);
 

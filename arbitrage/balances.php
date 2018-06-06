@@ -14,9 +14,17 @@ $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/p
 var_dump("price= {$price['BTC']}");
 
 $Cashroll = 0;
-$Cashroll += in_array($crypto, $CryptopiaApi->getProductList()) ? $CryptopiaApi->getBalance($crypto) : 0;
-$Cashroll += in_array($crypto, $CobinApi->getProductList()) ? $CobinApi->getBalance($crypto) : 0;
-$Cashroll += in_array($crypto, $KrakenApi->getProductList()) ? $KrakenApi->getBalance($crypto) : 0;
-$Cashroll += in_array($crypto, $BinanceApi->getProductList()) ? $BinanceApi->getBalance($crypto) : 0;
+$bal = in_array($crypto, $CryptopiaApi->getProductList()) ? $CryptopiaApi->getBalance($crypto) : 0;
+print $CryptopiaApi->name . ": ". $bal . "$crypto\n";
+$Cashroll += $bal;
+$bal = in_array($crypto, $CobinApi->getProductList()) ? $CobinApi->getBalance($crypto) : 0;
+print $CobinApi->name . ": ". $bal . "$crypto\n";
+$Cashroll += $bal;
+$bal = in_array($crypto, $KrakenApi->getProductList()) ? $KrakenApi->getBalance($crypto) : 0;
+print $KrakenApi->name . ": ". $bal . "$crypto\n";
+$Cashroll += $bal;
+$bal = in_array($crypto, $BinanceApi->getProductList()) ? $BinanceApi->getBalance($crypto) : 0;
+print $BinanceApi->name . ": ". $bal . "$crypto\n";
+$Cashroll += $bal;
 
 print ("Cashroll: $Cashroll $crypto = ".($Cashroll*$price['BTC'])."BTC\n");
