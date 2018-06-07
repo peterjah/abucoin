@@ -165,10 +165,10 @@ class KrakenApi
       else return $res;
     }
 
-    function save_trade($id, $alt, $side, $size, $price)
+    function save_trade($id, $alt, $side, $size, $price, $tradeId)
     {
       print("saving trade\n");
-      $trade_str = date("Y-m-d H:i:s").": {$this->name}: trade $id: $side $size $alt at $price\n";
+      $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price\n";
       file_put_contents('trades',$trade_str,FILE_APPEND);
     }
 
@@ -209,7 +209,7 @@ class KrakenApi
       return $info;
     }
 
-    function place_order($type, $alt, $side, $price, $size)
+    function place_order($type, $alt, $side, $price, $size, $tradeId)
     {
       $type = 'market';
       $pair = $this->getPair($alt);
@@ -244,7 +244,7 @@ class KrakenApi
        else {
          $filled_size = $size; //todo !!
          $id = $ret['result']['txid'][0];
-         $this->save_trade($id, $alt, $side, $size, $price);
+         $this->save_trade($id, $alt, $side, $size, $price, $tradeId);
        }
        return ['filled_size' => $filled_size, 'id' => $id];
     }

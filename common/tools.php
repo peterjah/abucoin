@@ -88,6 +88,8 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     $second_action = 'sell';
   }
 
+  $tradeId = substr($sell_api->name, 0, 2) . substr($buy_api->name, 0, 2) . '_' . time();
+
   print "start with= $first_api->name \n";
   print "balances: $btc_bal BTC; $alt_bal $alt \n";
 
@@ -148,15 +150,13 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
 
   print "btc_to_spend_fee = $btc_to_spend_fee for $tradeSize $alt\n";
 
-
-
   $price = $first_action == 'buy' ? $buy_price : $sell_price;
 
   $i=0;
   while(true)
   {
     try{
-      $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize);
+      $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize,$tradeId);
       break;
     }
     catch(Exception $e){
@@ -184,7 +184,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
         var_dump($status);
         if( $status['status'] == 'closed' )
         {
-          $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price);
+          $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
           print ("order is closed...\n");
         }
         else
@@ -212,7 +212,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     {
       try{
         $price = $second_action == 'buy' ? $buy_price : $sell_price;
-        $second_status = $second_api->place_order('market',$alt, $second_action, $price, $tradeSize);
+        $second_status = $second_api->place_order('market',$alt, $second_action, $price, $tradeSize, $tradeId);
         break;
       }
       catch(Exception $e){

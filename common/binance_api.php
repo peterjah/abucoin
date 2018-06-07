@@ -172,7 +172,7 @@ class BinanceApi
       return $info;
     }
 
-    function place_order($type, $alt, $side, $price, $size)
+    function place_order($type, $alt, $side, $price, $size, $tradeId)
     {
       $type = 'market';//Hack
       $table = ['sell' => 'SELL', 'buy' => 'BUY'];
@@ -201,17 +201,17 @@ class BinanceApi
       {
         $status = $ret;;
         if($status['executedQty'] > 0)
-          $this->save_trade($status['orderId'], $alt, $side, $status['executedQty'], $price);
+          $this->save_trade($status['orderId'], $alt, $side, $status['executedQty'], $price, $tradeId);
         return ['filled_size' => $status['executedQty'], 'id' => $status['orderId'], 'filled_btc' => null];
       }
       else
         throw new BinanceAPIException("place order failed: {$ret['msg']}");
     }
 
-    function save_trade($id, $alt, $side, $size, $price)
+    function save_trade($id, $alt, $side, $size, $price, $tradeId)
     {
       print("saving trade\n");
-      $trade_str = date("Y-m-d H:i:s").": {$this->name}: trade $id: $side $size $alt at $price\n";
+      $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price\n";
       file_put_contents('trades',$trade_str,FILE_APPEND);
     }
 }

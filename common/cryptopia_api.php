@@ -180,14 +180,14 @@ class CryptopiaApi
                         ];
     }
 
-    function save_trade($id, $alt, $side, $size, $price)
+    function save_trade($id, $alt, $side, $size, $price, $tradeId)
     {
       print("saving trade\n");
-      $trade_str = date("Y-m-d H:i:s").": {$this->name}: trade $id: $side $size $alt at $price\n";
+      $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price\n";
       file_put_contents('trades',$trade_str,FILE_APPEND);
     }
 
-    function place_order($type, $alt, $side, $price, $size)
+    function place_order($type, $alt, $side, $price, $size, $tradeId)
     {
       if($type == 'market')
       {
@@ -217,7 +217,7 @@ class CryptopiaApi
           $filled_size = $size; //approx size
           $id = $ret->FilledOrders[0];
           $filled_btc = 0;
-          $this->save_trade($id, $alt, $side, $size, $type == 'limit' ? $price : $offer['price']);
+          $this->save_trade($id, $alt, $side, $size, $type == 'limit' ? $price : $offer['price'], $tradeId);
         }
         else
         {
