@@ -197,8 +197,12 @@ class CryptopiaApi
 
      if($side == 'buy')
         $new_size = min($size , $this->balances['BTC']/$price);
-     if($side == 'sell')
-        $new_size = min($size , $this->balances[$alt]);
+     else {
+       $altBal = @$this->balances[$alt];
+       if(!isset($altBal))
+         $altBal = $this->getBalance($alt);
+        $new_size = min($size, $altBal);
+      }
 
       $order = ['Market' => "$alt/BTC",
                 'Type' => $side,
@@ -303,7 +307,7 @@ class CryptopiaApi
        try{
          $ret = $this->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);
          break;
-       }catch (Exception $e){ $i++; sleep(0.5); print ("Failed to cancel order. retrying...$i\n");}
+       }catch (Exception $e){ $i++; sleep(1); print ("Failed to cancel order. retrying...$i\n");}
      }
      var_dump($ret);
      if(isset($ret['error']))

@@ -113,7 +113,10 @@ class KrakenApi
                 'GNO' => 'GNO',
                 'ICN' => 'ICN'
                 ];
-      return $table[$crypto];
+      if(array_key_exists($crypto,$table))
+        return $table[$crypto];
+      else
+        throw new KrakenAPIException("Unknown crypto $crypto");
     }
 
     function getBalance(...$cryptos)
@@ -214,10 +217,18 @@ class KrakenApi
       $type = 'market';
       $pair = $this->getPair($alt);
       // safety check
-      if($side == 'buy')
-        $size = min($size , $this->balances['BTC']/$price);
-      else
-        $size = min($size , $this->balances[$alt]);
+      if($side == 'buy') {
+        $bal = @$this->balances['BTC'];
+        if(!isset($bal))
+          $bal = $this->getBalance('BTC');
+        $size = min($size , $bal/$price);
+      }
+      else {
+        $altBal = @$this->balances[$alt];
+        if(!isset($altBal))
+          $altBal = $this->getBalance($alt);
+        $size = min($size , $altBal);
+      }
 
       $size_str = rtrim(rtrim(sprintf("%.6F", floordec($size,6)), '0'), ".");
 
@@ -249,7 +260,7 @@ class KrakenApi
        return ['filled_size' => $filled_size, 'id' => $id];
     }
 
-    function minimumAltTrade($alt)
+    function minimumAltTrade($crypto)
     {
       $table = ['REP'=>0.3,
                 'BTC'=>0.002,
@@ -268,10 +279,14 @@ class KrakenApi
                 'ZEC'=>0.03,
                 'GNO'=>0.03
               ];
-      return $table[$alt];
+
+    if(array_key_exists($crypto,$table))
+      return $table[$crypto];
+    else
+      throw new KrakenAPIException("Unknown crypto $crypto");
     }
 
-    static function getPair($alt)
+    static function getPair($crypto)
     {
       $table = ['XRP' => 'XXRPXXBT',
                 'LTC' => 'XLTCXXBT',
@@ -288,7 +303,10 @@ class KrakenApi
                 'ICN' => 'XICNXXBT',
                 'BTC' => null
                 ];
-      return $table[$alt];
+    if(array_key_exists($crypto,$table))
+      return $table[$crypto];
+    else
+      throw new KrakenAPIException("Unknown crypto $crypto");
     }
 
     function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)

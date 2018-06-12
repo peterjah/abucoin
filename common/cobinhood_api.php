@@ -25,7 +25,7 @@ class CobinhoodApi
       CURLOPT_AUTOREFERER    => true,
       CURLOPT_SSL_VERIFYPEER => false,
       CURLOPT_CONNECTTIMEOUT => 30,
-      CURLOPT_TIMEOUT        => 30
+      CURLOPT_TIMEOUT        => 5
     ];
 
     public function __construct()

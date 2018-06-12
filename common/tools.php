@@ -46,6 +46,7 @@ class OrderBook
 {
   public $api;
   public $product;
+  public $book;
 
   public function __construct($api, $alt)
   {
@@ -58,15 +59,9 @@ class OrderBook
   {
     $depth_btc = max($depth_btc, $this->product->min_order_size_btc);
     $depth_alt = max($depth_alt, $this->product->min_order_size_alt);
-    return $this->api->getOrderBook($this->product->alt, $depth_btc, $depth_alt);
+    $this->book = $this->api->getOrderBook($this->product->alt, $depth_btc, $depth_alt);
+    return $this->book;
   }
-}
-
-function save_trade($exchange, $id, $alt, $side, $size, $price)
-{
-  print("saving trade\n");
-  $trade_str = date("Y-m-d H:i:s").": $exchange: trade $id: $side $size $alt at $price\n";
-  file_put_contents('trades',$trade_str,FILE_APPEND);
 }
 
 function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
@@ -75,6 +70,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   $buy_api = $buy_market->api;
   $alt_bal = $sell_api->balances[$alt];
   $btc_bal = $buy_api->balances['BTC'];
+
   if($sell_api->PriorityLevel < $buy_api->PriorityLevel) {
     $first_api = $sell_api;
     $first_action = 'sell';

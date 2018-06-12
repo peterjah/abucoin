@@ -51,15 +51,18 @@ while(true)
         // print "Get back btc on {$Api1->name}".($get_btc_market1?"true":"false")."  tresh is $low_btc_market_tresh\n";
         // print "Get back btc on {$Api2->name}".($get_btc_market2?"true":"false")."\n";
 
-        if( ($alt_bal = $Api2->balances[$alt]) == 0)
-          break;
 
-        //print("alt_bal=$alt_bal ");
-        if( ($btc_bal = $Api1->balances['BTC']) == 0)
-          break;
         //print("btc_bal=$btc_bal \n");
         $min_order_btc = max($orderBook1[$alt]->product->min_order_size_btc, $orderBook2[$alt]->product->min_order_size_btc);
         $min_order_alt = max($orderBook1[$alt]->product->min_order_size_alt, $orderBook2[$alt]->product->min_order_size_alt);
+
+        if( ($alt_bal = $Api2->balances[$alt]) < $min_order_alt)
+          break;
+
+        //print("alt_bal=$alt_bal ");
+        if( ($btc_bal = $Api1->balances['BTC']) < $min_order_btc)
+          break;
+
         $book1 = $orderBook1[$alt]->refreshBook($min_order_btc,$min_order_alt);
         $book2 = $orderBook2[$alt]->refreshBook($min_order_btc,$min_order_alt);
 
@@ -138,15 +141,16 @@ while(true)
         $low_btc_market_tresh = ($btc_cash_roll)*0.1; //10% of total btc hodling
         $get_btc_market1 = $Api1->balances['BTC'] < $low_btc_market_tresh;
 
-        if( ($alt_bal = $Api1->balances[$alt]) == 0)
-          break;
-
-        //print("alt_bal=$alt_bal ");
-        if( ($btc_bal = $Api2->balances['BTC']) == 0)
-          break;
-        //print("btc_bal=$btc_bal \n");
         $min_order_btc = max($orderBook1[$alt]->product->min_order_size_btc, $orderBook2[$alt]->product->min_order_size_btc);
         $min_order_alt = max($orderBook1[$alt]->product->min_order_size_alt, $orderBook2[$alt]->product->min_order_size_alt);
+
+        if( ($alt_bal = $Api1->balances[$alt]) < $min_order_alt)
+          break;
+        //print("alt_bal=$alt_bal ");
+        if( ($btc_bal = $Api2->balances['BTC']) < $min_order_btc)
+          break;
+        //print("btc_bal=$btc_bal \n");
+
         $book1 = $orderBook1[$alt]->refreshBook($min_order_btc,$min_order_alt);
         $book2 = $orderBook2[$alt]->refreshBook($min_order_btc,$min_order_alt);
 
