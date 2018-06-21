@@ -196,6 +196,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
             $debug_str = date("Y-m-d H:i:s")." canceled order on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize filled:{$status['filled']}\n";
             file_put_contents('debug',$debug_str,FILE_APPEND);
           }
+          break;
         } catch (Exception $e)
         {
           $i++;
