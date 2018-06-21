@@ -232,7 +232,7 @@ class CryptopiaApi
           {
             $debug_str = date("Y-m-d H:i:s")." Should not happen order stil open on {$this->name}: $id $side $alt @ $price filled:$filled_size\n";
             file_put_contents('debug',$debug_str,FILE_APPEND);
-            $this->cancelOrder($id);
+            $this->cancelOrder('lol',$id);
             throw new CryptopiaAPIException('market order failed');
           }
         }
@@ -298,7 +298,7 @@ class CryptopiaApi
      return $best;
    }
 
-   function cancelOrder($orderId)
+   function cancelOrder($alt, $orderId)
    {
      print ("canceling order $orderId\n");
      $i=0;

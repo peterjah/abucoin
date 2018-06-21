@@ -170,11 +170,11 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   if($order_status['filled_size'] < $tradeSize)
   {
     var_dump($order_status);
-    if($first_api instanceof CryptopiaApi)
+    if($first_api instanceof CryptopiaApi || $first_api instanceof BinanceApi )
     {
       try
       {
-        print ("Verify cryptopia trade...\n");
+        print ("Verify trade...\n");
         sleep(10);
         $status = $first_api->getOrderStatus($alt, $order_status['id']);
         var_dump($status);
@@ -186,8 +186,8 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
         else
         {
           $tradeSize = $status['filled'];
-          $first_api->cancelOrder($order_status['id']);
-          $debug_str = date("Y-m-d H:i:s")." canceled order: {$order_status['id']} $alt tradeSize=$tradeSize filled:{$status['filled']}\n";
+          $first_api->cancelOrder($alt, $order_status['id']);
+          $debug_str = date("Y-m-d H:i:s")." canceled order on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize filled:{$status['filled']}\n";
           file_put_contents('debug',$debug_str,FILE_APPEND);
         }
       } catch (Exception $e)

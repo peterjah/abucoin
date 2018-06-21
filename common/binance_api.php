@@ -174,7 +174,6 @@ class BinanceApi
 
     function place_order($type, $alt, $side, $price, $size, $tradeId)
     {
-      $type = 'market';//Hack
       $table = ['sell' => 'SELL', 'buy' => 'BUY'];
       $table2 = ['market' => 'MARKET', 'limit' => 'LIMIT'];
       $orderSide = $table[$side];
@@ -193,19 +192,18 @@ class BinanceApi
       }
 
       var_dump($order);
-      $ret = $this->jsonRequest('POST', 'v3/order', $order);
+      $status = $this->jsonRequest('POST', 'v3/order', $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
 
-      if( count($ret) && !isset($ret['code']))
+      if( count($status) && !isset($status['code']))
       {
-        $status = $ret;;
         if($status['executedQty'] > 0)
           $this->save_trade($status['orderId'], $alt, $side, $status['executedQty'], $price, $tradeId);
         return ['filled_size' => $status['executedQty'], 'id' => $status['orderId'], 'filled_btc' => null];
       }
       else
-        throw new BinanceAPIException("place order failed: {$ret['msg']}");
+        throw new BinanceAPIException("place order failed: {$status['msg']}");
     }
 
     function save_trade($id, $alt, $side, $size, $price, $tradeId)
@@ -213,5 +211,52 @@ class BinanceApi
       print("saving trade\n");
       $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price\n";
       file_put_contents('trades',$trade_str,FILE_APPEND);
+    }
+
+    function getOrderStatus($alt, $orderId)
+    {
+      print "get order status of $orderId \n";
+      $i=0;
+      $symbol = "{$alt}BTC";
+      while($i<5)
+      {
+        try{
+          $order = $this->jsonRequest('GET', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
+          break;
+        }catch (Exception $e){ $i++; sleep(0.5); print ("Failed to get status retrying...$i\n");}
+      }
+
+      var_dump($order);
+      if(isset($order))
+      {
+        if ($order['status'] == 'FILLED')
+          $status = 'closed';
+        else
+          $status = 'open';
+
+        return  $status = [ 'status' => $status,
+                            'filled' => $order['executedQty'],
+                            'filled_btc' => $order['executedQty'] * $order['price']
+                          ];
+        }
+    }
+
+    function cancelOrder($alt, $orderId)
+    {
+      print ("canceling order $orderId\n");
+      $symbol = "{$alt}BTC";
+      $i=0;
+      while($i<10)
+      {
+        try{
+          $ret = $this->jsonRequest('DELETE', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
+          break;
+        }catch (Exception $e){ $i++; sleep(1); print ("Failed to cancel order. retrying...$i\n");}
+      }
+      var_dump($ret);
+      if(isset($ret['error']))
+        return false;
+      return true;
+
     }
 }
