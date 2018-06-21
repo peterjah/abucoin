@@ -30,7 +30,7 @@ var_dump($Api1->balances);
 
 $btc_start_cash = $Api1->balances['BTC'] + $Api2->balances['BTC'];
 @define('GAIN_TRESHOLD', 0.05);
-@define('LOW_BTC_TRESH', -0.25);
+@define('LOW_BTC_TRESH', -0.2);
 
 $nLoops = 0;
 while(true)
