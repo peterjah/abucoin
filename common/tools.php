@@ -172,27 +172,36 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     var_dump($order_status);
     if($first_api instanceof CryptopiaApi || $first_api instanceof BinanceApi )
     {
-      try
+      print ("Verify trade...\n");
+      sleep(10);
+      $i=0;
+      while($i < 10)
       {
-        print ("Verify trade...\n");
-        sleep(10);
-        $status = $first_api->getOrderStatus($alt, $order_status['id']);
-        var_dump($status);
-        if( $status['status'] == 'closed' )
+        try
         {
-          $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
-          print ("order is closed...\n");
-        }
-        else
-        {
-          $tradeSize = $status['filled'];
-          $first_api->cancelOrder($alt, $order_status['id']);
-          $debug_str = date("Y-m-d H:i:s")." canceled order on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize filled:{$status['filled']}\n";
+          $debug_str = date("Y-m-d H:i:s")." Verify trade on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize filled:{$order_status['filled']}\n";
           file_put_contents('debug',$debug_str,FILE_APPEND);
+
+          $status = $first_api->getOrderStatus($alt, $order_status['id']);
+          var_dump($status);
+          if( $status['status'] == 'closed' )
+          {
+            $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
+            print ("order is closed...\n");
+          }
+          else
+          {
+            $tradeSize = $status['filled'];
+            $first_api->cancelOrder($alt, $order_status['id']);
+            $debug_str = date("Y-m-d H:i:s")." canceled order on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize filled:{$status['filled']}\n";
+            file_put_contents('debug',$debug_str,FILE_APPEND);
+          }
+        } catch (Exception $e)
+        {
+          $i++;
+          print ("Verification failed...\n");
+          sleep(1);
         }
-      } catch (Exception $e)
-      {
-        print ("Verification failed...\n");
       }
     }
     else
