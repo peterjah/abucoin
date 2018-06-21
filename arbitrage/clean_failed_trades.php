@@ -19,23 +19,24 @@ while(1)
 
   if ($handle) {
     while (($line = fgets($handle)) !== false) {
-        preg_match('/^\d+-\d+-\d+ \d+:\d+:\d+: arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) (\d+|\d+\.\d+) ([A-Z]+) at (\d+|\d+\.\d+E?-?\d+?)$/',$line,  $matches);
+        preg_match('/^(\d+-\d+-\d+ \d+:\d+:\d+): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) (\d+|\d+\.\d+) ([A-Z]+) at (\d+|\d+\.\d+E?-?\d+?)$/',$line, $matches);
 
-        if(count($matches) == 8)
+        if(count($matches) == 9)
         {
-          $OpId = $matches[1];
-          $exchange = strtolower($matches[2]);
-          $trade_id = $matches[3];
-          $side = $matches[4];
-          $size = floatval($matches[5]);
-          $alt = $matches[6];
-          $price = $matches[7];
+          $date = $matches[1];
+          $OpId = $matches[2];
+          $exchange = strtolower($matches[3]);
+          $trade_id = $matches[4];
+          $side = $matches[5];
+          $size = floatval($matches[6]);
+          $alt = $matches[7];
+          $price = $matches[8];
 
           if( !isset($legder[$alt]['balance']))
             $legder[$alt]['balance'] = 0;
           if($OpId != 'solved') {
             if( !isset($legder[$alt]['ops'][$OpId]) )
-              $legder[$alt]['ops'][$OpId] = ['side' =>$side, 'size' =>$size, 'price' =>$price, 'id' => $trade_id, 'exchange' => $exchange];
+              $legder[$alt]['ops'][$OpId] = ['date' => $date, 'side' =>$side, 'size' =>$size, 'price' =>$price, 'id' => $trade_id, 'exchange' => $exchange];
             else {
               if($legder[$alt]['ops'][$OpId]['size'] != $size) {
                 print "should not happen: operation $OpId\n";
@@ -70,6 +71,7 @@ while(1)
           $buy_size += $ops['size'];
         }
       }
+      $trade_success = false;
       if($buy_size) {
         print "mean_buy_price= $mean_buy_price: buy_size= $buy_size\n";
         if(@$autoSolve) {
@@ -88,19 +90,27 @@ while(1)
             {
               var_dump($book['bids']);
               $i=0;
-              while($i<6)
-              try{
-                $Api->place_order('market', $alt, 'sell', $book['bids']['order_price'], $buy_size, 'solved');
-                break;
-              } catch(Exception $e) {
-                usleep(50000);
-                $i++;
+              while($i<6) {
+                try{
+                  $Api->place_order('market', $alt, 'sell', $book['bids']['order_price'], $buy_size, 'solved');
+                  foreach($altOps['ops'] as $id => $ops) {
+                    if ($ops['side'] == 'buy')
+                      file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
+                  }
+                  $trade_success = true;
+                  break;
+                } catch(Exception $e) {
+                  usleep(50000);
+                  $i++;
+                }
               }
-              file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
+              if($trade_success)
+                break;
             }
           }
         }
       }
+      $trade_success = false;
       if($sell_size) {
         print "mean_sell_price= $mean_sell_price: sell_size= $sell_size\n";
         if(@$autoSolve) {
@@ -118,15 +128,22 @@ while(1)
             {
               var_dump($book['asks']);
               $i=0;
-              while($i<6)
-              try{
-                $Api->place_order('market', $alt, 'buy', $book['asks']['order_price'], $sell_size, 'solved');
+              while($i<6) {
+                try{
+                  $Api->place_order('market', $alt, 'buy', $book['asks']['order_price'], $sell_size, 'solved');
+                  foreach($altOps['ops'] as $id => $ops) {
+                    if ($ops['side'] == 'sell')
+                      file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
+                    }
+                  $trade_success = true;
+                  break;
+                } catch(Exception $e) {
+                usleep(50000);
+                $i++;
+                }
+              }
+              if($trade_success)
                 break;
-              } catch(Exception $e) {
-              usleep(50000);
-              $i++;
-            }
-            file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
             }
           }
         }
@@ -138,7 +155,7 @@ while(1)
   }
 
 if(@$autoSolve)
-  sleep(900);//15 minutes
+  sleep(3600*2);
 else
   break;
 }
