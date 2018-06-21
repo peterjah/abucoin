@@ -195,8 +195,12 @@ class CryptopiaApi
         $offer = $side == 'buy' ? $book['asks'] : $book['bids'];
       }
 
-     if($side == 'buy')
-        $new_size = min($size , $this->balances['BTC']/$price);
+     if($side == 'buy') {
+       $bal = @$this->balances['BTC'];
+       if(!isset($bal))
+         $bal = $this->getBalance('BTC');
+        $new_size = min($size, $bal/$price);
+     }
      else {
        $altBal = @$this->balances[$alt];
        if(!isset($altBal))
