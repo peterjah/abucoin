@@ -126,7 +126,8 @@ class BinanceApi
     function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
     {
       $id = "{$alt}BTC";
-      $book = $this->jsonRequest('GET', "v1/depth", ["symbol" => $id, "limit" => 50]);
+      $max_orders = 50;
+      $book = $this->jsonRequest('GET', "v1/depth", ["symbol" => $id, "limit" => $max_orders]);
 
       if(!isset($book['asks'][0][0], $book['bids'][0][0]))
         return null;
@@ -137,12 +138,14 @@ class BinanceApi
         $i=1;
         while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_btc)
               || ($best[$side]['size'] < $depth_alt) )
-              && $i<50/*max offers for level=2*/)
+              && $i<$max_orders)
         {
           if (!isset($book[$side][$i][0], $book[$side][$i][1]))
             break;
-          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][1]) / ($book[$side][$i][1]+$best[$side]['size']));
-          $best[$side]['size'] += floatval($book[$side][$i][1]);
+          $size = floatval($book[$side][$i][1]);
+          $price = floatval($book[$side][$i][0]);
+          $best[$side]['price'] = ($best[$side]['price']*$best[$side]['size'] + $price*$size) / ($size+$best[$side]['size']);
+          $best[$side]['size'] += $size;
           $best[$side]['order_price'] = floatval($book[$side][$i][0]);
           //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
           $i++;
@@ -165,7 +168,7 @@ class BinanceApi
       $info['min_order_size_alt'] = floatval($product["filters"][1]["minQty"]);
       $info['increment'] = floatval($product["filters"][1]["stepSize"]);
       $info['fees'] = 0.05;
-      $info['min_order_size_btc'] = floatval($product["filters"][0]["minPrice"]);
+      $info['min_order_size_btc'] = floatval($product["filters"][2]["minNotional"]);
       $info['alt_size_decimals'] = strlen(substr(strrchr(floatval($product["filters"][1]["stepSize"]), "."), 1));
       $info['alt_price_decimals'] = strlen(substr(strrchr(floatval($product["filters"][0]["tickSize"]), "."), 1));
 
@@ -187,14 +190,14 @@ class BinanceApi
 
       if($type == 'limit')
       {
-        $order['price'] = $price;
+        $order['price'] = sprintf('%.8f', $price);
         $order['timeInForce'] = 'GTC';
       }
 
       var_dump($order);
       $status = $this->jsonRequest('POST', 'v3/order', $order);
       print "{$this->name} trade says:\n";
-      var_dump($ret);
+      var_dump($status);
 
       if( count($status) && !isset($status['code']))
       {

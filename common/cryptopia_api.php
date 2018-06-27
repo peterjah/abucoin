@@ -98,8 +98,22 @@ class CryptopiaApi
     {
       if( func_num_args() > 1)
       {
-        $accounts = $this->jsonRequest("GetBalance",['Currency'=> null]);
-        $currencies = array_column($accounts, 'Symbol');
+        $i=0;
+        $accounts = null;
+        while($accounts == null)
+        {
+          try {
+            $accounts = $this->jsonRequest("GetBalance",['Currency'=> null]);
+            $currencies = array_column($accounts, 'Symbol');
+            break;
+          }
+          catch (Exception $e)
+          {
+            $i++;
+            if($i > 5)
+              throw new CryptopiaAPIException('failed to get balances');
+          }
+        }
       }
       //var_dump($accounts);
       $res = []; //todo: try to get all balances in one api call
@@ -107,8 +121,7 @@ class CryptopiaApi
       {
         $account = null;
         $nbtry = 0;
-        $i=0;
-        while($account == null && $i<5)
+        while($account == null)
         {
           try
           {
@@ -125,7 +138,6 @@ class CryptopiaApi
               $res[$crypto] = $account->Available;
             else
               $res[$crypto] = 0;
-            $i++;
           }
           catch (Exception $e)
           {
@@ -162,7 +174,7 @@ class CryptopiaApi
            $order = $open_order;
            break;
         }
-      var_dump($open_order);
+      var_dump($order);
       if(!isset($order)) {//order has not been filled?
         $status = 'closed';
         $filled = 0;
@@ -242,8 +254,11 @@ class CryptopiaApi
         }
         return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc];
       }
-      else
-        throw new CryptopiaAPIException('place order failed');
+      else {
+        $debug_str = "place order failed: {$ret['error']}";
+        file_put_contents('debug',$debug_str,FILE_APPEND);
+        throw new CryptopiaAPIException($debug_str);
+      }
     }
 
     function getProductList()
