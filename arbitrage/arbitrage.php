@@ -101,8 +101,7 @@ while(true)
           if($tradeSize>0)
           {
             print("log tx\n");
-            $tradeSize_btc = $tradeSize * $book1['asks']['price'];
-            $gain_btc = $tradeSize_btc*$gain_percent/100;
+            $gain_btc = $tradeSize * ( $sell_price*((100-$orderBook2[$alt]->product->fees)/100) - $buy_price*((100+$orderBook1[$alt]->product->fees)/100));
             $profit+=$gain_btc;
             $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
@@ -186,8 +185,7 @@ while(true)
           if($tradeSize > 0)
           {
             print("log tx\n");
-            $tradeSize_btc = $tradeSize * $book1['asks']['price'];
-            $gain_btc = $tradeSize_btc*$gain_percent/100;
+            $gain_btc = $tradeSize * ($sell_price*((100-$orderBook1[$alt]->product->fees)/100) - $buy_price*((100+$orderBook2[$alt]->product->fees)/100));
             $profit+=$gain_btc;
             $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
