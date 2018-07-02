@@ -169,8 +169,8 @@ class BinanceApi
       $info['increment'] = floatval($product["filters"][1]["stepSize"]);
       $info['fees'] = 0.05;
       $info['min_order_size_btc'] = floatval($product["filters"][2]["minNotional"]);
-      $info['alt_size_decimals'] = strlen(substr(strrchr(floatval($product["filters"][1]["stepSize"]), "."), 1));
-      $info['alt_price_decimals'] = strlen(substr(strrchr(floatval($product["filters"][0]["tickSize"]), "."), 1));
+      $info['alt_size_decimals'] = strlen(substr(strrchr(rtrim($product["filters"][1]["stepSize"],0), "."), 1));
+      $info['alt_price_decimals'] = strlen(substr(strrchr(rtrim($product["filters"][0]["tickSize"],0), "."), 1));
 
       return $info;
     }
@@ -190,7 +190,8 @@ class BinanceApi
 
       if($type == 'limit')
       {
-        $order['price'] = sprintf('%.8f', $price);
+        $precision = $this->product[$alt]->alt_price_decimals;
+        $order['price'] = sprintf("%.{$precision}f", $price);
         $order['timeInForce'] = 'GTC';
       }
 

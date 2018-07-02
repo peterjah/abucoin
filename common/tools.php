@@ -184,11 +184,10 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
 
           $status = $first_api->getOrderStatus($alt, $order_status['id']);
           var_dump($status);
+          $debug_str = date("Y-m-d H:i:s")." order is {$status['status']} \n";
+          file_put_contents('debug',$debug_str,FILE_APPEND);
           if( $status['status'] == 'closed' )
           {
-            if(preg_replace("/.*arbitrage: $tradeId .*/", '', file_get_contents('trades')))
-              file_put_contents('trades', preg_replace("/.*arbitrage: $tradeId .*\n/", "$trade_str", file_get_contents('trades')));
-
             $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
             $debug_str = date("Y-m-d H:i:s")." Verify trade on {$first_api->name} : order is closed. filled:{$status['filled']}\n";
             print ("order is closed...\n");
@@ -197,6 +196,10 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
           {
             $tradeSize = $status['filled'];
             $first_api->cancelOrder($alt, $order_status['id']);
+            if($tradeSize > 0)
+            {
+              $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
+            }
             $debug_str = date("Y-m-d H:i:s")." canceled order on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize filled:{$status['filled']}\n";
             file_put_contents('debug',$debug_str,FILE_APPEND);
           }
