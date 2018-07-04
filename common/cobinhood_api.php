@@ -198,8 +198,6 @@ class CobinhoodApi
         return ['filled_size' => $status['filled'], 'id' => $status['id'], 'filled_btc' => null];
       }
       else {
-        $debug_str = "place order failed: {$ret['error']}";
-        file_put_contents('debug',$debug_str,FILE_APPEND);
         throw new CobinhoodAPIException("place order failed: {$ret['error']}");
       }
     }

@@ -91,6 +91,7 @@ class KrakenApi
         {
           print "Kraken Api call limit reached\n";
           sleep(15);
+          throw new KrakenAPIException($result['error'][0]);
         }
 
         return $result;
@@ -111,7 +112,9 @@ class KrakenApi
                 'BCH' => 'BCH',
                 'DASH' => 'DASH',
                 'GNO' => 'GNO',
-                'ICN' => 'ICN'
+                'MLN' => 'MLN',
+                'ICN' => 'ICN',
+                'XDG' => 'XDG',
                 ];
       if(array_key_exists($crypto,$table))
         return $table[$crypto];
@@ -301,6 +304,8 @@ class KrakenApi
                 'DASH' => 'DASHXBT',
                 'GNO' => 'GNOXBT',
                 'ICN' => 'XICNXXBT',
+                'MLN' => 'XMLNXXBT',
+                'XDG' => 'XXDGXXDG',
                 'BTC' => null
                 ];
     if(array_key_exists($crypto,$table))

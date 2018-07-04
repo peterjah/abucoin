@@ -22,7 +22,7 @@ class CryptopiaApi
         $this->name = 'Cryptopia';
         $this->nApicalls = 0;
         $this->curl = curl_init();
-        $this->PriorityLevel = 0;
+        $this->PriorityLevel = 1;
         //App specifics
         $this->products = [];
         $this->balances = [];
@@ -32,7 +32,7 @@ class CryptopiaApi
         curl_close($this->curl);
     }
 
-    public function jsonRequest($path, array $datas = array())
+    public function jsonRequest($method = null, $path, array $datas = array())
     {
         if($this->nApicalls < PHP_INT_MAX)
           $this->nApicalls++;
@@ -44,8 +44,7 @@ class CryptopiaApi
         $url = static::API_URL . "$path";
         $nonce = time();
         $i = 1;
-        $pathLength = count(explode('/', $path));
-        while($i < $pathLength)
+        while($i < count(explode('/', $path)))
         {
           $path = dirname($path);
           $i++;
@@ -59,6 +58,9 @@ class CryptopiaApi
           'Content-Type: application/json; charset=utf-8',
           "Authorization: $header_value",
           ));
+
+        }
+        if ($method == 'POST') {
           curl_setopt($ch, CURLOPT_POST, 1);
           curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($datas));
         }
@@ -103,7 +105,7 @@ class CryptopiaApi
         while($accounts == null)
         {
           try {
-            $accounts = $this->jsonRequest("GetBalance",['Currency'=> null]);
+            $accounts = $this->jsonRequest('POST', "GetBalance",['Currency'=> null]);
             $currencies = array_column($accounts, 'Symbol');
             break;
           }
@@ -131,7 +133,7 @@ class CryptopiaApi
                $account = $accounts[$key];
             }
             else
-              $account = $this->jsonRequest("GetBalance",['Currency'=> $crypto])[0];
+              $account = $this->jsonRequest('POST', "GetBalance",['Currency'=> $crypto])[0];
 
              //var_dump($account);
             if( isset($account->Available))
@@ -163,7 +165,7 @@ class CryptopiaApi
       while($i<5)
       {
         try{
-          $open_orders = $this->jsonRequest('GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 10]);
+          $open_orders = $this->jsonRequest('POST', 'GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 10]);
           break;
         }catch (Exception $e){ $i++; sleep(0.5); print ("Failed to get status retrying...$i\n");}
       }
@@ -227,14 +229,14 @@ class CryptopiaApi
                ];
 
       var_dump($order);
-      $ret = $this->jsonRequest('SubmitTrade', $order);
+      $ret = $this->jsonRequest('POST', 'SubmitTrade', $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
       if(isset($ret->FilledOrders))
       {
         if (count($ret->FilledOrders))
         {
-          $filled_size = $size; //approx size
+          $filled_size = $new_size; //information is not provided here
           $id = $ret->FilledOrders[0];
           $filled_btc = 0;
           $this->save_trade($id, $alt, $side, $size, $type == 'limit' ? $price : $offer['price'], $tradeId);
@@ -248,7 +250,7 @@ class CryptopiaApi
           {
             $debug_str = date("Y-m-d H:i:s")." Should not happen order stil open on {$this->name}: $id $side $alt @ $price filled:$filled_size\n";
             file_put_contents('debug',$debug_str,FILE_APPEND);
-            $this->cancelOrder('lol',$id);
+            $this->cancelOrder('notUsed',$id);
             throw new CryptopiaAPIException('market order failed');
           }
         }
@@ -264,7 +266,7 @@ class CryptopiaApi
     function getProductList()
     {
       $list = [];
-      $products = $this->jsonRequest('GetTradePairs');
+      $products = $this->jsonRequest('GET', 'GetTradePairs');
       foreach($products as $product)
       if(preg_match('/([A-Z]+)\/BTC/', $product->Label) )
       {
@@ -277,7 +279,7 @@ class CryptopiaApi
     function getProductInfo($alt)
     {
       $id = "{$alt}/BTC";
-      $products = $this->jsonRequest('GetTradePairs');
+      $products = $this->jsonRequest('GET', 'GetTradePairs');
       foreach( $products as $product)
         if($product->Label == $id)
         {
@@ -294,8 +296,8 @@ class CryptopiaApi
    {
      $id = "{$alt}_BTC";
      $ordercount = 25;
-     $book = $this->jsonRequest("GetMarketOrders/{$id}/$ordercount");
-
+     $book = $this->jsonRequest('GET', "GetMarketOrders/{$id}/$ordercount");
+     //var_dump($book);
      if(!isset($book->Sell, $book->Buy))
        return null;
      foreach( ['asks', 'bids'] as $side)
@@ -324,7 +326,7 @@ class CryptopiaApi
      while($i<10)
      {
        try{
-         $ret = $this->jsonRequest('CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);
+         $ret = $this->jsonRequest('POST', 'CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);
          break;
        }catch (Exception $e){ $i++; sleep(1); print ("Failed to cancel order. retrying...$i\n");}
      }

@@ -92,7 +92,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   $min_trade_btc = max($buy_market->product->min_order_size_btc, $sell_market->product->min_order_size_btc);
   $min_trade_alt = max($buy_market->product->min_order_size_alt, $sell_market->product->min_order_size_alt);
 
-  $precision = min($buy_market->product->alt_size_decimals , $sell_market->product->alt_size_decimals);
+  $precision = min($buy_market->product->alt_size_decimals, $sell_market->product->alt_size_decimals);
   print "round to alt_size_decimals precision: $precision\n";
   $tradeSize = floordec($tradeSize, $precision);
 
@@ -179,17 +179,15 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
       {
         try
         {
-          $debug_str = date("Y-m-d H:i:s")." Verify trade on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize\n";
-          file_put_contents('debug',$debug_str,FILE_APPEND);
+          $debug_str = date("Y-m-d H:i:s")." Verify trade on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize :";
 
           $status = $first_api->getOrderStatus($alt, $order_status['id']);
           var_dump($status);
-          $debug_str = date("Y-m-d H:i:s")." order is {$status['status']} \n";
-          file_put_contents('debug',$debug_str,FILE_APPEND);
+          $debug_str += " order is {$status['status']}.";
           if( $status['status'] == 'closed' )
           {
             $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
-            $debug_str = date("Y-m-d H:i:s")." Verify trade on {$first_api->name} : order is closed. filled:{$status['filled']}\n";
+            $debug_str += " Saving trade. filled:{$status['filled']}\n";
             print ("order is closed...\n");
           }
           else
@@ -200,9 +198,9 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
             {
               $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
             }
-            $debug_str = date("Y-m-d H:i:s")." canceled order on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize filled:{$status['filled']}\n";
-            file_put_contents('debug',$debug_str,FILE_APPEND);
+            $debug_str += " Canceling order : filled:{$status['filled']}\n";
           }
+          file_put_contents('debug',$debug_str,FILE_APPEND);
           break;
         } catch (Exception $e)
         {
@@ -221,7 +219,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   if($tradeSize > 0)
   {
     $i=0;
-    while($i<8)
+    while(true)
     {
       try{
         $price = $second_action == 'buy' ? $buy_price : $sell_price;
@@ -235,8 +233,14 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
          var_dump($second_status);
          $debug_str = date("Y-m-d H:i:s")." unable to $second_action $alt (second action) [{$e->getMessage()}] on {$second_api->name}: tradeSize=$tradeSize at $price. try $i\n";
          file_put_contents('debug',$debug_str,FILE_APPEND);
-         if($e =='EOrder:Insufficient funds' )
-           $tradeSize = $tradeSize*0.99;
+         if($e =='EOrder:Insufficient funds' || $e == 'place order failed: insufficient_balance')
+         {
+           $tradeSize = $tradeSize*0.95;
+         }
+         if($i == 8){
+           $tradeSize = -1;
+           break;
+         }
       }
     }
   }

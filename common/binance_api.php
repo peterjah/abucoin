@@ -34,7 +34,7 @@ class BinanceApi
         $this->nApicalls = 0;
         $this->name = 'Binance';
 
-        $this->PriorityLevel = 2;
+        $this->PriorityLevel = 0;
         //App specifics
         $this->products = [];
         $this->balances = [];
@@ -87,6 +87,8 @@ class BinanceApi
         if (null === $content && json_last_error() !== JSON_ERROR_NONE) {
     			return ["error" => "json_decode() error $errmsg"];
     		}
+        if(isset($content['code']) && $content['code'] < 0)
+          throw new BinanceAPIException($content['msg']);
     		return $content;
     }
 
@@ -182,16 +184,17 @@ class BinanceApi
       $orderSide = $table[$side];
       $orderType = $table2[$type];
 
+      $size_precision = $this->product[$alt]->alt_size_decimals;
       $order = ['symbol' => "{$alt}BTC",
-                'quantity'=>  $size,
+                'quantity'=>  sprintf("%.{$size_precision}f", $size),
                 'side'=> $orderSide,
                 'type'=> $orderType,
                 ];
 
       if($type == 'limit')
       {
-        $precision = $this->product[$alt]->alt_price_decimals;
-        $order['price'] = sprintf("%.{$precision}f", $price);
+        $price_precision = $this->product[$alt]->alt_price_decimals;
+        $order['price'] = sprintf("%.{$price_precision}f", $price);
         $order['timeInForce'] = 'GTC';
       }
 
