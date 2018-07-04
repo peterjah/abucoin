@@ -4,8 +4,15 @@ require_once('../common/tools.php');
 @define('FILE',"trades");
 
 if (@$argv[1] == '-solve' && isset($argv[2])) {
-  file_put_contents(FILE, str_replace($argv[2], 'solved', file_get_contents(FILE)));
-  print "Tx $argv[2] marked as solved\n";
+  $ret = str_replace($argv[2], 'solved', file_get_contents(FILE), $count);
+  if($count > 0)
+  {
+    file_put_contents(FILE, $ret);
+    print "Tx $argv[2] marked as solved\n";
+  }
+  else {
+    print "Tx $argv[2] not found or already solved\n";
+  }
   exit();
 }
 if (@$argv[1] == '-auto-solve')
@@ -36,13 +43,35 @@ while(1)
             $legder[$alt]['balance'] = 0;
           if($OpId != 'solved') {
             if( !isset($legder[$alt]['ops'][$OpId]) )
-              $legder[$alt]['ops'][$OpId] = ['date' => $date, 'side' =>$side, 'size' =>$size, 'price' =>$price, 'id' => $trade_id, 'exchange' => $exchange];
-            else {
+            {
+              $legder[$alt]['ops'][$OpId] = ['date' => $date,
+                                              'side' =>$side,
+                                              'size' =>$size,
+                                              'price' =>$price,
+                                              'id' => $trade_id,
+                                              'exchange' => $exchange,
+                                              'line' => $line
+                                              ];
+            }
+            elseif (isset($legder[$alt]['ops']["{$OpId}_2"]) && $legder[$alt]['ops']["{$OpId}_2"]['size'] == $size)
+            {
+              unset($legder[$alt]['ops']["{$OpId}_2"]);
+            }
+            else
+            {
               if($legder[$alt]['ops'][$OpId]['size'] != $size) {
-                print "should not happen: operation $OpId\n";
-                var_dump($legder[$alt]['ops'][$OpId]);
+                print "Tx id conflict:\n $line";
+                $legder[$alt]['ops']["{$OpId}_2"] = ['date' => $date,
+                                                'side' =>$side,
+                                                'size' =>$size,
+                                                'price' =>$price,
+                                                'id' => $trade_id,
+                                                'exchange' => $exchange,
+                                                'line' => $line
+                                                ];
               }
-              unset($legder[$alt]['ops'][$OpId]);
+              else
+                unset($legder[$alt]['ops'][$OpId]);
             }
 
             //update ledger balance
@@ -61,7 +90,7 @@ while(1)
       print "$$$$$$$$$$$$$$$$$$ $alt $$$$$$$$$$$$$$$$$$\n";
       foreach($altOps['ops'] as $id => $ops) {
         $ops['TxId'] = $id;
-        var_dump($ops);
+        print "{$ops['line']}";
         if( $ops['side'] == 'sell') {
           $mean_sell_price = ($mean_sell_price * $sell_size + $ops['price'] * $ops['size']) / ( $sell_size + $ops['size'] );
           $sell_size += $ops['size'];
@@ -100,6 +129,7 @@ while(1)
                   $trade_success = true;
                   break;
                 } catch(Exception $e) {
+                  print "failed to sell: $e \n";
                   usleep(50000);
                   $i++;
                 }
@@ -138,6 +168,7 @@ while(1)
                   $trade_success = true;
                   break;
                 } catch(Exception $e) {
+                  print "failed to buy: $e \n";
                 usleep(50000);
                 $i++;
                 }

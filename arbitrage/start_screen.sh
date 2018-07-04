@@ -13,5 +13,5 @@ screen -S binance_cryptopia -dm  php arbitrage.php binance cryptopia
 sleep 0.5
 screen -S cobinhood_cryptopia -dm  php arbitrage.php cobinhood cryptopia 
 
-screen -dm php clean_failed_trades.php -auto-solve
+screen -S trade_cleaner -dm php clean_failed_trades.php -auto-solve
 
