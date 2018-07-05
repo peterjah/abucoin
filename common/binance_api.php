@@ -184,16 +184,17 @@ class BinanceApi
       $orderSide = $table[$side];
       $orderType = $table2[$type];
 
-      $size_precision = $this->product[$alt]->alt_size_decimals;
+      $size_precision = $this->products[$alt]->alt_size_decimals;
+      $size_str = sprintf("%.{$size_precision}f", $size);
       $order = ['symbol' => "{$alt}BTC",
-                'quantity'=>  sprintf("%.{$size_precision}f", $size),
+                'quantity'=>  $size_str,
                 'side'=> $orderSide,
                 'type'=> $orderType,
                 ];
 
       if($type == 'limit')
       {
-        $price_precision = $this->product[$alt]->alt_price_decimals;
+        $price_precision = $this->products[$alt]->alt_price_decimals;
         $order['price'] = sprintf("%.{$price_precision}f", $price);
         $order['timeInForce'] = 'GTC';
       }
@@ -205,9 +206,9 @@ class BinanceApi
 
       if( count($status) && !isset($status['code']))
       {
-        if($status['executedQty'] > 0)
+        if($status['executedQty'] == $status['origQty'])
           $this->save_trade($status['orderId'], $alt, $side, $status['executedQty'], $price, $tradeId);
-        return ['filled_size' => $status['executedQty'], 'id' => $status['orderId'], 'filled_btc' => null];
+        return ['filled_size' => floatval($status['executedQty']), 'id' => $status['orderId'], 'filled_btc' => null];
       }
       else
         throw new BinanceAPIException("place order failed: {$status['msg']}");
