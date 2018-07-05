@@ -159,8 +159,12 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
        print ("unable to $first_action retrying...: $e\n");
        sleep(0.5);
        $i++;
-       $debug_str = date("Y-m-d H:i:s")." unable to $first_action $alt (first action) [{$e->getMessage()}] on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
-       file_put_contents('debug',$debug_str,FILE_APPEND);
+       $err = $e->getMessage();
+       if( $err != 'no response from api' && $err != 'EAPI:Invalid nonce' )
+       {
+         $debug_str = date("Y-m-d H:i:s")." unable to $first_action $alt (first action) [$err] on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
+         file_put_contents('debug',$debug_str,FILE_APPEND);
+       }
        if($i == 5)
          throw new \Exception("unable to $first_action");
     }
@@ -231,8 +235,12 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
          $i++;
          sleep(0.5);
          var_dump($second_status);
-         $debug_str = date("Y-m-d H:i:s")." unable to $second_action $alt (second action) [{$e->getMessage()}] on {$second_api->name}: tradeSize=$tradeSize at $price. try $i\n";
-         file_put_contents('debug',$debug_str,FILE_APPEND);
+         $err = $e->getMessage();
+         if( $err != 'no response from api' && $err != 'EAPI:Invalid nonce' )
+         {
+           $debug_str = date("Y-m-d H:i:s")." unable to $second_action $alt (second action) [$err] on {$second_api->name}: tradeSize=$tradeSize at $price. try $i\n";
+           file_put_contents('debug',$debug_str,FILE_APPEND);
+         }
          if($e =='EOrder:Insufficient funds' || $e == 'place order failed: insufficient_balance')
          {
            $tradeSize = $tradeSize*0.95;

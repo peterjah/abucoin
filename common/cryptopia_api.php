@@ -257,7 +257,7 @@ class CryptopiaApi
         return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc];
       }
       else {
-        $debug_str = "place order failed: {$ret['error']}";
+        $debug_str = "place order failed: {$ret['error']}\n";
         file_put_contents('debug',$debug_str,FILE_APPEND);
         throw new CryptopiaAPIException($debug_str);
       }
