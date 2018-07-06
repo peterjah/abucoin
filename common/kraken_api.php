@@ -205,11 +205,26 @@ class KrakenApi
     function getProductInfo($alt)
     {
       $id = "{$alt}XBT";
-      $products = null;
-      $products = $this->jsonRequest('AssetPairs');
       $pair = $this->getPair($alt);
+      $products = null;
+      $i=0;
+      while ( true )
+      {
+        try {
+          $products = $this->jsonRequest('AssetPairs');
+          $tradeVolume = $this->jsonRequest('TradeVolume', ['pair' => $pair]);
+          break;
+          }
+          catch (Exception $e)
+          {
+            $i++;
+            print "{$this->name}: failed to get product info. retry $i...\n";
+            usleep(50000);
+            if($i > 8)
+              throw new KrakenAPIException('failed to get product infos');
+          }
+      }
 
-      $tradeVolume = $this->jsonRequest('TradeVolume', ['pair' => $pair]);
       //var_dump($tradeVolume);
       foreach($products['result'] as $product)
         if($product['altname'] == $id)
