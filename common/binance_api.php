@@ -47,7 +47,7 @@ class BinanceApi
         else
           $this->nApicalls = 0;
 
-        $public_set = array( 'v1/depth', 'v1/exchangeInfo');
+        $public_set = array( 'v1/depth', 'v1/exchangeInfo', 'v1/ping');
 
         $opt = $this->default_curl_opt;
         $url = self::API_URL . $path;
@@ -279,5 +279,11 @@ class BinanceApi
         return false;
       return true;
 
+    }
+
+    function ping()
+    {
+      $ping = $this->jsonRequest('GET', 'v1/ping');
+      return isset($ping['error']) ? false : true;
     }
 }
