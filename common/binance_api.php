@@ -94,18 +94,31 @@ class BinanceApi
 
     function getBalance(...$cryptos)
     {
-      $balances = $this->jsonRequest('GET', "v3/account")['balances'];
-      $currencies = array_column($balances, 'asset');
+      $res = [];
+      $i=0;
+      while ( true )
+      {
+        try {
+          $balances = $this->jsonRequest('GET', "v3/account")['balances'];
+          break;
+        }
+        catch (Exception $e)
+        {
+          $i++;
+          print "{$this->name}: failed to get balances. retry $i...\n";
+          usleep(50000);
+          if($i > 8)
+            throw new BinanceAPIException('failed to get balances');
+        }
+      }
 
+      foreach($balances as $bal)
+      {
+        $this->balances[$bal['asset']] = floatval($bal['free']);
+      }
       foreach($cryptos as $crypto)
       {
-        $key = array_search($crypto, $currencies);
-        if($key !== false)
-        {
-          $account = $balances[$key];
-          $res[$crypto] = $account['free'];
-        }
-        else $res[$crypto] = 0;
+        $res[$crypto] = isset($this->balances[$crypto]) ? $this->balances[$crypto] : 0;
       }
       if(count($res) == 1)
        return array_pop($res);
@@ -231,7 +244,7 @@ class BinanceApi
         try{
           $order = $this->jsonRequest('GET', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
           break;
-        }catch (Exception $e){ $i++; sleep(0.5); print ("Failed to get status retrying...$i\n");}
+        }catch (Exception $e){ $i++; sleep(0.5); print ("{$this->name}: Failed to get status retrying...$i\n");}
       }
 
       var_dump($order);

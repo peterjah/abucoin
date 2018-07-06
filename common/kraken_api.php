@@ -97,7 +97,7 @@ class KrakenApi
         return $result;
     }
 
-    static function crypto2kraken($crypto)
+    static function crypto2kraken($crypto, $reverse = false)
     {
       $table = ['BTC' => 'XXBT',
                 'XRP' => 'XXRP',
@@ -115,7 +115,10 @@ class KrakenApi
                 'MLN' => 'MLN',
                 'ICN' => 'ICN',
                 'XDG' => 'XDG',
+                'EUR' => 'ZEUR',
                 ];
+      if($reverse)
+        $table = array_flip($table);
       if(array_key_exists($crypto,$table))
         return $table[$crypto];
       else
@@ -124,45 +127,53 @@ class KrakenApi
 
     function getBalance(...$cryptos)
     {
-
       $res = [];
       //var_dump($cryptos);
       $i=0;
-      while (!isset($balances['result']) || !isset($positions['result']) && $i<5)
+      while ( true )
       {
-        $balances = $this->jsonRequest('Balance');
-        $positions = $this->jsonRequest('OpenOrders');
-
-        foreach($cryptos as $crypto)
+        try {
+          $balances = $this->jsonRequest('Balance');
+          $positions = $this->jsonRequest('OpenOrders');
+          break;
+        }
+        catch (Exception $e)
         {
-          $kraken_name = $this->crypto2kraken($crypto);
-          $pair = $this->getPair($crypto);
-          //var_dump($balances);
-          if(isset($balances['result'][$kraken_name]) && floatval($balances['result'][$kraken_name] > 0) )
-          {
+          $i++;
+          print "{$this->name}: failed to get balances. retry $i...\n";
+          usleep(50000);
+          if($i > 8)
+            throw new KrakenAPIException('failed to get balances');
+        }
+      }
 
-            $crypto_in_order = 0;
-            if(isset($positions['result']) && count($positions['result']['open']))
+      if(isset($balances['result']))
+      {
+        foreach($balances['result'] as $alt => $bal)
+        {
+          $crypto_in_order = 0;
+          if(isset($positions['result']) && count($positions['result']['open']))
+          {
+            foreach($positions['result']['open'] as $openOrder)
             {
-              foreach($positions['result']['open'] as $openOrder)
+              if($openOrder['descr']['pair'] == $pair) //Sell orders
               {
-                if($openOrder['descr']['pair'] == $pair) //Sell orders
-                {
-                  $crypto_in_order += $openOrder['vol'];
-                }
-                elseif($crypto == 'BTC' && $openOrder['descr']['type'] == 'buy')
-                {
-                  $crypto_in_order += $openOrder['vol'] * $openOrder['descr']['price'];
-                }
+                $crypto_in_order += $openOrder['vol'];
+              }
+              elseif($alt == 'XXBT' && $openOrder['descr']['type'] == 'buy')
+              {
+                $crypto_in_order += $openOrder['vol'] * $openOrder['descr']['price'];
               }
             }
-            $res[$crypto] = floatval($balances['result'][$kraken_name] - $crypto_in_order);
           }
-          else
-            $res[$crypto] = 0;
+          $this->balances[$this->crypto2kraken($alt, true)] = floatval($bal - $crypto_in_order);
         }
-        $i++;
+        foreach($cryptos as $crypto)
+        {
+          $res[$crypto] = isset($this->balances[$crypto]) ? $this->balances[$crypto] : 0;
+        }
       }
+
       if( !isset($res) )
         throw new KrakenAPIException('failed to get balances');
 

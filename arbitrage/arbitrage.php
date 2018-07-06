@@ -10,9 +10,12 @@ $profit = 0;
 $altcoins_list = findCommonProducts($Api1,$Api2);
 $crypto_list = $altcoins_list;
 $crypto_list[] = 'BTC';
+foreach($crypto_list as $crypto)
+  $Api1->balances[$crypto] = $Api2->balances[$crypto] = 0;
+
 print "retrieve balances\n";
-$Api2->balances = call_user_func_array(array($Api2, "getBalance"), $crypto_list);
-$Api1->balances = call_user_func_array(array($Api1, "getBalance"), $crypto_list);
+$Api1->getBalance();
+$Api2->getBalance();
 
 foreach( $altcoins_list as $alt)
 {
@@ -56,11 +59,10 @@ while(true)
         $min_order_btc = max($orderBook1[$alt]->product->min_order_size_btc, $orderBook2[$alt]->product->min_order_size_btc);
         $min_order_alt = max($orderBook1[$alt]->product->min_order_size_alt, $orderBook2[$alt]->product->min_order_size_alt);
 
-        if( ($alt_bal = $Api2->balances[$alt]) < $min_order_alt)
+        if( ($alt_bal=$Api2->balances[$alt]) < $min_order_alt)
           break;
 
-        //print("alt_bal=$alt_bal ");
-        if( ($btc_bal = $Api1->balances['BTC']) < $min_order_btc)
+        if( ($btc_bal=$Api1->balances['BTC']) < $min_order_btc)
           break;
 
         $book1 = $orderBook1[$alt]->refreshBook($min_order_btc,$min_order_alt);
@@ -87,12 +89,8 @@ while(true)
 
         if($gain_percent >= $gain_treshold)
         {
-          print "balance double check\n";
-          //balance double check
-          if( ($alt_bal = $Api2->getBalance($alt)) > 0)
-            $Api2->balances[$alt] = $alt_bal;
-          else
-             break;
+          $Api1->getBalance();
+          $Api2->getBalance();
 
           if($sell_price <= $buy_price && $gain_treshold > 0)
             throw new \Exception("wtf");
@@ -108,10 +106,8 @@ while(true)
 
             //refresh balances
             sleep(0.5);
-            foreach ([$Api1,$Api2] as $Api) {
-              $balances = $Api->getBalance('BTC', $alt);
-                $Api->balances = array_merge($Api->balances, $balances);
-            }
+            $Api1->getBalance();
+            $Api2->getBalance();
           }
           else
             $tradeSize_btc = 0;
@@ -126,8 +122,8 @@ while(true)
       //refresh balances
       sleep(3);
       try{
-        $Api1->balances[$alt] = $Api1->getBalance($alt);
-        $Api2->balances[$alt] = $Api2->getBalance($alt);
+        $Api1->getBalance();
+        $Api2->getBalance();
       }catch (Exception $e){}
     }
     try
@@ -143,12 +139,11 @@ while(true)
         $min_order_btc = max($orderBook1[$alt]->product->min_order_size_btc, $orderBook2[$alt]->product->min_order_size_btc);
         $min_order_alt = max($orderBook1[$alt]->product->min_order_size_alt, $orderBook2[$alt]->product->min_order_size_alt);
 
-        if( ($alt_bal = $Api1->balances[$alt]) < $min_order_alt)
+        if( ($alt_bal=$Api1->balances[$alt]) < $min_order_alt)
           break;
-        //print("alt_bal=$alt_bal ");
-        if( ($btc_bal = $Api2->balances['BTC']) < $min_order_btc)
+
+        if( ($btc_bal=$Api2->balances['BTC']) < $min_order_btc)
           break;
-        //print("btc_bal=$btc_bal \n");
 
         $book1 = $orderBook1[$alt]->refreshBook($min_order_btc,$min_order_alt);
         $book2 = $orderBook2[$alt]->refreshBook($min_order_btc,$min_order_alt);
@@ -174,12 +169,10 @@ while(true)
         {
           if($sell_price <= $buy_price && $gain_treshold > 0)
             throw new \Exception("wtf");
-          //balance double check
-          print "balance double check\n";
-          if( ($alt_bal = $Api1->getBalance($alt)) > 0)
-            $Api1->balances[$alt] = $alt_bal;
-          else
-             break;
+
+          $Api1->getBalance();
+          $Api2->getBalance();
+
           print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
           $tradeSize = do_arbitrage($alt, $orderBook1[$alt], $book1['bids']['order_price'], $orderBook2[$alt], $book2['asks']['order_price'], $tradeSize);
           if($tradeSize > 0)
@@ -192,10 +185,8 @@ while(true)
 
             //refresh balances
             sleep(0.5);
-            foreach ([$Api1,$Api2] as $Api) {
-              $balances = $Api->getBalance('BTC', $alt);
-                $Api->balances = array_merge($Api->balances, $balances);
-            }
+            $Api1->getBalance();
+            $Api2->getBalance();
 
           }
           else
@@ -212,8 +203,8 @@ while(true)
       sleep(3);
       try
       {
-        $Api1->balances[$alt] = $Api1->getBalance($alt);
-        $Api2->balances[$alt] = $Api2->getBalance($alt);
+        $Api1->getBalance();
+        $Api2->getBalance();
       }catch (Exception $e){}
     }
   }
@@ -225,12 +216,8 @@ while(true)
 
   try
   {
-    $alt_to_refresh = $altcoins_list[ ($nLoops % count($altcoins_list) )];
-
-    foreach ([$Api1,$Api2] as $Api) {
-      $balances = $Api->getBalance('BTC', $alt_to_refresh);
-        $Api->balances = array_merge($Api->balances, $balances);
-    }
+    $Api1->getBalance();
+    $Api2->getBalance();
     $btc_cash_roll = $Api1->balances['BTC'] + $Api2->balances['BTC'];
   }catch (Exception $e)
   {

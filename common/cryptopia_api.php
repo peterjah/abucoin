@@ -98,58 +98,34 @@ class CryptopiaApi
 
     function getBalance(...$cryptos)
     {
-      if( func_num_args() > 1)
+      $i=0;
+      $accounts = null;
+      while($accounts == null)
       {
-        $i=0;
-        $accounts = null;
-        while($accounts == null)
-        {
-          try {
-            $accounts = $this->jsonRequest('POST', "GetBalance",['Currency'=> null]);
-            $currencies = array_column($accounts, 'Symbol');
-            break;
-          }
-          catch (Exception $e)
+        try {
+          $accounts = $this->jsonRequest('POST', "GetBalance",['Currency'=> null]);
+          foreach($accounts as $bal)
           {
-            $i++;
-            if($i > 5)
-              throw new CryptopiaAPIException('failed to get balances');
+            $this->balances[$bal->Symbol] = floatval($bal->Available);
           }
+          $currencies = array_column($accounts, 'Symbol');
+          break;
+        }
+        catch (Exception $e)
+        {
+          $i++;
+          print "{$this->name}: failed to get balances. retry $i...\n";
+          usleep(50000);
+          if($i > 8)
+            throw new CryptopiaAPIException('failed to get balances');
         }
       }
+
       //var_dump($accounts);
-      $res = []; //todo: try to get all balances in one api call
+      $res = [];
       foreach($cryptos as $crypto)
       {
-        $account = null;
-        $nbtry = 0;
-        while($account == null)
-        {
-          try
-          {
-            if (func_num_args() > 1)
-            {
-               $key = array_search($crypto, $currencies)    ;
-               $account = $accounts[$key];
-            }
-            else
-              $account = $this->jsonRequest('POST', "GetBalance",['Currency'=> $crypto])[0];
-
-             //var_dump($account);
-            if( isset($account->Available))
-              $res[$crypto] = $account->Available;
-            else
-              $res[$crypto] = 0;
-          }
-          catch (Exception $e)
-          {
-            $nbtry++;
-            print "failed to get balance for $crypto. retry $nbtry...\n";
-            sleep(1);
-            if($nbtry > 5)
-              throw new CryptopiaAPIException('failed to get balances');
-          }
-        }
+        $res[$crypto] = isset($this->balances[$crypto]) ? $this->balances[$crypto] : 0;
       }
       if( !isset($res) )
         throw new CryptopiaAPIException('failed to get balances');
@@ -257,9 +233,7 @@ class CryptopiaApi
         return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc];
       }
       else {
-        $debug_str = "place order failed: {$ret['error']}\n";
-        file_put_contents('debug',$debug_str,FILE_APPEND);
-        throw new CryptopiaAPIException($debug_str);
+        throw new CryptopiaAPIException($ret['error']);
       }
     }
 

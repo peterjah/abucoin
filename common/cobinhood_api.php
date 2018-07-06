@@ -84,18 +84,16 @@ class CobinhoodApi
 
     function getBalance(...$cryptos)
     {
+      $res = [];
       $balances = $this->jsonRequest('GET', "/wallet/balances")['result']['balances'];
-      $currencies = array_column($balances, 'currency');
 
+      foreach($balances as $bal)
+      {
+        $this->balances[$bal['currency']] = floatval($bal['total'] - $bal['on_order']);
+      }
       foreach($cryptos as $crypto)
       {
-        $key = array_search($crypto, $currencies);
-        if($key !== false)
-        {
-          $account = $balances[$key];
-          $res[$crypto] = $account['total'] - $account['on_order'];
-        }
-        else $res[$crypto] = 0;
+        $res[$crypto] = isset($this->balances[$crypto]) ? $this->balances[$crypto] : 0;
       }
       if(count($res) == 1)
        return array_pop($res);
