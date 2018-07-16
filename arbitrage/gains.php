@@ -23,8 +23,8 @@ $Cashroll = 0;
 foreach (['binance','cryptopia','kraken','cobinhood'] as $market)
 {
   $Api = getMarket($market);
-  $Balance = $Api->getBalance('BTC');
-  print ("$Api->name: $Balance BTC\n");
-  $Cashroll += $Balance;
+  $Api->getBalance();
+  print ("$Api->name: {$Api->balances['BTC']} BTC\n");
+  $Cashroll += $Api->balances['BTC'];
 }
 print ("Total cashroll: $Cashroll BTC = ".($Cashroll*$btcPrice)."EUR\n");

@@ -105,17 +105,16 @@ while(1)
         print "mean_buy_price= $mean_buy_price: buy_size= $buy_size\n";
         if(@$autoSolve) {
           print "trying to solve tx..\n";
-          foreach( ['binance','cryptopia','kraken','cobinhood'] as $exchange) {
+          foreach( ['binance','kraken','cobinhood','cryptopia'] as $exchange) {
             $Api = getMarket($exchange);
             try {
               if($Api->getBalance($alt) < $buy_size)
                 continue;
+              $orderBook = new OrderBook($Api, $alt);
+              $book = $orderBook->refreshBook(0,$buy_size);
+              $Api->products[$alt] = $orderBook->product;
             }catch(Exception $e) {continue;}
-
-            $orderBook = new OrderBook($Api, $alt);
-            $book = $orderBook->refreshBook(0,$buy_size);
-
-            if($book['bids']['order_price'] > $mean_buy_price)
+            if($book['bids']['price'] > $mean_buy_price)
             {
               var_dump($book['bids']);
               $i=0;
@@ -145,21 +144,23 @@ while(1)
         print "mean_sell_price= $mean_sell_price: sell_size= $sell_size\n";
         if(@$autoSolve) {
           print "trying to solve tx..\n";
-          foreach( ['binance','cryptopia','kraken','cobinhood'] as $exchange) {
+          foreach( ['binance','kraken','cobinhood','cryptopia'] as $exchange) {
             $Api = getMarket($exchange);
             try {
-              $orderBook = new OrderBook($Api, $alt);
-              $book = $orderBook->refreshBook(0,$sell_size);
               if($Api->getBalance('BTC') < $sell_size * $book['asks']['order_price'])
-                continue;
+               continue;
+               $orderBook = new OrderBook($Api, $alt);
+               $book = $orderBook->refreshBook(0,$sell_size);
+               $Api->products[$alt] = $orderBook->product;
             }catch(Exception $e) {continue;}
-
-            if($book['asks']['order_price'] < $mean_sell_price)
+            print " {$Api->name} asks order price: {$book['asks']['order_price']}";
+            if($book['asks']['price'] < $mean_sell_price)
             {
               var_dump($book['asks']);
               $i=0;
               while($i<6) {
                 try{
+                  print "place order price: {$book['asks']['order_price']}";
                   $Api->place_order('market', $alt, 'buy', $book['asks']['order_price'], $sell_size, 'solved');
                   foreach($altOps['ops'] as $id => $ops) {
                     if ($ops['side'] == 'sell')

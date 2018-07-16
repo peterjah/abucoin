@@ -14,8 +14,14 @@ foreach($crypto_list as $crypto)
   $Api1->balances[$crypto] = $Api2->balances[$crypto] = 0;
 
 print "retrieve balances\n";
-$Api1->getBalance();
-$Api2->getBalance();
+while(true)
+{
+  try {
+    $Api1->getBalance();
+    $Api2->getBalance();
+    break;
+  } catch (Exception $e) {}
+}
 
 foreach( $altcoins_list as $alt)
 {
@@ -104,6 +110,9 @@ while(true)
             $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
+            //Just in case
+            $Api1->balances['BTC'] -= $tradeSize * $book1['asks']['price'];
+            $Api2->balances[$alt] -= $tradeSize;
             //refresh balances
             sleep(0.5);
             $Api1->getBalance();
@@ -182,6 +191,10 @@ while(true)
             $profit+=$gain_btc;
             $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
+
+            //Just in case
+            $Api1->balances[$alt] -= $tradeSize;
+            $Api2->balances['BTC'] -= $tradeSize * $book2['asks']['price'];
 
             //refresh balances
             sleep(0.5);

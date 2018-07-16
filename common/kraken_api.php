@@ -248,8 +248,11 @@ class KrakenApi
       // safety check
       if($side == 'buy') {
         $bal = @$this->balances['BTC'];
-        if(!isset($bal))
-          $bal = $this->getBalance('BTC');
+          while(!isset($bal) && $i < 6) {
+            try {
+              $bal = $this->getBalance('BTC');
+            } catch (Exception $e) {$i++;}
+          }
         $size = min($size , $bal/$price);
       }
       else {
@@ -304,7 +307,7 @@ class KrakenApi
                 'MLN'=>0.1,
                 'XMR'=>0.1,
                 'XRP'=>30,
-                'XLM'=>300,
+                'XLM'=>30,
                 'ZEC'=>0.03,
                 'GNO'=>0.03
               ];
