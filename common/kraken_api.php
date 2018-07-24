@@ -289,7 +289,7 @@ class KrakenApi
          $id = $ret['result']['txid'][0];
          $this->save_trade($id, $alt, $side, $size, $price, $tradeId);
        }
-       return ['filled_size' => $filled_size, 'id' => $id];
+       return ['filled_size' => $filled_size, 'id' => $id, 'price' => $price];
     }
 
     function minimumAltTrade($crypto)

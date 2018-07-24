@@ -218,6 +218,9 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
       if($order_status['filled_size'] > 0)
         $tradeSize = $order_status['filled_size'];
   }
+  $ret = [];
+  $ret [$first_action] = $order_status;
+  $ret [$first_action]['filled_size'] = $tradeSize;
 
   $second_status = [];
   if($tradeSize > 0)
@@ -252,7 +255,10 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
       }
     }
   }
-  return $tradeSize;
+
+  $ret[$second_action] = $second_status;
+  $ret[$second_action]['filled_size'] = $tradeSize;
+  return $ret;
 }
 
 function ceiling($number, $significance = 1)

@@ -182,7 +182,7 @@ class BinanceApi
         throw new BinanceAPIException('failed to get product infos');
       $info['min_order_size_alt'] = floatval($product["filters"][1]["minQty"]);
       $info['increment'] = floatval($product["filters"][1]["stepSize"]);
-      $info['fees'] = 0.05;
+      $info['fees'] = 0.075;
       $info['min_order_size_btc'] = floatval($product["filters"][2]["minNotional"]);
       $info['alt_size_decimals'] = strlen(substr(strrchr(rtrim($product["filters"][1]["stepSize"],0), "."), 1));
       $info['alt_price_decimals'] = strlen(substr(strrchr(rtrim($product["filters"][0]["tickSize"],0), "."), 1));
@@ -221,7 +221,9 @@ class BinanceApi
       {
         if($status['executedQty'] == $status['origQty'])
           $this->save_trade($status['orderId'], $alt, $side, $status['executedQty'], $price, $tradeId);
-        return ['filled_size' => floatval($status['executedQty']), 'id' => $status['orderId'], 'filled_btc' => null];
+        return ['filled_size' => floatval($status['executedQty']), 'id' => $status['orderId'],
+                'filled_btc' => floatval($status['cummulativeQuoteQty']), 'price' => floatval($status['price'])
+                ];
       }
       else
         throw new BinanceAPIException("place order failed: {$status['msg']}");

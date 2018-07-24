@@ -51,8 +51,8 @@ while(true)
       print "Testing $alt trade\n";
 
       //SELL Cryptopia => BUY Abucoins
-      $tradeSize_btc = 1; //dummy init
-      while($tradeSize_btc > 0)
+      $tradeSize = 1; //dummy init
+      while($tradeSize > 0)
       {
         $btc_cash_roll = $Api1->balances['BTC'] + $Api2->balances['BTC'];
         $low_btc_market_tresh = ($btc_cash_roll)*0.1; //10% of total btc hodling
@@ -101,12 +101,19 @@ while(true)
           if($sell_price <= $buy_price && $gain_treshold > 0)
             throw new \Exception("wtf");
           print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
-          $tradeSize = do_arbitrage($alt, $orderBook2[$alt], $book2['bids']['order_price'], $orderBook1[$alt], $book1['asks']['order_price'], $tradeSize);
-          if($tradeSize>0)
+          $status = do_arbitrage($alt, $orderBook2[$alt], $book2['bids']['order_price'], $orderBook1[$alt], $book1['asks']['order_price'], $tradeSize);
+          if($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0)
           {
-            print("log tx\n");
-            $gain_btc = $tradeSize * ( $sell_price*((100-$orderBook2[$alt]->product->fees)/100) - $buy_price*((100+$orderBook1[$alt]->product->fees)/100));
+
+            if($status['buy']['filled_size'] != $status['sell']['filled_size'])
+            {
+              $debug_str = date("Y-m-d H:i:s")." different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}\n";
+              file_put_contents('debug',$debug_str,FILE_APPEND);
+            }
+            $tradeSize = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
+            $gain_btc = $tradeSize * ( $status['sell']['price']*((100-$orderBook2[$alt]->product->fees)/100) - $status['buy']['price']*((100+$orderBook1[$alt]->product->fees)/100));
             $profit+=$gain_btc;
+            print("log tx\n");
             $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
@@ -119,10 +126,10 @@ while(true)
             $Api2->getBalance();
           }
           else
-            $tradeSize_btc = 0;
+            $tradeSize = 0;
         }
         else
-            $tradeSize_btc = 0;
+            $tradeSize = 0;
       }
     }
     catch (Exception $e)
@@ -138,8 +145,8 @@ while(true)
     try
     {
       //SELL Abucoins => BUY Cryptopia
-      $tradeSize_btc = 1; //dummy init
-      while($tradeSize_btc > 0)
+      $tradeSize = 1; //dummy init
+      while($tradeSize > 0)
       {
         $btc_cash_roll = $Api1->balances['BTC'] + $Api2->balances['BTC'];
         $low_btc_market_tresh = ($btc_cash_roll)*0.1; //10% of total btc hodling
@@ -183,12 +190,19 @@ while(true)
           $Api2->getBalance();
 
           print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
-          $tradeSize = do_arbitrage($alt, $orderBook1[$alt], $book1['bids']['order_price'], $orderBook2[$alt], $book2['asks']['order_price'], $tradeSize);
-          if($tradeSize > 0)
+          $status = do_arbitrage($alt, $orderBook1[$alt], $book1['bids']['order_price'], $orderBook2[$alt], $book2['asks']['order_price'], $tradeSize);
+          if($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0)
           {
-            print("log tx\n");
-            $gain_btc = $tradeSize * ($sell_price*((100-$orderBook1[$alt]->product->fees)/100) - $buy_price*((100+$orderBook2[$alt]->product->fees)/100));
+
+            if($status['buy']['filled_size'] != $status['sell']['filled_size'])
+            {
+              $debug_str = date("Y-m-d H:i:s")." different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}\n";
+              file_put_contents('debug',$debug_str,FILE_APPEND);
+            }
+            $tradeSize = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
+            $gain_btc = $tradeSize * ($status['sell']['price']*((100-$orderBook1[$alt]->product->fees)/100) - $status['buy']['price']*((100+$orderBook2[$alt]->product->fees)/100));
             $profit+=$gain_btc;
+            print("log tx\n");
             $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
@@ -203,10 +217,10 @@ while(true)
 
           }
           else
-            $tradeSize_btc = 0;
+            $tradeSize = 0;
         }
         else
-          $tradeSize_btc = 0;
+          $tradeSize = 0;
       }
     }
     catch (Exception $e)

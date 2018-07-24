@@ -193,7 +193,7 @@ class CobinhoodApi
         $status = $ret['result']['order'];
         if($ret['success'])
           $this->save_trade($status['id'], $alt, $side, $size, $price, $tradeId);
-        return ['filled_size' => $status['filled'], 'id' => $status['id'], 'filled_btc' => null];
+        return ['filled_size' => $status['filled'], 'id' => $status['id'], 'filled_btc' => null, 'price' => $price];
       }
       else {
         throw new CobinhoodAPIException("place order failed: {$ret['error']}");

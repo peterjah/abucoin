@@ -230,7 +230,7 @@ class CryptopiaApi
             throw new CryptopiaAPIException('market order failed');
           }
         }
-        return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc];
+        return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc, 'price' => ($type == 'limit' ? $price : $offer['price'])];
       }
       else {
         throw new CryptopiaAPIException($ret['error']);
@@ -261,9 +261,9 @@ class CryptopiaApi
           $info['fees'] = $product->TradeFee;
           $info['min_order_size_btc'] = $product->MinimumBaseTrade;
           $info['alt_price_decimals'] = 8;//$info['increment'];
-          break;
+          return $info;
         }
-      return $info;
+      return null;
     }
 
    function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
