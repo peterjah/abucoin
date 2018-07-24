@@ -258,8 +258,8 @@ class BinanceApi
           $status = 'open';
 
         return  $status = [ 'status' => $status,
-                            'filled' => $order['executedQty'],
-                            'filled_btc' => $order['executedQty'] * $order['price']
+                            'filled' => floatval($order['executedQty']),
+                            'filled_btc' => floatval($order['executedQty']) * $order['price']
                           ];
         }
     }
