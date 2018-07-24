@@ -191,9 +191,13 @@ class CobinhoodApi
       if(isset($ret['result']))
       {
         $status = $ret['result']['order'];
-        if($ret['success'])
+        if($status['state'] == 'filled' || $status['state'] == 'partially_filled')
+        {
           $this->save_trade($status['id'], $alt, $side, $size, $price, $tradeId);
-        return ['filled_size' => $status['filled'], 'id' => $status['id'], 'filled_btc' => null, 'price' => $price];
+          return ['filled_size' => $status['filled'], 'id' => $status['id'], 'filled_btc' => null, 'price' => $status['eq_price']];
+        }
+        else
+          return ['filled_size' => 0, 'id' => null, 'filled_btc' => null, 'price' => $price];
       }
       else {
         throw new CobinhoodAPIException("place order failed: {$ret['error']}");
