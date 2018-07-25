@@ -32,10 +32,6 @@ foreach( $altcoins_list as $alt)
   $orderBook2[$alt] = new OrderBook($Api2, $alt);
   $Api2->products[$alt] = $orderBook2[$alt]->product;
 }
-print " {$Api2->name} balances:\n";
-var_dump($Api2->balances);
-print " {$Api1->name} balances:\n";
-var_dump($Api1->balances);
 
 $btc_start_cash = $Api1->balances['BTC'] + $Api2->balances['BTC'];
 @define('GAIN_TRESHOLD', 0.05);
@@ -118,7 +114,9 @@ while(true)
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //Just in case
-            $Api1->balances['BTC'] -= $tradeSize * $book1['asks']['price'];
+            $Api1->balances[$alt] += $tradeSize;
+            $Api1->balances['BTC'] -= $tradeSize * $status['sell']['price'];
+            $Api2->balances['BTC'] += $tradeSize * $status['buy']['price'];
             $Api2->balances[$alt] -= $tradeSize;
             //refresh balances
             sleep(0.5);
@@ -201,14 +199,16 @@ while(true)
             }
             $tradeSize = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
             $gain_btc = $tradeSize * ($status['sell']['price']*((100-$orderBook1[$alt]->product->fees)/100) - $status['buy']['price']*((100+$orderBook2[$alt]->product->fees)/100));
-            $profit+=$gain_btc;
+            $profit += $gain_btc;
             print("log tx\n");
             $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //Just in case
             $Api1->balances[$alt] -= $tradeSize;
-            $Api2->balances['BTC'] -= $tradeSize * $book2['asks']['price'];
+            $Api1->balances['BTC'] += $tradeSize * $status['sell']['price'];
+            $Api2->balances[$alt] += $tradeSize;
+            $Api2->balances['BTC'] -= $tradeSize * $status['buy']['price'];
 
             //refresh balances
             sleep(0.5);
@@ -240,17 +240,16 @@ while(true)
     $nLoops=0;
   else
     $nLoops++;
-
-  try
+  if( ($nLoops % 10) == 0 )
   {
-    $Api1->getBalance();
-    $Api2->getBalance();
-    $btc_cash_roll = $Api1->balances['BTC'] + $Api2->balances['BTC'];
-  }catch (Exception $e)
-  {
-    print "failed to get balances\n";
+    print "Refreshing balances";
+    try {$Api1->getBalance();}
+      catch (Exception $e){}
+    try {$$Api2->getBalance();}
+      catch (Exception $e){}
   }
 
+  $btc_cash_roll = $Api1->balances['BTC'] + $Api2->balances['BTC'];
   print "~~~~api calls: ".($Api1->nApicalls + $Api2->nApicalls)."~~~~~\n\n";
   print "~~~~cumulated profit: $profit BTC~~~~~\n\n";
   print "~~~~{$Api2->name}:{$Api2->balances['BTC']}BTC  {$Api1->name}:{$Api1->balances['BTC']}BTC~~~~\n\n";
