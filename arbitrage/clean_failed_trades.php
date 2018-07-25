@@ -143,7 +143,7 @@ while(1)
                       file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
                   }
                   $trade_success = true;
-                  $gain_btc = $sell_size * ($status['price']*((100-$productInfos['fees'])/100) - $mean_buy_price*((100+$mean_buy_fees)/100));
+                  $gain_btc = $sell_size * ($status['price']*((100-$productInfos['fees'])/100) - $mean_buy_price*((100+$mean_fees)/100));
                   $gain_percent = (($mean_sell_price / $book['asks']['price']) -1)*100; //nogood
                   $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
                   file_put_contents('gains',$trade_str,FILE_APPEND);

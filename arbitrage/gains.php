@@ -9,7 +9,7 @@ $btcPrice = $price['EUR'];
 
 if ($handle) {
     while (($line = fgets($handle)) !== false) {
-        preg_match('/(\d+-\d+-\d+ \d+:\d+:\d+): (.*) BTC (.*)%$/',$line,  $matches);
+        preg_match('/(\d+-\d+-\d+ \d+:\d+:\d+): (.*) BTC (.*)%.*/',$line,  $matches);
         print "{$matches[1]}: {$matches[2]} =".number_format($matches[2]*$btcPrice, 3)."EUR ".number_format($matches[3], 2)."%\n";
         $gains += floatval($matches[2]);
     }

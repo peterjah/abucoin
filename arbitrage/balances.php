@@ -13,6 +13,8 @@ $KrakenApi = getMarket('kraken');
 $CobinApi = getMarket('cobinhood');
 $BinanceApi = getMarket('binance');
 
+$cryptoInfo = [];
+
 if(isset($argv[1]))
   $crypto = strtoupper($argv[1]);
 else
@@ -27,14 +29,13 @@ else
     foreach($cur_balances as $alt => $bal)
       if($bal >0)
       {
-        if($key = array_search($alt, array_column($balances, 'alt')))
+        if( ($key = array_search($alt, array_column($balances, 'alt'))) !== false)
         {
           $cryptoInfo = $balances[$key];
           $cryptoInfo['bal'] += $bal;
         }
         else
         {
-          $cryptoInfo = [];
           $cryptoInfo['bal'] = $bal;
         }
         $cryptoInfo['alt'] = $alt;
@@ -43,7 +44,7 @@ else
         $cryptoInfo['btc'] = count($price) == 1 ? $cryptoInfo['bal'] * $price['BTC'] : 0;
         $total_btc += $cryptoInfo['btc'];
 
-        if($key)
+        if($key !== false)
           $balances[$key] = $cryptoInfo;
         else
           $balances[] = $cryptoInfo;

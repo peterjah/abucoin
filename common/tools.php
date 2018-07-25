@@ -187,11 +187,11 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
 
           $status = $first_api->getOrderStatus($alt, $order_status['id']);
           var_dump($status);
-          $debug_str += " order is {$status['status']}.";
+          $debug_str .= " order is {$status['status']}.";
           if( $status['status'] == 'closed' )
           {
             $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
-            $debug_str += " Saving trade. filled:{$status['filled']}\n";
+            $debug_str .= " Saving trade. filled:{$status['filled']}\n";
             print ("order is closed...\n");
           }
           else
@@ -202,7 +202,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
             {
               $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
             }
-            $debug_str += " Canceling order : filled:{$status['filled']}\n";
+            $debug_str .= " Canceling order : filled:{$status['filled']}\n";
           }
           file_put_contents('debug',$debug_str,FILE_APPEND);
           break;
