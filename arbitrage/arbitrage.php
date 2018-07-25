@@ -242,10 +242,10 @@ while(true)
     $nLoops++;
   if( ($nLoops % 10) == 0 )
   {
-    print "Refreshing balances";
+    print "Refreshing balances\n";
     try {$Api1->getBalance();}
       catch (Exception $e){}
-    try {$$Api2->getBalance();}
+    try {$Api2->getBalance();}
       catch (Exception $e){}
   }
 
