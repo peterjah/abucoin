@@ -118,10 +118,6 @@ while(true)
             $Api1->balances['BTC'] -= $tradeSize * $status['sell']['price'];
             $Api2->balances['BTC'] += $tradeSize * $status['buy']['price'];
             $Api2->balances[$alt] -= $tradeSize;
-            //refresh balances
-            sleep(0.5);
-            $Api1->getBalance();
-            $Api2->getBalance();
           }
           else
             $tradeSize = 0;
@@ -209,12 +205,6 @@ while(true)
             $Api1->balances['BTC'] += $tradeSize * $status['sell']['price'];
             $Api2->balances[$alt] += $tradeSize;
             $Api2->balances['BTC'] -= $tradeSize * $status['buy']['price'];
-
-            //refresh balances
-            sleep(0.5);
-            $Api1->getBalance();
-            $Api2->getBalance();
-
           }
           else
             $tradeSize = 0;
