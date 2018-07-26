@@ -177,7 +177,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     if($first_api instanceof CryptopiaApi || $first_api instanceof BinanceApi )
     {
       print ("Verify trade...\n");
-      sleep(10);
+      sleep(3);
       $i=0;
       while($i < 10)
       {

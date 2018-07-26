@@ -230,8 +230,21 @@ while(true)
     $nLoops=0;
   else
     $nLoops++;
+
   if( ($nLoops % 10) == 0 )
   {
+    //ping api
+      while($Api1->ping() === false)
+      {
+        print "Failed to ping {$Api1->name} api. Sleeping...\n";
+        sleep(30);
+      }
+      while($Api2->ping() === false)
+      {
+        print "Failed to ping {$Api2->name} api. Sleeping...\n";
+        sleep(30);
+      }
+
     print "Refreshing balances\n";
     try {$Api1->getBalance();}
       catch (Exception $e){}

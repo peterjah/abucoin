@@ -34,7 +34,7 @@ class CobinhoodApi
         $this->api_key = $keys->cobinhood->api_key;
         $this->nApicalls = 0;
         $this->name = 'Cobinhood';
-        $this->PriorityLevel = 9;
+        $this->PriorityLevel = 10;
 
         //App specifics
         $this->products = [];
@@ -209,5 +209,11 @@ class CobinhoodApi
       print("saving trade\n");
       $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price\n";
       file_put_contents('trades',$trade_str,FILE_APPEND);
+    }
+
+    function ping()
+    {
+      $ping = $this->jsonRequest('GET', '/system/time');
+      return $ping['success'] === true ? true : false;
     }
 }

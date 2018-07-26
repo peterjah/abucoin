@@ -311,6 +311,11 @@ class CryptopiaApi
      if(isset($ret['error']))
        return false;
      return true;
+   }
 
+   function ping()
+   {
+     $list = $this->getProductList();
+     return count($list) ? true : false;
    }
 }

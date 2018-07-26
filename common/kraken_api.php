@@ -21,7 +21,7 @@ class KrakenApi
         $this->key = $keys->kraken->key;
         $this->nApicalls = 0;
         $this->name = 'Kraken';
-        $this->PriorityLevel = 15;
+        $this->PriorityLevel = 9;
 
         $this->curl = curl_init();
         curl_setopt_array($this->curl, array(
@@ -50,7 +50,7 @@ class KrakenApi
         else
           $this->nApicalls = 0;
 
-        $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs');
+        $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs', 'Time');
         if ( !in_array($method ,$public_set ) )
         { //private method
           if(!isset($request['nonce'])) {
@@ -405,5 +405,11 @@ class KrakenApi
                           'filled' => $filled,
                           'filled_btc' => $filled_btc
                         ];
+   }
+
+   function ping()
+   {
+     $ping = $this->jsonRequest('Time');
+     return count($ping['error']) ? false : true;
    }
 }
