@@ -191,10 +191,15 @@ class CobinhoodApi
       if(isset($ret['result']))
       {
         $status = $ret['result']['order'];
-        if(($status['state'] == 'filled') || ($status['state'] == 'partially_filled')/*nogood for limit order*/)
+//        if(($status['state'] == 'filled') || ($status['state'] == 'partially_filled')/*nogood for limit order*/)
+        if($ret['success'])
         {
-          $this->save_trade($status['id'], $alt, $side, $size, $price, $tradeId);
-          return ['filled_size' => floatval($status['filled']), 'id' => $status['id'], 'filled_btc' => null, 'price' => floatval($status['eq_price'])];
+          if($status['state'] != 'rejected')
+            $this->save_trade($status['id'], $alt, $side, $size, $price, $tradeId);
+
+          $debug_str = date("Y-m-d H:i:s")." Cobinhood trade state: {$status['state']} :";
+          file_put_contents('debug',$debug_str,FILE_APPEND);
+          return ['filled_size' => $size, 'id' => $status['id'], 'filled_btc' => null, 'price' => $price];
         }
         else
           return ['filled_size' => 0, 'id' => null, 'filled_btc' => null, 'price' => $price];
