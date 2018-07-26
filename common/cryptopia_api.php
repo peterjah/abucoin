@@ -247,9 +247,11 @@ class CryptopiaApi
       foreach($products as $product)
       if(preg_match('/([A-Z]+)\/BTC/', $product->Label) )
       {
-        if( $product->Symbol != 'BTG') //BTG is not Bitcoin Gold on cryptopia...
-          $list[] = $product->Symbol;
+        if($product->Status == 'OK')
+          if( $product->Symbol != 'BTG') //BTG is not Bitcoin Gold on cryptopia...
+            $list[] = $product->Symbol;
       }
+
       return $list;
     }
 
