@@ -23,14 +23,21 @@ while(true)
   } catch (Exception $e) {}
 }
 
-foreach( $altcoins_list as $alt)
-{
-  print "create $alt order books \n";
-  $orderBook1[$alt] = new OrderBook($Api1, $alt);
-  $Api1->products[$alt] = $orderBook1[$alt]->product;
 
-  $orderBook2[$alt] = new OrderBook($Api2, $alt);
-  $Api2->products[$alt] = $orderBook2[$alt]->product;
+  foreach( $altcoins_list as $alt)
+  {
+    print "create $alt order books \n";
+    while(true)
+    {
+      try {
+        $orderBook1[$alt] = new OrderBook($Api1, $alt);
+        $Api1->products[$alt] = $orderBook1[$alt]->product;
+
+        $orderBook2[$alt] = new OrderBook($Api2, $alt);
+        $Api2->products[$alt] = $orderBook2[$alt]->product;
+        break;
+      } catch (Exception $e) {}
+    }
 }
 
 $btc_start_cash = $Api1->balances['BTC'] + $Api2->balances['BTC'];
@@ -53,11 +60,7 @@ while(true)
         $btc_cash_roll = $Api1->balances['BTC'] + $Api2->balances['BTC'];
         $low_btc_market_tresh = ($btc_cash_roll)*0.1; //10% of total btc hodling
         $get_btc_market2 = $Api2->balances['BTC'] < $low_btc_market_tresh;
-        // print "Get back btc on {$Api1->name}".($get_btc_market1?"true":"false")."  tresh is $low_btc_market_tresh\n";
-        // print "Get back btc on {$Api2->name}".($get_btc_market2?"true":"false")."\n";
 
-
-        //print("btc_bal=$btc_bal \n");
         $min_order_btc = max($orderBook1[$alt]->product->min_order_size_btc, $orderBook2[$alt]->product->min_order_size_btc);
         $min_order_alt = max($orderBook1[$alt]->product->min_order_size_alt, $orderBook2[$alt]->product->min_order_size_alt);
 
@@ -102,22 +105,24 @@ while(true)
           {
 
             if($status['buy']['filled_size'] != $status['sell']['filled_size'])
-            {
-              $debug_str = date("Y-m-d H:i:s")." different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}\n";
-              file_put_contents('debug',$debug_str,FILE_APPEND);
-            }
+              print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
+
             $tradeSize = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
-            $gain_btc = $tradeSize * ( $status['sell']['price']*((100-$orderBook2[$alt]->product->fees)/100) - $status['buy']['price']*((100+$orderBook1[$alt]->product->fees)/100));
+            $spend_btc_unit = $status['buy']['price']*((100+$orderBook1[$alt]->product->fees)/100);
+            $sell_btc_unit = $status['sell']['price']*((100-$orderBook2[$alt]->product->fees)/100);
+            $gain_per_unit = $sell_btc_unit - $spend_btc_unit;
+            $real_gain_percent = (($sell_btc_unit / $spend_btc_unit)-1)*100;
+            $gain_btc = $tradeSize * $gain_per_unit;
             $profit+=$gain_btc;
             print("log tx\n");
-            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
+            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent% ($real_gain_percent%)\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //Just in case
-            $Api1->balances[$alt] += $tradeSize;
+            $Api1->balances[$alt] += $status['buy']['filled_size'];
             $Api1->balances['BTC'] -= $tradeSize * $status['sell']['price'];
             $Api2->balances['BTC'] += $tradeSize * $status['buy']['price'];
-            $Api2->balances[$alt] -= $tradeSize;
+            $Api2->balances[$alt] -= $status['sell']['filled_size'];
           }
           else
             $tradeSize = 0;
@@ -189,21 +194,23 @@ while(true)
           {
 
             if($status['buy']['filled_size'] != $status['sell']['filled_size'])
-            {
-              $debug_str = date("Y-m-d H:i:s")." different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}\n";
-              file_put_contents('debug',$debug_str,FILE_APPEND);
-            }
+              print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
+
             $tradeSize = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
-            $gain_btc = $tradeSize * ($status['sell']['price']*((100-$orderBook1[$alt]->product->fees)/100) - $status['buy']['price']*((100+$orderBook2[$alt]->product->fees)/100));
+            $spend_btc_unit = $status['buy']['price']*((100+$orderBook2[$alt]->product->fees)/100);
+            $sell_btc_unit = $status['sell']['price']*((100-$orderBook1[$alt]->product->fees)/100);
+            $gain_per_unit = $sell_btc_unit - $spend_btc_unit;
+            $real_gain_percent = (($sell_btc_unit / $spend_btc_unit)-1)*100;
+            $gain_btc = $tradeSize * $gain_per_unit;
             $profit += $gain_btc;
             print("log tx\n");
-            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
+            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent% ($real_gain_percent%)\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //Just in case
-            $Api1->balances[$alt] -= $tradeSize;
+            $Api1->balances[$alt] -= $status['sell']['filled_size'];
             $Api1->balances['BTC'] += $tradeSize * $status['sell']['price'];
-            $Api2->balances[$alt] += $tradeSize;
+            $Api2->balances[$alt] += $status['buy']['filled_size'];
             $Api2->balances['BTC'] -= $tradeSize * $status['buy']['price'];
           }
           else
@@ -234,6 +241,7 @@ while(true)
   if( ($nLoops % 10) == 0 )
   {
     //ping api
+    try {
       while($Api1->ping() === false)
       {
         print "Failed to ping {$Api1->name} api. Sleeping...\n";
@@ -244,6 +252,7 @@ while(true)
         print "Failed to ping {$Api2->name} api. Sleeping...\n";
         sleep(30);
       }
+    }catch (Exception $e){}
 
     print "Refreshing balances\n";
     try {$Api1->getBalance();}
@@ -253,7 +262,7 @@ while(true)
   }
 
   $btc_cash_roll = $Api1->balances['BTC'] + $Api2->balances['BTC'];
-  print "~~~~api calls: ".($Api1->nApicalls + $Api2->nApicalls)."~~~~~\n\n";
+  print "~~~~ ".date("Y-m-d H:i:s")." ~~~~~\n\n";
   print "~~~~cumulated profit: $profit BTC~~~~~\n\n";
   print "~~~~{$Api2->name}:{$Api2->balances['BTC']}BTC  {$Api1->name}:{$Api1->balances['BTC']}BTC~~~~\n\n";
   print "~~~~Cash roll: $btc_cash_roll BTC, GAIN=".($btc_cash_roll-$btc_start_cash)."BTC~~~~\n\n";

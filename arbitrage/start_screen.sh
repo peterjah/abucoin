@@ -1,6 +1,5 @@
 #!/bin/sh
-exec >>looog.log 2>>looog.err.log
-set -x
+cd /home/pseznec/dev/abucoin/abucoin/arbitrage/
 screen -S cobinhood_kraken -dm  php arbitrage.php cobinhood kraken 
 sleep 0.1
 screen -S cobinhood_binance -dm  php arbitrage.php cobinhood binance 

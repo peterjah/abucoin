@@ -84,7 +84,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     $second_action = 'sell';
   }
 
-  $tradeId = substr($sell_api->name, 0, 2) . substr($buy_api->name, 0, 2) . '_' . time();
+  $arbId = substr($sell_api->name, 0, 2) . substr($buy_api->name, 0, 2) . '_' . time();
 
   print "start with= $first_api->name \n";
   print "balances: $btc_bal BTC; $alt_bal $alt \n";
@@ -152,74 +152,26 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   while(true)
   {
     try{
-      $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize,$tradeId);
+      $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize, $arbId);
       break;
     }
     catch(Exception $e){
        print ("unable to $first_action retrying...: $e\n");
-       sleep(0.5);
-       $i++;
        $err = $e->getMessage();
        if( $err != 'no response from api' && $err != 'EAPI:Invalid nonce' )
-       {
-         $debug_str = date("Y-m-d H:i:s")." unable to $first_action $alt (first action) [$err] on {$first_api->name}: tradeSize=$tradeSize at $price. try $i\n";
-         file_put_contents('debug',$debug_str,FILE_APPEND);
-       }
-       if($i == 5)
-         throw new \Exception("unable to $first_action");
+         print_dbg("unable to $first_action $alt (first action) [$err] on {$first_api->name}: tradeSize=$tradeSize at $price. try $i");
+
+       if($i == 5 || $err == 'ERROR: Insufficient Funds.' || $err == 'Market is closed.')
+         throw new \Exception("unable to $first_action. [$err]");
+       usleep(500000);
+       $i++;
     }
   }
-  print "tradesize = $tradeSize buy_status={$order_status['filled_size']}\n";
+  $tradeSize = $order_status['filled_size'];
 
-  if($order_status['filled_size'] < $tradeSize)
-  {
-    var_dump($order_status);
-    if($first_api instanceof CryptopiaApi || $first_api instanceof BinanceApi )
-    {
-      print ("Verify trade...\n");
-      sleep(3);
-      $i=0;
-      while($i < 10)
-      {
-        try
-        {
-          $debug_str = date("Y-m-d H:i:s")." Verify trade on {$first_api->name} : {$order_status['id']} $alt tradeSize=$tradeSize :";
-
-          $status = $first_api->getOrderStatus($alt, $order_status['id']);
-          var_dump($status);
-          $debug_str .= " order is {$status['status']}.";
-          if( $status['status'] == 'closed' )
-          {
-            $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
-            $debug_str .= " Saving trade. filled:{$status['filled']}\n";
-            print ("order is closed...\n");
-          }
-          else
-          {
-            $tradeSize = $status['filled'];
-            $first_api->cancelOrder($alt, $order_status['id']);
-            if($tradeSize > 0)
-            {
-              $first_api->save_trade($order_status['id'], $alt, $first_action, $tradeSize, $price, $tradeId);
-            }
-            $debug_str .= " Canceling order : filled:{$status['filled']}\n";
-          }
-          file_put_contents('debug',$debug_str,FILE_APPEND);
-          break;
-        } catch (Exception $e)
-        {
-          $i++;
-          print ("Verification failed...\n");
-          sleep(1);
-        }
-      }
-    }
-    else
-      $tradeSize = $order_status['filled_size'];
-  }
   $ret = [];
-  $ret [$first_action] = $order_status;
-  $ret [$first_action]['filled_size'] = $tradeSize;
+  $ret[$first_action] = $order_status;
+  $ret[$first_action]['filled_size'] = $tradeSize;
 
   $second_status = [];
   if($tradeSize > 0)
@@ -229,28 +181,43 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     {
       try{
         $price = $second_action == 'buy' ? $buy_price : $sell_price;
-        $second_status = $second_api->place_order('market',$alt, $second_action, $price, $tradeSize, $tradeId);
+        $second_status = $second_api->place_order('market',$alt, $second_action, $price, $tradeSize, $arbId);
         break;
       }
       catch(Exception $e){
          print ("unable to $second_action retrying...: $e\n");
-         $i++;
-         sleep(0.5);
+
          var_dump($second_status);
          $err = $e->getMessage();
          if( $err != 'no response from api' && $err != 'EAPI:Invalid nonce' )
          {
-           $debug_str = date("Y-m-d H:i:s")." unable to $second_action $alt (second action) [$err] on {$second_api->name}: tradeSize=$tradeSize at $price. try $i\n";
-           file_put_contents('debug',$debug_str,FILE_APPEND);
+           print_dbg("unable to $second_action $alt (second action) [$err] on {$second_api->name}: tradeSize=$tradeSize at $price. try $i");
          }
-         if($e =='EOrder:Insufficient funds' || $e == 'place order failed: insufficient_balance')
+         if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance'|| $err == 'ERROR: Insufficient Funds.' ||
+            $err == 'Account has insufficient balance for requested action.')
          {
-           $tradeSize = $tradeSize*0.95;
+           $second_api->getBalance();
+           if($second_action == 'buy')
+           {
+             $btc_bal = $second_api->balances['BTC'];
+             $tradeSize = $btc_bal / $price;
+           } else {
+             $alt_bal = $second_api->balances[$alt];
+             $tradeSize = $alt_bal;
+           }
+           print_dbg("Insufficient funds to $second_action $alt, btc_bal:$btc_bal alt_bal:$alt_bal");
          }
-         if($i == 8){
-           $tradeSize = -1;
+         if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size')
+         {
+           $tradeSize = 0;
            break;
          }
+         if($i == 8){
+           $tradeSize = 0;
+           break;
+         }
+         $i++;
+         usleep(500000);
       }
     }
   }
@@ -275,4 +242,10 @@ function floordec($number,$precision = 0)
 function findCommonProducts($market1, $market2)
 {
   return array_values(array_intersect($market1->getProductList(), $market2->getProductList()));
+}
+
+function print_dbg($dbg_str)
+{
+  $str = date("Y-m-d H:i:s")." $dbg_str\n";
+  file_put_contents('debug',$str,FILE_APPEND);
 }

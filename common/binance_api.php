@@ -34,7 +34,7 @@ class BinanceApi
         $this->nApicalls = 0;
         $this->name = 'Binance';
 
-        $this->PriorityLevel = 0;
+        $this->PriorityLevel = 1;
         //App specifics
         $this->products = [];
         $this->balances = [];
@@ -88,7 +88,15 @@ class BinanceApi
     			return ["error" => "json_decode() error $errmsg"];
     		}
         if(isset($content['code']) && $content['code'] < 0)
+        {
+          if( substr_compare($content['msg'],'Way too many requests;',0,20) == 0)
+          {
+            print_dbg ("Too many api calls on Binance. Sleeping....");
+            sleep(60);
+          }
           throw new BinanceAPIException($content['msg']);
+        }
+
     		return $content;
     }
 
@@ -104,11 +112,11 @@ class BinanceApi
         }
         catch (Exception $e)
         {
+          if($i > 8)
+            throw new BinanceAPIException('failed to get balances');
           $i++;
           print "{$this->name}: failed to get balances. retry $i...\n";
           usleep(50000);
-          if($i > 8)
-            throw new BinanceAPIException('failed to get balances');
         }
       }
 
@@ -219,11 +227,35 @@ class BinanceApi
 
       if( count($status) && !isset($status['code']))
       {
-        if($status['executedQty'] == $status['origQty'])
-          $this->save_trade($status['orderId'], $alt, $side, $status['executedQty'], $price, $tradeId);
-        return ['filled_size' => floatval($status['executedQty']), 'id' => $status['orderId'],
-                'filled_btc' => floatval($status['cummulativeQuoteQty']), 'price' => floatval($status['price'])
-                ];
+        $id = $status['orderId'];
+        $filled_size = 0;
+        $filled_btc = 0;
+
+        if($status['status'] == 'FILLED')
+        {
+          $filled_size = floatval($status['executedQty']);
+          $filled_btc = floatval($status['cummulativeQuoteQty']);
+          /*real price*/
+          $pond_price = 0;
+          foreach($status['fills'] as $fills)
+          {
+            $pond_price += $fills['price'] * $fills['qty'];
+          }
+          $price = $pond_price / $filled_size;
+        }
+        else
+        {
+          sleep(3);
+          $this->cancelOrder($alt, $id);
+          $status = $this->getOrderStatus($alt, $id);
+          print_dbg("Check {$this->name} order $id status: {$status['status']} $side $alt filled:{$status['filled']} ");
+          var_dump($status);
+          $filled_size = $status['filled'];
+          $filled_btc = $status['filled_btc'];
+        }
+        if ($filled_size > 0)
+          $this->save_trade($id, $alt, $side, $filled_size, $price, $tradeId);
+        return ['filled_size' => $filled_size, 'id' => $id, 'filled_btc' => $filled_btc, 'price' => $price];
       }
       else
         throw new BinanceAPIException("place order failed: {$status['msg']}");
@@ -246,7 +278,7 @@ class BinanceApi
         try{
           $order = $this->jsonRequest('GET', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
           break;
-        }catch (Exception $e){ $i++; sleep(0.5); print ("{$this->name}: Failed to get status retrying...$i\n");}
+        }catch (Exception $e){ $i++; usleep(500000); print ("{$this->name}: Failed to get status retrying...$i\n");}
       }
 
       var_dump($order);
@@ -257,28 +289,45 @@ class BinanceApi
         else
           $status = 'open';
 
-        return  $status = [ 'status' => $status,
+        return  $status = [ 'id' => $orderId,
+                            'side' => strtolower($order['side']),
+                            'status' => $status,
                             'filled' => floatval($order['executedQty']),
-                            'filled_btc' => floatval($order['executedQty']) * $order['price']
+                            'filled_btc' => floatval($order['executedQty']) * $order['price'],
+                            'price' => $order['price']
                           ];
         }
     }
 
     function cancelOrder($alt, $orderId)
     {
-      print ("canceling order $orderId\n");
       $symbol = "{$alt}BTC";
+      print_dbg("canceling $symbol order $orderId");
+
       $i=0;
       while($i<10)
       {
         try{
           $ret = $this->jsonRequest('DELETE', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
           break;
-        }catch (Exception $e){ $i++; sleep(1); print ("Failed to cancel order. retrying...$i\n");}
+        }catch (Exception $e)
+        {
+          print_dbg("Failed to cancel order. [{$e->getMessage()}] retrying...$i");
+          if($e->getMessage() == 'UNKNOWN_ORDER')
+          {
+            return false;
+          }
+          $i++;
+          sleep(1);
+        }
       }
-      var_dump($ret);
+
       if(isset($ret['error']))
+      {
+        var_dump($ret);
+        print_dbg("Failed to cancel order. [{$ret['error']['msg']}]");
         return false;
+      }
       return true;
 
     }

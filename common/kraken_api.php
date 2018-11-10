@@ -30,7 +30,7 @@ class KrakenApi
             CURLOPT_USERAGENT => 'Kraken PHP API Agent',
             CURLOPT_POST => true,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 10)
+            CURLOPT_TIMEOUT => 20)
         );
 
         //App specifics
@@ -116,6 +116,8 @@ class KrakenApi
                 'ICN' => 'ICN',
                 'XDG' => 'XDG',
                 'EUR' => 'ZEUR',
+                'ADA' => 'ADA',
+                'QTUM' => 'QTUM',
                 ];
       if($reverse)
         $table = array_flip($table);
@@ -309,7 +311,9 @@ class KrakenApi
                 'XRP'=>30,
                 'XLM'=>30,
                 'ZEC'=>0.03,
-                'GNO'=>0.03
+                'GNO'=>0.03,
+                'ADA'=>1,
+                'QTUM'=>0.1
               ];
 
     if(array_key_exists($crypto,$table))
@@ -335,6 +339,8 @@ class KrakenApi
                 'ICN' => 'XICNXXBT',
                 'MLN' => 'XMLNXXBT',
                 'XDG' => 'XXDGXXDG',
+                'ADA' => 'ADAXBT',
+                'QTUM' => 'QTUMXBT',
                 'BTC' => null
                 ];
     if(array_key_exists($crypto,$table))
@@ -401,7 +407,8 @@ class KrakenApi
         $filled = null;
         $filled_btc = null;
       }
-      return  $status = [ 'status' => $status,
+      return  $status = [ 'id' => $order_id,
+                          'status' => $status,
                           'filled' => $filled,
                           'filled_btc' => $filled_btc
                         ];

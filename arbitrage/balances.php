@@ -8,25 +8,25 @@ function sortBalance($a, $b)
   return ($a["btc_percent"] < $b["btc_percent"]) ? 1 : -1;
 }
 
-$CryptopiaApi = getMarket('cryptopia');
-$KrakenApi = getMarket('kraken');
-$CobinApi = getMarket('cobinhood');
-$BinanceApi = getMarket('binance');
 
+foreach(['cryptopia','kraken', 'cobinhood', 'binance'] as $api)
+  $apis[$api] = getMarket($api);
+
+//$ticker = json_decode(file_get_contents("https://api.99cryptocoin.com/v1/ticker"), true);
 $cryptoInfo = [];
 
 if(isset($argv[1]))
   $crypto = strtoupper($argv[1]);
 else
 {
+  $btc_price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=EUR"), true);
   $balances = [];
   $total_btc = 0;
-  foreach( [$CryptopiaApi, $KrakenApi, $CobinApi, $BinanceApi] as $exchange)
+  foreach( $apis as $exchange)
   {
     $crypto_list = array_merge( $exchange->getProductList(),['BTC']);
-
-    $cur_balances = call_user_func_array(array($exchange, "getBalance"), $crypto_list);
-    foreach($cur_balances as $alt => $bal)
+    $exchange->getBalance();
+    foreach($exchange->balances as $alt => $bal)
       if($bal >0)
       {
         if( ($key = array_search($alt, array_column($balances, 'alt'))) !== false)
@@ -43,6 +43,7 @@ else
         $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$alt}&tsyms=BTC"), true);
         $cryptoInfo['btc'] = count($price) == 1 ? $cryptoInfo['bal'] * $price['BTC'] : 0;
         $total_btc += $cryptoInfo['btc'];
+        $cryptoInfo['eur'] = $cryptoInfo['btc'] * $btc_price['EUR'];
 
         if($key !== false)
           $balances[$key] = $cryptoInfo;
@@ -60,7 +61,7 @@ else
 
   usort($balances, "sortBalance");
   foreach($balances as $cryptoInfo)
-    print "{$cryptoInfo['alt']} : {$cryptoInfo['bal']} (=". number_format($cryptoInfo['btc_percent'], 3) ."%)\n";
+    print "{$cryptoInfo['alt']} : {$cryptoInfo['bal']} (=". number_format($cryptoInfo['btc_percent'], 3) ."%) ".number_format($cryptoInfo['eur'], 2)." EUR \n";
 
    exit();
 }
@@ -70,17 +71,10 @@ $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/p
 var_dump("price= {$price['BTC']}");
 
 $Cashroll = 0;
-$bal = in_array($crypto, $CryptopiaApi->getProductList()) ? $CryptopiaApi->getBalance($crypto) : 0;
-print $CryptopiaApi->name . ": ". $bal . "$crypto\n";
-$Cashroll += $bal;
-$bal = in_array($crypto, $CobinApi->getProductList()) ? $CobinApi->getBalance($crypto) : 0;
-print $CobinApi->name . ": ". $bal . "$crypto\n";
-$Cashroll += $bal;
-$bal = in_array($crypto, $KrakenApi->getProductList()) ? $KrakenApi->getBalance($crypto) : 0;
-print $KrakenApi->name . ": ". $bal . "$crypto\n";
-$Cashroll += $bal;
-$bal = in_array($crypto, $BinanceApi->getProductList()) ? $BinanceApi->getBalance($crypto) : 0;
-print $BinanceApi->name . ": ". $bal . "$crypto\n";
-$Cashroll += $bal;
-
+foreach ( $apis as $api)
+{
+  $bal = in_array($crypto, $api->getProductList()) ? $api->getBalance($crypto) : 0;
+  print $api->name . ": ". $bal . "$crypto\n";
+  $Cashroll += $bal;
+}
 print ("Cashroll: $Cashroll $crypto = ".($Cashroll*$price['BTC'])."BTC\n");

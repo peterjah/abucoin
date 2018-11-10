@@ -22,7 +22,7 @@ class CryptopiaApi
         $this->name = 'Cryptopia';
         $this->nApicalls = 0;
         $this->curl = curl_init();
-        $this->PriorityLevel = 1;
+        $this->PriorityLevel = 0;
         //App specifics
         $this->products = [];
         $this->balances = [];
@@ -91,8 +91,13 @@ class CryptopiaApi
           if (isset($response))
           {
             var_dump($response);
-            throw new Exception($response->Message);
-          } else throw new Exception('no response from api');
+            throw new CryptopiaAPIException($response->Message);
+          }
+          else
+          {
+            usleep(500000);
+            throw new CryptopiaAPIException('no response from api');
+          }
         }
     }
 
@@ -134,39 +139,62 @@ class CryptopiaApi
       else return $res;
     }
 
-    function getOrderStatus($alt, $order_id)
+    function getOrderStatus($alt, $order_id, $isClose = false)
     {
       print "get order status of $order_id \n";
-      $i=0;
-      while($i<5)
+      if(!$isClose)
       {
-        try{
-          $open_orders = $this->jsonRequest('POST', 'GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 10]);
-          break;
-        }catch (Exception $e){ $i++; sleep(0.5); print ("Failed to get status retrying...$i\n");}
-      }
-      //$trade_history = $this->jsonRequest('GetTradeHistory',['Market'=> "{$alt}/BTC", 'Count' => 10]);
-      foreach ($open_orders as $open_order)
-        if($open_order->OrderId == $order_id)
+        $i=0;
+        while($i<8)
         {
-           $order = $open_order;
-           break;
+          try{
+            $open_orders = $this->jsonRequest('POST', 'GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 20]);
+            break;
+          }catch (Exception $e){ $i++; usleep(500000); print ("Failed to GetOpenOrders...$i\n");}
         }
-      var_dump($order);
-      if(!isset($order)) {//order has not been filled?
+        foreach ($open_orders as $open_order)
+          if($open_order->OrderId == $order_id)
+          {
+             $order = $open_order;
+             var_dump($order);
+             break;
+          }
+      }
+      //order has been filled
+      if(!isset($order)) {
+        $i=0;
+        while($i<8)
+          {
+          try{
+            $closed_orders = $this->jsonRequest('POST', 'GetTradeHistory',['Market'=> "{$alt}/BTC", 'Count' => 10]);
+            break;
+          }catch (Exception $e){ $i++; usleep(500000); print ("Failed to GetTradeHistory:". $e->getMessage()." $i\n");}
+        }
+        foreach ($closed_orders as $closed_order)
+          if($closed_order->TradeId == $order_id)
+          {
+             $order = $closed_order;
+             var_dump($order);
+             break;
+          }
         $status = 'closed';
-        $filled = 0;
-        $filled_btc = 0;
+        $filled = $size = floatval($order->Amount);
       }
       else {
         var_dump($order);
         $status = 'open';
-        $filled = floatval($order->Amount - $order->Remaining);
-        $filled_btc = floatval($filled * $order->Rate);
+        $size = floatval($order->Amount);
+        $filled = floatval($order->Amount) - floatval($order->Remaining);
       }
-      return  $status = [ 'status' => $status,
+      $price = $order->Rate;
+      $filled_btc = floatval($filled * $price);
+      return  $status = [ 'id' => $order_id,
+                          'side' => strtolower($order->Type),
+                          'status' => $status,
                           'filled' => $filled,
-                          'filled_btc' => $filled_btc
+                          'filled_btc' => $filled_btc,
+                          'price' => $price,
+                          'size' => $size,
                         ];
     }
 
@@ -183,28 +211,33 @@ class CryptopiaApi
       {
         $book = $this->getOrderBook($alt, null, $size);
         $offer = $side == 'buy' ? $book['asks'] : $book['bids'];
-        $price_diff = 100*(abs($offer['price'] - $price)/($price));
-        if($price_diff > 5/*%*/)
+        print "market offer:\n"; var_dump($offer);
+        $price_diff = 100*(abs($offer['price'] - $price)/$price);
+        print "price diff: $price_diff \n";
+        if($price_diff > 3/*%*/)
+        {
           throw new CryptopiaAPIException('market order failed: real order price is too different from the expected price');
+        }
+        $price = $offer['price'];
       }
 
      if($side == 'buy') {
        $bal = @$this->balances['BTC'];
        if(!isset($bal))
          $bal = $this->getBalance('BTC');
-        $new_size = min($size, $bal/$price);
+       $size = min($size, $bal/$price);
      }
      else {
        $altBal = @$this->balances[$alt];
        if(!isset($altBal))
          $altBal = $this->getBalance($alt);
-        $new_size = min($size, $altBal);
+       $size = min($size, $altBal);
       }
 
       $order = ['Market' => "$alt/BTC",
                 'Type' => $side,
-                'Rate' => $type == 'limit' ? $price : $offer['order_price'],
-                'Amount' => $new_size,
+                'Rate' => $price,
+                'Amount' => $size,
                ];
 
       var_dump($order);
@@ -213,27 +246,44 @@ class CryptopiaApi
       var_dump($ret);
       if(isset($ret->FilledOrders))
       {
-        if (count($ret->FilledOrders))
+        $id = $ret->OrderId;
+        $filled_size = 0;
+        $filled_btc = 0;
+
+        //order filled
+        if($id == null)
         {
-          $filled_size = $new_size; //information is not provided here
+          $filled_size = $size;
+          $filled_btc = $filled_size * $price;
           $id = $ret->FilledOrders[0];
-          $filled_btc = 0;
-          $this->save_trade($id, $alt, $side, $size, $type == 'limit' ? $price : $offer['price'], $tradeId);
         }
-        else
+        else //order partially filled or not filled
         {
-          $filled_size = -1;//order not fully filled yet
-          $filled_btc = -1;
-          $id = $ret->OrderId;
-          if($type == 'market')//should not happen
+          foreach($ret->FilledOrders as $fillsId)
           {
-            $debug_str = date("Y-m-d H:i:s")." Should not happen order stil open on {$this->name}: $id $side $alt @ $price filled:$filled_size\n";
-            file_put_contents('debug',$debug_str,FILE_APPEND);
-            $this->cancelOrder('notUsed',$id);
-            throw new CryptopiaAPIException('market order failed');
+            $fills = $this->getOrderStatus($alt, $fillsId, true);
+            var_dump($fills);
+            $filled_size += $fills['filled'];
+            $filled_btc += $fills['filled_btc'];
+            print_dbg("{$this->name} order $id status: directly filled:$filled_size ");
+          }
+          sleep(3);
+          $status = $this->getOrderStatus($alt, $id);
+          print_dbg("{$this->name} order $id status: {$status['status']} $side $alt order size:{$status['size']} original order size: $size filled:{$status['filled']} ");
+          var_dump($status);
+          if($this->cancelOrder('notUsed',$id))
+          {
+            $filled_size += $status['filled'];
+            $filled_btc += $status['filled_btc'];
+          }
+          else {
+            $filled_size = $size;
+            $filled_btc = $filled_size * $price;
           }
         }
-        return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc, 'price' => ($type == 'limit' ? $price : $offer['price'])];
+        if ($filled_size > 0)
+          $this->save_trade($id, $alt, $side, $filled_size, $price, $tradeId);
+        return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc, 'price' => $price];
       }
       else {
         throw new CryptopiaAPIException($ret['error']);
@@ -302,16 +352,18 @@ class CryptopiaApi
    {
      print ("canceling order $orderId\n");
      $i=0;
-     while($i<10)
+     while($i<20)
      {
        try{
          $ret = $this->jsonRequest('POST', 'CancelTrade', [ 'Type' => 'Trade', 'OrderId' => intval($orderId)]);
          break;
-       }catch (Exception $e){ $i++; sleep(1); print ("Failed to cancel order. retrying...$i\n");}
+       }catch (Exception $e){ $i++; sleep(1); print_dbg("Failed to cancel order. [{$e->getMessage()}] retrying... $i");}
      }
      var_dump($ret);
-     if(isset($ret['error']))
-       return false;
+     if(isset($ret['error'])){
+        print_dbg("Failed to cancel order! [{$ret['error']}]. It may be filled");
+        return false;
+     }
      return true;
    }
 

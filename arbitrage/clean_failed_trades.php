@@ -60,20 +60,27 @@ while(1)
             else
             {
               if($legder[$alt]['ops'][$OpId]['size'] != $size) {
-                print "Tx id conflict:\n $line";
-                $legder[$alt]['ops']["{$OpId}_2"] = ['date' => $date,
-                                                'side' =>$side,
-                                                'size' =>$size,
-                                                'price' =>$price,
-                                                'id' => $trade_id,
-                                                'exchange' => $exchange,
-                                                'line' => $line
-                                                ];
+                print "Different size trade: {$legder[$alt]['ops'][$OpId]['side']} {$legder[$alt]['ops'][$OpId]['size']} != $side $size\n";
+                if($legder[$alt]['ops'][$OpId]['size'] < $size)
+                {
+                  print "lol? {$legder[$alt]['ops'][$OpId]['size']} < $size\n";
+                   $legder[$alt]['ops'][$OpId]['side'] = $side;
+                   $legder[$alt]['ops'][$OpId]['exchange'] = $exchange;
+                   $legder[$alt]['ops'][$OpId]['price'] = $price;
+                }
+                $legder[$alt]['ops'][$OpId]['size'] = abs($legder[$alt]['ops'][$OpId]['size'] - $size);
+
+                //var_dump($legder[$alt]['ops'][$OpId]);
+                $new_line = "$date: arbitrage: $OpId {$legder[$alt]['ops'][$OpId]['exchange']}: trade $trade_id: {$legder[$alt]['ops'][$OpId]['side']} "
+                             ."{$legder[$alt]['ops'][$OpId]['size']} $alt at {$legder[$alt]['ops'][$OpId]['price']}\n";
+                             print "!!!!!!!!!!!=>>>>>>>new_line:\n $new_line";
+                $legder[$alt]['ops'][$OpId]['line'] = $new_line;
+
               }
               else
                 unset($legder[$alt]['ops'][$OpId]);
             }
-
+          //  var_dump($legder[$alt]['ops']['CrBi_1539787641']);
             //update ledger balance
             $legder[$alt]['balance'] += $side == 'buy' ? $size : -1 * $size;
           }
@@ -106,13 +113,23 @@ while(1)
         print "mean_buy_price= $mean_buy_price: buy_size= $buy_size\n";
         if(@$autoSolve) {
           //compute mean fees
-          $mean_fees=0;
+          unset($mean_fees);
           $size = 0;
           foreach($altOps['ops'] as $ops)
           {
-            $Api = getMarket(strtolower($ops['exchange']));
-            $ProductInfos = $Api->getProductInfo($alt);
-            if(!$mean_fees)
+            $i=0;
+            while($i<6) {
+              try{
+                $Api = getMarket(strtolower($ops['exchange']));
+                $ProductInfos = $Api->getProductInfo($alt);
+                break;
+              } catch(Exception $e) {
+                usleep(500000);
+                $i++;
+              }
+            }
+
+            if(!isset($mean_fees))
               $mean_fees = $ProductInfos['fees'];
             else
               $mean_fees = ($mean_fees*$size + $ProductInfos['fees']*$ops['size']) / ($size + $ops['size']);
@@ -123,15 +140,23 @@ while(1)
 
           print "trying to solve tx..\n";
           foreach( ['binance','kraken','cobinhood','cryptopia'] as $exchange) {
+            print "$exchange..\n";
             $Api = getMarket($exchange);
+            unset($book);
             try {
               if($Api->getBalance($alt) < $buy_size)
                 continue;
               $orderBook = new OrderBook($Api, $alt);
               $book = $orderBook->refreshBook(0,$buy_size);
+
+              if($orderBook->product->min_order_size_alt >= $buy_size)
+                continue;
+              if($orderBook->product->min_order_size_btc >= $buy_size * $book['bids']['price'])
+                continue;
               $productInfos = $Api->getProductInfo($alt);
-            }catch(Exception $e) {continue;}
-            if($book['bids']['price'] > $mean_buy_price)
+            } catch(Exception $e) {continue;}
+
+            if(isset($book) && $book['bids']['price'] > $mean_buy_price)
             {
               var_dump($book['bids']);
               $i=0;
@@ -143,14 +168,16 @@ while(1)
                       file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
                   }
                   $trade_success = true;
-                  $gain_btc = $sell_size * ($status['price']*((100-$productInfos['fees'])/100) - $mean_buy_price*((100+$mean_fees)/100));
-                  $gain_percent = (($mean_sell_price / $book['asks']['price']) -1)*100; //nogood
+                  $gain_btc = $buy_size * ($status['price']*((100-$productInfos['fees'])/100) - $mean_buy_price*((100+$mean_fees)/100));
+                  $gain_percent = (($mean_buy_price / $status['price']) -1)*100;
+                  print_dbg("solved on $Api->name: buy_size:{$buy_size} $alt, mean_buy_price:{$mean_buy_price}, mean_fees:{$mean_fees}, price:{$status['price']}");
+
                   $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
                   file_put_contents('gains',$trade_str,FILE_APPEND);
                   break;
                 } catch(Exception $e) {
                   print "failed to sell: $e \n";
-                  usleep(50000);
+                  usleep(500000);
                   $i++;
                 }
               }
@@ -165,33 +192,48 @@ while(1)
         print "mean_sell_price= $mean_sell_price: sell_size= $sell_size\n";
         if(@$autoSolve) {
           //compute mean fees
-          $mean_fees=0;
+          unset($mean_fees);
           $size = 0;
           foreach($altOps['ops'] as $ops)
           {
-            $Api = getMarket(strtolower($ops['exchange']));
-            $ProductInfos = $Api->getProductInfo($alt);
-            if(!$mean_fees)
+            $i=0;
+            while($i<6) {
+              try{
+                $Api = getMarket(strtolower($ops['exchange']));
+                $ProductInfos = $Api->getProductInfo($alt);
+                break;
+              } catch(Exception $e) {
+                usleep(500000);
+                $i++;
+              }
+            }
+            if(!isset($mean_fees))
               $mean_fees = $ProductInfos['fees'];
             else
               $mean_fees = ($mean_fees*$size + $ProductInfos['fees']*$ops['size']) / ($size + $ops['size']);
             $size += $ops['size'];
           }
-          print "mean_buy_fee= $mean_fees\n";
+          print "mean_sell_fee= $mean_fees\n";
 
           print "trying to solve tx..\n";
           foreach( ['binance','kraken','cobinhood','cryptopia'] as $exchange) {
+            print "$exchange..\n";
+            unset($book);
             $Api = getMarket($exchange);
             try {
                $orderBook = new OrderBook($Api, $alt);
                $book = $orderBook->refreshBook(0,$sell_size);
+               if($orderBook->product->min_order_size_alt >= $sell_size)
+                 continue;
+               if($orderBook->product->min_order_size_btc >= $sell_size * $book['asks']['order_price'])
+                 continue;
                if($Api->getBalance('BTC') < $sell_size * $book['asks']['order_price'])
-                continue;
+                 continue;
                $productInfos = $Api->getProductInfo($alt);
             }catch(Exception $e) {continue;}
 
-            print " {$Api->name} asks order price: {$book['asks']['order_price']}";
-            if($book != null && $book['asks']['price'] < $mean_sell_price)
+            print " {$Api->name} price: {$book['asks']['order_price']}\n";
+            if(isset($book) && $book['asks']['price'] < $mean_sell_price)
             {
               var_dump($book['asks']);
               $i=0;
@@ -205,13 +247,15 @@ while(1)
                     }
                   $trade_success = true;
                   $gain_btc = $sell_size * ($mean_sell_price*((100-$mean_fees)/100) - $status['price']*((100+$productInfos['fees'])/100));
-                  $gain_percent = (($mean_sell_price / $book['asks']['price']) -1)*100; //nogood
+                  $gain_percent = (($mean_sell_price / $status['price']) -1)*100;
+                  print_dbg("solved on $Api->name: sell_size:{$sell_size} $alt, mean_sell_price:{$mean_sell_price}, mean_fees:{$mean_fees}, price:{$status['price']}");
+
                   $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
                   file_put_contents('gains',$trade_str,FILE_APPEND);
                   break;
                 } catch(Exception $e) {
                   print "failed to buy: $e \n";
-                usleep(50000);
+                usleep(500000);
                 $i++;
                 }
               }
@@ -228,7 +272,7 @@ while(1)
   }
 
 if(@$autoSolve)
-  sleep(3600*2);
+  sleep(3600);
 else
   break;
 }
