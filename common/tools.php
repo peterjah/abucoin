@@ -6,6 +6,8 @@ require_once('../common/kraken_api.php');
 require_once('../common/cobinhood_api.php');
 require_once('../common/binance_api.php');
 
+date_default_timezone_set("UTC");
+
 function getMarket($market_name)
 {
   $market_table = [ 'abucoins' => 'AbucoinsApi',

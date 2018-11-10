@@ -139,19 +139,39 @@ class CryptopiaApi
       else return $res;
     }
 
+    function getOpenOrders($filter = null)
+    {
+      $params = [];
+      $params['Count'] = 20;
+      if(isset($filter['alt']))
+        $params['Market'] = "{$filter['alt']}/BTC";
+
+      $i=0;
+      while($i<8)
+      {
+        try{
+          $open_orders = $this->jsonRequest('POST', 'GetOpenOrders', $params);
+          break;
+        }catch (Exception $e){ $i++; usleep(500000); print_dbg("Failed to GetOpenOrders. [{$e->getMessage}]..$i");}
+      }
+      if(isset($filter['since']))//in seconds
+      {
+        foreach($open_orders as $idx => $order)
+        {
+          if((time() - strtotime($order->TimeStamp)) > $filter['since'])
+            unset($open_orders[$idx]);
+        }
+      }
+      return $open_orders;
+    }
+
     function getOrderStatus($alt, $order_id, $isClose = false)
     {
       print "get order status of $order_id \n";
       if(!$isClose)
       {
-        $i=0;
-        while($i<8)
-        {
-          try{
-            $open_orders = $this->jsonRequest('POST', 'GetOpenOrders',['Market'=> "{$alt}/BTC", 'Count' => 20]);
-            break;
-          }catch (Exception $e){ $i++; usleep(500000); print ("Failed to GetOpenOrders...$i\n");}
-        }
+        $open_orders = $this->getOpenOrders(['alt' => $alt]);
+
         foreach ($open_orders as $open_order)
           if($open_order->OrderId == $order_id)
           {
@@ -286,6 +306,21 @@ class CryptopiaApi
         return ['filled_size' => $filled_size, 'id' => $id , 'filled_btc' => $filled_btc, 'price' => $price];
       }
       else {
+        if($ret['error'] == 'no response from api')
+        {
+          //what to do with no traced executed trade? :(
+          //this could be dangerous...
+          $open_orders = $this->GetOpenOrders(['alt' => $alt, 'since' => 3]);
+          if(!empty($open_orders))
+          {
+            foreach($open_orders as $order)// should be only one
+            {
+              $this->cancelOrder('notUsed', $order->OrderId)
+              print_dbg("{$this->name} Canceling open order after no api response");
+            }
+          }
+
+        }
         throw new CryptopiaAPIException($ret['error']);
       }
     }
