@@ -27,7 +27,6 @@ else
     $i=0;
     while ($i < 5) {
       try {
-        $crypto_list = array_merge( $exchange->getProductList(),['BTC']);
         $exchange->getBalance();
         break;
       } catch (Exception $e) {
@@ -35,6 +34,21 @@ else
           print "failed to get {$exchange->name} infos";
         }
     }
+
+    $crypto_string = '';
+    $prices = [];
+    foreach($exchange->balances as $alt => $bal) {
+      if($bal > 0) {
+        if (strlen("{$crypto_string},{$alt}") < 300)
+          $crypto_string .= empty($crypto_string) ? "$alt" : ",{$alt}";
+        else {
+          $prices = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/pricemulti?fsyms={$crypto_string}&tsyms=BTC"), true);
+          $crypto_string = "$alt";
+        }
+      }
+    }
+    $prices = array_merge(json_decode(file_get_contents("https://min-api.cryptocompare.com/data/pricemulti?fsyms={$crypto_string}&tsyms=BTC"), true));
+
     foreach($exchange->balances as $alt => $bal)
       if($bal >0)
       {
@@ -49,10 +63,8 @@ else
         }
         $cryptoInfo['alt'] = $alt;
 
-        //very slowwww
-        $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$alt}&tsyms=BTC"), true);
-        if (isset($price['BTC'])) {
-          $cryptoInfo['btc'] = $cryptoInfo['bal'] * $price['BTC'];
+        if (isset($prices[$alt]['BTC'])) {
+          $cryptoInfo['btc'] = $cryptoInfo['bal'] * $prices[$alt]['BTC'];
           $total_btc += $cryptoInfo['btc'];
           $cryptoInfo['eur'] = $cryptoInfo['btc'] * $btc_price['EUR'];
         }
