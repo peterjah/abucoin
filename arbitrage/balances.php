@@ -17,13 +17,11 @@ $cryptoInfo = [];
 
 if(isset($argv[1]))
   $crypto = strtoupper($argv[1]);
-else
-{
+else {
   $btc_price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=EUR"), true);
   $balances = [];
   $total_btc = 0;
-  foreach( $apis as $exchange)
-  {
+  foreach( $apis as $exchange) {
     $i=0;
     while ($i < 5) {
       try {
@@ -39,9 +37,9 @@ else
     $prices = [];
     foreach($exchange->balances as $alt => $bal) {
       if($bal > 0) {
-        if (strlen("{$crypto_string},{$alt}") < 300)
+        if (strlen("{$crypto_string},{$alt}") < 300) {
           $crypto_string .= empty($crypto_string) ? "$alt" : ",{$alt}";
-        else {
+        } else {
           $prices = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/pricemulti?fsyms={$crypto_string}&tsyms=BTC"), true);
           $crypto_string = "$alt";
         }
@@ -50,15 +48,11 @@ else
     $prices = array_merge(json_decode(file_get_contents("https://min-api.cryptocompare.com/data/pricemulti?fsyms={$crypto_string}&tsyms=BTC"), true));
 
     foreach($exchange->balances as $alt => $bal)
-      if($bal >0)
-      {
-        if( ($key = array_search($alt, array_column($balances, 'alt'))) !== false)
-        {
+      if($bal >0) {
+        if( ($key = array_search($alt, array_column($balances, 'alt'))) !== false) {
           $cryptoInfo = $balances[$key];
           $cryptoInfo['bal'] += $bal;
-        }
-        else
-        {
+        } else {
           $cryptoInfo['bal'] = $bal;
         }
         $cryptoInfo['alt'] = $alt;
@@ -67,8 +61,7 @@ else
           $cryptoInfo['btc'] = $cryptoInfo['bal'] * $prices[$alt]['BTC'];
           $total_btc += $cryptoInfo['btc'];
           $cryptoInfo['eur'] = $cryptoInfo['btc'] * $btc_price['EUR'];
-        }
-        else {
+        } else {
           $cryptoInfo['btc'] = -1;
           $cryptoInfo['eur'] = -1;
         }
@@ -82,7 +75,7 @@ else
 
   print "btc value: $total_btc \n";
 
-  foreach($balances as $key => $cryptoInfo){
+  foreach($balances as $key => $cryptoInfo) {
     if ($cryptoInfo['btc'] > 0)
       $balances[$key]['btc_percent'] = ($cryptoInfo['btc'] / $total_btc)*100;
     else
@@ -92,8 +85,7 @@ else
   usort($balances, "sortBalance");
   $nbCryptos=0;
   printf (" Crypto   | %-15s | %-15s |  %s\n", 'Balance', 'percent', 'EUR');
-  foreach($balances as $cryptoInfo)
-  {
+  foreach($balances as $cryptoInfo) {
     $nbCryptos++;
     if( $cryptoInfo['btc_percent'] === -1)
       printf (" %-8s | %-15s | %-15s | -- EUR\n", $cryptoInfo['alt'],$cryptoInfo['bal'], '--%');
@@ -114,8 +106,7 @@ $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/p
 var_dump("price= {$price['BTC']}");
 
 $Cashroll = 0;
-foreach ( $apis as $api)
-{
+foreach ( $apis as $api) {
   $bal = in_array($crypto, $api->getProductList()) ? $api->getBalance($crypto) : 0;
   print $api->name . ": ". $bal . "$crypto\n";
   $Cashroll += $bal;
