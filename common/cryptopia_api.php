@@ -315,7 +315,7 @@ class CryptopiaApi
           {
             foreach($open_orders as $order)// should be only one
             {
-              $this->cancelOrder('notUsed', $order->OrderId)
+              $this->cancelOrder('notUsed', $order->OrderId);
               print_dbg("{$this->name} Canceling open order after no api response");
             }
           }

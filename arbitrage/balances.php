@@ -24,8 +24,17 @@ else
   $total_btc = 0;
   foreach( $apis as $exchange)
   {
-    $crypto_list = array_merge( $exchange->getProductList(),['BTC']);
-    $exchange->getBalance();
+    $i=0;
+    while ($i < 5) {
+      try {
+        $crypto_list = array_merge( $exchange->getProductList(),['BTC']);
+        $exchange->getBalance();
+        break;
+      } catch (Exception $e) {
+          $i++;
+          print "failed to get {$exchange->name} infos";
+        }
+    }
     foreach($exchange->balances as $alt => $bal)
       if($bal >0)
       {
@@ -40,10 +49,17 @@ else
         }
         $cryptoInfo['alt'] = $alt;
 
+        //very slowwww
         $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$alt}&tsyms=BTC"), true);
-        $cryptoInfo['btc'] = count($price) == 1 ? $cryptoInfo['bal'] * $price['BTC'] : 0;
-        $total_btc += $cryptoInfo['btc'];
-        $cryptoInfo['eur'] = $cryptoInfo['btc'] * $btc_price['EUR'];
+        if (isset($price['BTC'])) {
+          $cryptoInfo['btc'] = $cryptoInfo['bal'] * $price['BTC'];
+          $total_btc += $cryptoInfo['btc'];
+          $cryptoInfo['eur'] = $cryptoInfo['btc'] * $btc_price['EUR'];
+        }
+        else {
+          $cryptoInfo['btc'] = -1;
+          $cryptoInfo['eur'] = -1;
+        }
 
         if($key !== false)
           $balances[$key] = $cryptoInfo;
@@ -54,15 +70,30 @@ else
 
   print "btc value: $total_btc \n";
 
-  foreach($balances as $key => $cryptoInfo)
-  {
+  foreach($balances as $key => $cryptoInfo){
+    if ($cryptoInfo['btc'] > 0)
       $balances[$key]['btc_percent'] = ($cryptoInfo['btc'] / $total_btc)*100;
+    else
+      $balances[$key]['btc_percent'] = -1;
   }
 
   usort($balances, "sortBalance");
+  $nbCryptos=0;
+  printf (" Crypto   | %-15s | %-15s |  %s\n", 'Balance', 'percent', 'EUR');
   foreach($balances as $cryptoInfo)
-    print "{$cryptoInfo['alt']} : {$cryptoInfo['bal']} (=". number_format($cryptoInfo['btc_percent'], 3) ."%) ".number_format($cryptoInfo['eur'], 2)." EUR \n";
+  {
+    $nbCryptos++;
+    if( $cryptoInfo['btc_percent'] === -1)
+      printf (" %-8s | %-15s | %-15s | -- EUR\n", $cryptoInfo['alt'],$cryptoInfo['bal'], '--%');
+    else {
+      $bal = number_format($cryptoInfo['bal'], 5);
+      $btc_percent = number_format($cryptoInfo['btc_percent'], 3);
+      $eur =  number_format($cryptoInfo['eur'], 3);
+      printf (" %-8s | %-15s | %-15s | %s EUR\n", $cryptoInfo['alt'], $bal, "$btc_percent%", $eur);
+    }
+  }
 
+   print "total holdings: $nbCryptos cryptos \n";
    exit();
 }
 
