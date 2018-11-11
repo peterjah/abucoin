@@ -14,9 +14,7 @@ foreach($crypto_list as $crypto)
   $Api1->balances[$crypto] = $Api2->balances[$crypto] = 0;
 
 print "retrieve balances\n";
-while(true)
-{
-  try {
+while(true) { try {
     $Api1->getBalance();
     $Api2->getBalance();
     break;
@@ -24,12 +22,9 @@ while(true)
 }
 
 
-  foreach( $altcoins_list as $alt)
-  {
+  foreach( $altcoins_list as $alt) {
     print "create $alt order books \n";
-    while(true)
-    {
-      try {
+    while(true) { try {
         $orderBook1[$alt] = new OrderBook($Api1, $alt);
         $Api1->products[$alt] = $orderBook1[$alt]->product;
 
@@ -45,18 +40,14 @@ $btc_start_cash = $Api1->balances['BTC'] + $Api2->balances['BTC'];
 @define('LOW_BTC_TRESH', -0.2);
 
 $nLoops = 0;
-while(true)
-{
-  foreach( $altcoins_list as $alt)
-  {
-    try
-    {
+while(true) {
+  foreach( $altcoins_list as $alt) {
+    try {
       print "Testing $alt trade\n";
 
       //SELL Cryptopia => BUY Abucoins
       $tradeSize = 1; //dummy init
-      while($tradeSize > 0)
-      {
+      while($tradeSize > 0) {
         $btc_cash_roll = $Api1->balances['BTC'] + $Api2->balances['BTC'];
         $low_btc_market_tresh = ($btc_cash_roll)*0.1; //10% of total btc hodling
         $get_btc_market2 = $Api2->balances['BTC'] < $low_btc_market_tresh;
@@ -84,16 +75,14 @@ while(true)
         //print "tradeSize=$tradeSize min {$book2['bids']['size']}, {$book1['asks']['size']}\n";
 
         $gain_treshold = GAIN_TRESHOLD;
-        if($get_btc_market2)
-        {
+        if($get_btc_market2) {
           $gain_treshold = LOW_BTC_TRESH;
           $half_cash_alt = ($btc_cash_roll/2) * $book1['asks']['order_price'];
           if( $tradeSize > $half_cash_alt && $gain_percent < 0)
             $tradeSize = $half_cash_alt > $min_order_alt ? $half_cash_alt : $min_order_alt;
         }
 
-        if($gain_percent >= $gain_treshold)
-        {
+        if($gain_percent >= $gain_treshold) {
           $Api1->getBalance();
           $Api2->getBalance();
 
@@ -101,8 +90,7 @@ while(true)
             throw new \Exception("wtf");
           print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
           $status = do_arbitrage($alt, $orderBook2[$alt], $book2['bids']['order_price'], $orderBook1[$alt], $book1['asks']['order_price'], $tradeSize);
-          if($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0)
-          {
+          if($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
 
             if($status['buy']['filled_size'] != $status['sell']['filled_size'])
               print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
@@ -136,17 +124,15 @@ while(true)
       print $e;
       //refresh balances
       sleep(3);
-      try{
+      try {
         $Api1->getBalance();
         $Api2->getBalance();
       }catch (Exception $e){}
     }
-    try
-    {
+    try {
       //SELL Abucoins => BUY Cryptopia
       $tradeSize = 1; //dummy init
-      while($tradeSize > 0)
-      {
+      while($tradeSize > 0) {
         $btc_cash_roll = $Api1->balances['BTC'] + $Api2->balances['BTC'];
         $low_btc_market_tresh = ($btc_cash_roll)*0.1; //10% of total btc hodling
         $get_btc_market1 = $Api1->balances['BTC'] < $low_btc_market_tresh;
@@ -173,15 +159,13 @@ while(true)
         //print "tradeSize=$tradeSize min {$book2['asks']['size']},{$book1['bids']['size']}\n";
 
         $gain_treshold = GAIN_TRESHOLD;
-        if($get_btc_market1)
-        {
+        if($get_btc_market1) {
           $gain_treshold = LOW_BTC_TRESH;
           $half_cash_alt = ($btc_cash_roll/2) / $book2['asks']['order_price'];
           if($tradeSize >  $half_cash_alt && $gain_percent < 0)
             $tradeSize = $half_cash_alt > $min_order_alt ? $half_cash_alt : $min_order_alt;
         }
-        if($gain_percent >= $gain_treshold )
-        {
+        if($gain_percent >= $gain_treshold ) {
           if($sell_price <= $buy_price && $gain_treshold > 0)
             throw new \Exception("wtf");
 
@@ -190,8 +174,7 @@ while(true)
 
           print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
           $status = do_arbitrage($alt, $orderBook1[$alt], $book1['bids']['order_price'], $orderBook2[$alt], $book2['asks']['order_price'], $tradeSize);
-          if($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0)
-          {
+          if($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
 
             if($status['buy']['filled_size'] != $status['sell']['filled_size'])
               print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
@@ -220,13 +203,11 @@ while(true)
           $tradeSize = 0;
       }
     }
-    catch (Exception $e)
-    {
+    catch (Exception $e) {
       print $e;
       //refresh balances
       sleep(3);
-      try
-      {
+      try {
         $Api1->getBalance();
         $Api2->getBalance();
       }catch (Exception $e){}
@@ -238,17 +219,14 @@ while(true)
   else
     $nLoops++;
 
-  if( ($nLoops % 10) == 0 )
-  {
+  if( ($nLoops % 10) == 0 ) {
     //ping api
     try {
-      while($Api1->ping() === false)
-      {
+      while($Api1->ping() === false) {
         print "Failed to ping {$Api1->name} api. Sleeping...\n";
         sleep(30);
       }
-      while($Api2->ping() === false)
-      {
+      while($Api2->ping() === false) {
         print "Failed to ping {$Api2->name} api. Sleeping...\n";
         sleep(30);
       }
