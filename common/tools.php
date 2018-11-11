@@ -246,6 +246,17 @@ function findCommonProducts($market1, $market2)
   return array_values(array_intersect($market1->getProductList(), $market2->getProductList()));
 }
 
+function computeGains($buy_price, $fees1, $sell_price, $fees2, $tradeSize)
+{
+    $spend_btc_unit = $buy_price*((100+$fees2)/100);
+    $sell_btc_unit = $sell_price*((100-$fees1)/100);
+    $gain_per_unit = $sell_btc_unit - $spend_btc_unit;
+    $gain_percent = (($sell_btc_unit / $spend_btc_unit)-1)*100;
+    $gain_btc = $tradeSize * $gain_per_unit;
+    return ['percent' => $gain_percent,
+            'btc' => $gain_btc ];
+}
+
 function print_dbg($dbg_str)
 {
   $str = date("Y-m-d H:i:s")." $dbg_str\n";

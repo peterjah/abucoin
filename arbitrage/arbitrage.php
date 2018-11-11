@@ -66,29 +66,36 @@ while(true) {
 
         $sell_price = $book2['bids']['price'];
         $buy_price = $book1['asks']['price'];
-        //var_dump($sell_price); var_dump($buy_price);
-        $tradeSize = min($book2['bids']['size'], $book1['asks']['size']);
-        $gain_percent = ( ( ($sell_price *(1-($orderBook2[$alt]->product->fees/100)))/
-                           ($buy_price *(1+($orderBook1[$alt]->product->fees/100)) ) )-1)*100;
 
-        //print "SELL {$Api2->name} => BUY {$Api1->name}: GAIN ".number_format($gain_percent,3)."%  sell_price=$sell_price buy_price=$buy_price\n";
+        $tradeSize = min($book2['bids']['size'], $book1['asks']['size']);
+
+        $buy_fees = $orderBook1[$alt]->product->fees;
+        $sell_fees = $orderBook2[$alt]->product->fees;
+        $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $tradeSize);
+
+        if ($expected_gains['btc'] > 0.000001 || ($get_btc_market2 && $expected_gains['btc'] >= 0))
+          print("Do switch! win {$expected_gains['btc']} BTC {$expected_gains['percent']}%\n");
+        //print "SELL {$Api2->name} => BUY {$Api1->name}: GAIN ".number_format($expected_gains['percent'],3)."%  sell_price=$sell_price buy_price=$buy_price\n";
         //print "tradeSize=$tradeSize min {$book2['bids']['size']}, {$book1['asks']['size']}\n";
 
         $gain_treshold = GAIN_TRESHOLD;
-        if($get_btc_market2) {
+        if ($get_btc_market2) {
           $gain_treshold = LOW_BTC_TRESH;
           $half_cash_alt = ($btc_cash_roll/2) * $book1['asks']['order_price'];
-          if( $tradeSize > $half_cash_alt && $gain_percent < 0)
+          if( $tradeSize > $half_cash_alt && $expected_gains['percent'] < 0)
             $tradeSize = $half_cash_alt > $min_order_alt ? $half_cash_alt : $min_order_alt;
         }
 
-        if($gain_percent >= $gain_treshold) {
+        if ($expected_gains['percent'] >= $gain_treshold) {
+          $expected_gains2 = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $tradeSize);
+          print("Do percent switch! final win {$expected_gains2['btc']} BTC {$expected_gains['percent']}% tresh: {$gain_treshold}\n");
+
           $Api1->getBalance();
           $Api2->getBalance();
 
-          if($sell_price <= $buy_price && $gain_treshold > 0)
+          if ($sell_price <= $buy_price && $gain_treshold > 0)
             throw new \Exception("wtf");
-          print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
+          print "do arbitrage for $alt. estimated gain: {$expected_gains['percent']}%\n";
           $status = do_arbitrage($alt, $orderBook2[$alt], $book2['bids']['order_price'], $orderBook1[$alt], $book1['asks']['order_price'], $tradeSize);
           if($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
 
@@ -99,11 +106,11 @@ while(true) {
             $spend_btc_unit = $status['buy']['price']*((100+$orderBook1[$alt]->product->fees)/100);
             $sell_btc_unit = $status['sell']['price']*((100-$orderBook2[$alt]->product->fees)/100);
             $gain_per_unit = $sell_btc_unit - $spend_btc_unit;
-            $real_gain_percent = (($sell_btc_unit / $spend_btc_unit)-1)*100;
+            $real_percent = (($sell_btc_unit / $spend_btc_unit)-1)*100;
             $gain_btc = $tradeSize * $gain_per_unit;
             $profit+=$gain_btc;
             print("log tx\n");
-            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent% ($real_gain_percent%)\n";
+            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC {$expected_gains['percent']}% ($real_percent%)\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //Just in case
@@ -153,26 +160,37 @@ while(true) {
         $buy_price = $book2['asks']['price'];
         $tradeSize = min($book2['asks']['size'], $book1['bids']['size']);
 
-        $gain_percent = (( ($sell_price *(1-($orderBook1[$alt]->product->fees/100)))/
-                           ($buy_price *(1+($orderBook2[$alt]->product->fees/100))) )-1)*100;
-        //print "SELL {$Api1->name} => BUY {$Api2->name}: GAIN ".number_format($gain_percent,3)."%  sell_price=$sell_price buy_price=$buy_price\n";
+        $sell_fees = $orderBook1[$alt]->product->fees;
+        $buy_fees = $orderBook2[$alt]->product->fees;
+        $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $tradeSize);
+
+        //print "SELL {$Api1->name} => BUY {$Api2->name}: GAIN ".number_format($expected_gains['percent'],3)."%  sell_price=$sell_price buy_price=$buy_price\n";
         //print "tradeSize=$tradeSize min {$book2['asks']['size']},{$book1['bids']['size']}\n";
+
+        if ($expected_gains['btc'] > 0.000001 || ($get_btc_market1 && $expected_gains['btc'] >= 0))
+          print("Do switch! win {$expected_gains['btc']} BTC {$expected_gains['percent']}%\n");
 
         $gain_treshold = GAIN_TRESHOLD;
         if($get_btc_market1) {
           $gain_treshold = LOW_BTC_TRESH;
           $half_cash_alt = ($btc_cash_roll/2) / $book2['asks']['order_price'];
-          if($tradeSize >  $half_cash_alt && $gain_percent < 0)
+          if($tradeSize >  $half_cash_alt && $expected_gains['percent'] < 0)
             $tradeSize = $half_cash_alt > $min_order_alt ? $half_cash_alt : $min_order_alt;
         }
-        if($gain_percent >= $gain_treshold ) {
+
+        if($expected_gains['percent'] >= $gain_treshold ) {
+
+          $expected_gains2 = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $tradeSize);
+
+          print("Do percent switch! finally win {$expected_gains2['btc']} BTC {$expected_gains['percent']}% tresh: {$gain_treshold}\n");
+
           if($sell_price <= $buy_price && $gain_treshold > 0)
             throw new \Exception("wtf");
 
           $Api1->getBalance();
           $Api2->getBalance();
 
-          print "do arbitrage for $alt. estimated gain: {$gain_percent}%\n";
+          print "do arbitrage for $alt. estimated gain: {$expected_gains['percent']}%\n";
           $status = do_arbitrage($alt, $orderBook1[$alt], $book1['bids']['order_price'], $orderBook2[$alt], $book2['asks']['order_price'], $tradeSize);
           if($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
 
@@ -180,14 +198,14 @@ while(true) {
               print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
 
             $tradeSize = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
-            $spend_btc_unit = $status['buy']['price']*((100+$orderBook2[$alt]->product->fees)/100);
-            $sell_btc_unit = $status['sell']['price']*((100-$orderBook1[$alt]->product->fees)/100);
+            $spend_btc_unit = $status['buy']['price']*((100+$buy_fees)/100);
+            $sell_btc_unit = $status['sell']['price']*((100-$sell_fees)/100);
             $gain_per_unit = $sell_btc_unit - $spend_btc_unit;
-            $real_gain_percent = (($sell_btc_unit / $spend_btc_unit)-1)*100;
+            $real_percent = (($sell_btc_unit / $spend_btc_unit)-1)*100;
             $gain_btc = $tradeSize * $gain_per_unit;
             $profit += $gain_btc;
             print("log tx\n");
-            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent% ($real_gain_percent%)\n";
+            $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC {$expected_gains['percent']}% ($real_percent%)\n";
             file_put_contents('gains',$trade_str,FILE_APPEND);
 
             //Just in case
