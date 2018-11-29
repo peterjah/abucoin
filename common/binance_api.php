@@ -122,7 +122,7 @@ class BinanceApi
 
       foreach($balances as $bal)
       {
-        $this->balances[$bal['asset']] = floatval($bal['free']);
+        $this->balances[self::binance2crypto($bal['asset'])] = floatval($bal['free']);
       }
       foreach($cryptos as $crypto)
       {
@@ -141,16 +141,16 @@ class BinanceApi
       foreach($products as $product)
         if($product['quoteAsset'] == 'BTC')
         {
-          $list[] = $product['baseAsset'];
+          $list[] = self::binance2crypto($product['baseAsset']);
         }
       return $list;
     }
 
     function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
     {
-      $id = "{$alt}BTC";
+      $symbol = self::crypto2binance($alt) . 'BTC';
       $max_orders = 50;
-      $book = $this->jsonRequest('GET', "v1/depth", ["symbol" => $id, "limit" => $max_orders]);
+      $book = $this->jsonRequest('GET', "v1/depth", ["symbol" => $symbol, "limit" => $max_orders]);
 
       if(!isset($book['asks'][0][0], $book['bids'][0][0]))
         return null;
@@ -179,11 +179,11 @@ class BinanceApi
 
     function getProductInfo($alt)
     {
-      $id = "{$alt}BTC";
+      $symbol = self::crypto2binance($alt) . 'BTC';
       $products = $this->jsonRequest('GET','v1/exchangeInfo')["symbols"];
 
       foreach ($products as $product)
-        if($product['symbol'] == $id)
+        if($product['symbol'] == $symbol)
           break;
       //var_dump($product);
       if($product == null)
@@ -207,7 +207,7 @@ class BinanceApi
 
       $size_precision = $this->products[$alt]->alt_size_decimals;
       $size_str = sprintf("%.{$size_precision}f", $size);
-      $order = ['symbol' => "{$alt}BTC",
+      $order = ['symbol' =>  self::crypto2binance($alt) . 'BTC',
                 'quantity'=>  $size_str,
                 'side'=> $orderSide,
                 'type'=> $orderType,
@@ -272,6 +272,7 @@ class BinanceApi
     {
       print "get order status of $orderId \n";
       $i=0;
+      $alt = self::crypto2binance($alt);
       $symbol = "{$alt}BTC";
       while($i<5)
       {
@@ -301,6 +302,7 @@ class BinanceApi
 
     function cancelOrder($alt, $orderId)
     {
+      $alt = self::crypto2binance($alt);
       $symbol = "{$alt}BTC";
       print_dbg("canceling $symbol order $orderId");
 
@@ -336,5 +338,24 @@ class BinanceApi
     {
       $ping = $this->jsonRequest('GET', 'v1/ping');
       return isset($ping['error']) ? false : true;
+    }
+
+    static function crypto2binance($crypto, $reverse = false)
+    {
+      $table = ['BSV' => 'BCHSV',
+                'BCH' => 'BCHABC',
+                ];
+      if($reverse)
+        $table = array_flip($table);
+      if(array_key_exists($crypto,$table))
+        return $table[$crypto];
+      else {
+        return $crypto;
+      }
+    }
+
+    static function binance2crypto($crypto)
+    {
+        return crypto2binance($crypto, true);
     }
 }

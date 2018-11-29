@@ -29,7 +29,7 @@ else {
         break;
       } catch (Exception $e) {
           $i++;
-          print "failed to get {$exchange->name} infos";
+          print "failed to get {$exchange->name} infos. [{$e->getMessage()}]\n";
         }
     }
 

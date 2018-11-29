@@ -108,23 +108,14 @@ class KrakenApi
                 'REP' => 'XREP',
                 'ZEC' => 'XZEC',
                 'XMR' => 'XXMR',
-                'EOS' => 'EOS',
-                'BCH' => 'BCH',
-                'DASH' => 'DASH',
-                'GNO' => 'GNO',
-                'MLN' => 'MLN',
-                'ICN' => 'ICN',
-                'XDG' => 'XDG',
                 'EUR' => 'ZEUR',
-                'ADA' => 'ADA',
-                'QTUM' => 'QTUM',
                 ];
       if($reverse)
         $table = array_flip($table);
       if(array_key_exists($crypto,$table))
         return $table[$crypto];
       else
-        throw new KrakenAPIException("Unknown crypto $crypto");
+        return $crypto;
     }
 
     function getBalance(...$cryptos)
@@ -142,10 +133,10 @@ class KrakenApi
         catch (Exception $e)
         {
           $i++;
-          print "{$this->name}: failed to get balances. retry $i...\n";
+          print "{$this->name}: failed to get balances. [{$e->getMessage()}] retry $i...\n";
           usleep(50000);
           if($i > 8)
-            throw new KrakenAPIException('failed to get balances');
+            throw new KrakenAPIException("failed to get balances [{$e->getMessage()}]");
         }
       }
 
@@ -158,7 +149,7 @@ class KrakenApi
           {
             foreach($positions['result']['open'] as $openOrder)
             {
-              if($openOrder['descr']['pair'] == $pair) //Sell orders
+              if($openOrder['descr']['pair'] == $this->getPair($alt)) //Sell orders
               {
                 $crypto_in_order += $openOrder['vol'];
               }
@@ -206,8 +197,9 @@ class KrakenApi
 
     function getProductInfo($alt)
     {
-      $id = "{$alt}XBT";
       $pair = $this->getPair($alt);
+      $id = "{$alt}XBT";
+
       $products = null;
       $i=0;
       while ( true )
@@ -313,7 +305,9 @@ class KrakenApi
                 'ZEC'=>0.03,
                 'GNO'=>0.03,
                 'ADA'=>1,
-                'QTUM'=>0.1
+                'QTUM'=>0.1,
+                'BSV'=>0.03,//TBA
+                'XTZ'=>1,
               ];
 
     if(array_key_exists($crypto,$table))
@@ -341,6 +335,8 @@ class KrakenApi
                 'XDG' => 'XXDGXXDG',
                 'ADA' => 'ADAXBT',
                 'QTUM' => 'QTUMXBT',
+                'BSV' => 'BSVXBT',
+                'XTZ' => 'XTZXBT',
                 'BTC' => null
                 ];
     if(array_key_exists($crypto,$table))
@@ -351,8 +347,6 @@ class KrakenApi
 
     function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
     {
-//      $crypto = $this->crypto2kraken($alt);
-      //$id = 'GNOXBT';
       $id = $this->getPair($alt);
       $ordercount = 25;
       $book = $this->jsonRequest('Depth',['pair' => $id, 'count' => $ordercount]);

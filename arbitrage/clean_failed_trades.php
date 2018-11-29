@@ -146,7 +146,7 @@ while(1)
             try {
               if($Api->getBalance($alt) < $buy_size)
                 continue;
-              $orderBook = new OrderBook($Api, $alt);
+              $orderBook = new Market($Api, $alt);
               $book = $orderBook->refreshBook(0,$buy_size);
 
               if($orderBook->product->min_order_size_alt >= $buy_size)
@@ -168,11 +168,10 @@ while(1)
                       file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
                   }
                   $trade_success = true;
-                  $gain_btc = $buy_size * ($status['price']*((100-$productInfos['fees'])/100) - $mean_buy_price*((100+$mean_fees)/100));
-                  $gain_percent = (($mean_buy_price / $status['price']) -1)*100;
+                  $gains = computeGains($mean_buy_price, $mean_fees, $status['price'], $productInfos['fees'], $buy_size);
                   print_dbg("solved on $Api->name: buy_size:{$buy_size} $alt, mean_buy_price:{$mean_buy_price}, mean_fees:{$mean_fees}, price:{$status['price']}");
 
-                  $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
+                  $trade_str = date("Y-m-d H:i:s").": {$gains['btc']} BTC {$gains['percent']}%\n";
                   file_put_contents('gains',$trade_str,FILE_APPEND);
                   break;
                 } catch(Exception $e) {
@@ -221,7 +220,7 @@ while(1)
             unset($book);
             $Api = getMarket($exchange);
             try {
-               $orderBook = new OrderBook($Api, $alt);
+               $orderBook = new Market($Api, $alt);
                $book = $orderBook->refreshBook(0,$sell_size);
                if($orderBook->product->min_order_size_alt >= $sell_size)
                  continue;
@@ -246,11 +245,9 @@ while(1)
                       file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
                     }
                   $trade_success = true;
-                  $gain_btc = $sell_size * ($mean_sell_price*((100-$mean_fees)/100) - $status['price']*((100+$productInfos['fees'])/100));
-                  $gain_percent = (($mean_sell_price / $status['price']) -1)*100;
+                  $gains = computeGains($status['price'], $productInfos['fees'], $mean_sell_price, $mean_fees, $sell_size);
                   print_dbg("solved on $Api->name: sell_size:{$sell_size} $alt, mean_sell_price:{$mean_sell_price}, mean_fees:{$mean_fees}, price:{$status['price']}");
-
-                  $trade_str = date("Y-m-d H:i:s").": $gain_btc BTC $gain_percent%\n";
+                  $trade_str = date("Y-m-d H:i:s").": {$gains['btc']} BTC {$gains['percent']}%\n";
                   file_put_contents('gains',$trade_str,FILE_APPEND);
                   break;
                 } catch(Exception $e) {

@@ -92,7 +92,7 @@ class CobinhoodApi
 
       foreach($balances as $bal)
       {
-        $this->balances[$bal['currency']] = floatval($bal['total'] - $bal['on_order']);
+        $this->balances[self::crypto2Cobinhood($bal['currency'], true)] = floatval($bal['total'] - $bal['on_order']);
       }
       foreach($cryptos as $crypto)
       {
@@ -111,14 +111,14 @@ class CobinhoodApi
       foreach($products['result']['trading_pairs'] as $product)
       if($product['quote_currency_id'] == 'BTC')
       {
-        $list[] = $product['base_currency_id'];
+        $list[] = self::crypto2Cobinhood($product['base_currency_id'], true);
       }
       return $list;
     }
 
     function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
     {
-      $id = "{$alt}-BTC";
+      $id = self::crypto2Cobinhood($alt) . '-BTC';
       $limit = ['limit' => 50];
       $book = $this->jsonRequest('GET', "/market/orderbooks/$id", $limit)['result']['orderbook'];
 
@@ -147,7 +147,7 @@ class CobinhoodApi
 
     function getProductInfo($alt)
     {
-      $id = "{$alt}-BTC";
+      $id = self::crypto2Cobinhood($alt) . '-BTC';
       $product = null;
       $i=0;
       while( ($products = self::jsonRequest('GET', "/market/trading_pairs", null)) == null && $i<5)
@@ -186,9 +186,7 @@ class CobinhoodApi
       }
 
       var_dump($order);
-      //todo: do check order api call
-      $check_order = $this->jsonRequest('POST', '/trading/check_order',null, $order);
-      print_dbg("Cobinhood check: may_execute_immediately: {$check_order['result']['may_execute_immediately']}");
+
       $ret = $this->jsonRequest('POST', '/trading/orders',null, $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
@@ -196,22 +194,39 @@ class CobinhoodApi
       if(isset($ret['result']))
       {
         $status = $ret['result']['order'];
+        $filled_size = $filled_btc = 0;
 //        if(($status['state'] == 'filled') || ($status['state'] == 'partially_filled')/*nogood for limit order*/)
         if($ret['success'] && $status['state'] != 'rejected')
         {
           print_dbg("Cobinhood trade state: {$status['state']}");
-          if($status['state'] == 'filled')
-          {
-            $filled_size = floatval($status['filled']);
+          if($status['state'] == 'filled') {
+            $filled_size = $size;
             $filled_btc = $filled_size * floatval($status['price']);
           }
           else {
             sleep(3);
-            $status = $this->getOrderStatus($alt, $status['id']);
-            print "{$this->name} status before cancel:\n";
-            var_dump($status);
-            //$this->cancelOrder('notUsed',$status['id']);
+            $status2 = $this->getOrderStatus($alt, $status['id']);
+            if(empty($status2)) {
+              //check closed orders
 
+              $trades = $this->getOrdersHistory(['alt' => $alt, 'since' => 15]);
+              print_dbg("checking history: {$trades[0]['status']}");
+              if($trades[0]['status'] != 'rejected') {
+                $filled_size += $trades[0]['filled'];
+                $filled_btc += $trades[0]['filled_btc'];
+              }
+
+            }
+            else {
+              if($this->cancelOrder('notUsed',$status['id'])) {
+                $filled_size = $status2['filled'];
+                $filled_btc = $status2['filled_btc'];
+              } else {
+                  $filled_size = $size;
+                  $filled_btc = $filled_size * floatval($status['price']);
+                }
+            }
+            print_dbg("order status state: {$status2['status']} filled_size = $filled_size");
           }
           if($status['state'] != 'open')
             $this->save_trade($status['id'], $alt, $side, $size, $price, $tradeId);
@@ -238,7 +253,7 @@ class CobinhoodApi
       return $ping['success'] === true ? true : false;
     }
 
-    function getOrderStatus($alt, $orderId)
+    function getOrderStatus($alt, $orderId, $closed = false)
     {
       print "get order status of $orderId \n";
       $i=0;
@@ -246,14 +261,17 @@ class CobinhoodApi
       while($i<5)
       {
         try{
-          $open_orders = $this->jsonRequest('GET', '/trading/orders', ["symbol" => $symbol]);
+          if($closed)
+            $orders = $this->jsonRequest('GET', '/trading/order_history', ["trading_pair_id" => $symbol]);
+          else
+            $orders = $this->jsonRequest('GET', '/trading/orders', ["trading_pair_id" => $symbol]);
           break;
-        }catch (Exception $e){ $i++; usleep(500000); print ("{$this->name}: Failed to get status retrying...$i\n");}
+        }catch (Exception $e){ $i++; usleep(500000); print_dbg("{$this->name}: Failed to get orders [{$e->getMessage}] retrying...$i");}
       }
 
       //var_dump($open_orders);
-      foreach ($open_orders['result']['orders'] as $open_order)
-        if($open_order['id'] == $orderId)
+      foreach ($orders['result']['orders'] as $open_order)
+        if($orders['id'] == $orderId)
         {
            $order = $open_order;
            var_dump($order);
@@ -261,21 +279,67 @@ class CobinhoodApi
         }
       if(isset($order))
       {
-        print_dbg("check order status: {$order['state']}");
-        if ($order['state'] == 'filled')
-          $status = 'closed';
-        else
-          $status = 'open';
 
-        $side_translate = array_flip($this->side_translate);
-        return  $status = [ 'id' => $orderId,
-                            'side' => $side_translate[$order['side']],
-                            'status' => $status,
-                            'filled' => floatval($order['filled']),
-                            'filled_btc' => floatval($order['filled']) * $order['price'],
-                            'price' => $order['price']
-                          ];
+          print_dbg("check $alt order status: {$order['state']}");
+          if ($order['state'] == 'filled')
+            $status = 'closed';
+          elseif ($order['state'] == 'rejected')
+            $status = 'rejected';
+          else
+            $status = 'open';
+
+          $side_translate = array_flip($this->side_translate);
+          return  $status = [ 'id' => $orderId,
+                              'side' => $side_translate[$order['side']],
+                              'status' => $status,
+                              'filled' => floatval($order['filled']),
+                              'filled_btc' => floatval($order['filled']) * $order['price'],
+                              'price' => $order['price']
+                            ];
         }
+
+        print_dbg("{$this->name}: Unable to find open order $orderId It may be filled or rejected...");
+        return null;
+    }
+
+    function getOrdersHistory($filter = null)
+    {
+      $params = [];
+      $params['page'] = 1;
+      $params['limit'] = 12;
+
+      if(isset($filter['alt']))
+        $params['trading_pair_id'] = "{$filter['alt']}-BTC";
+
+      $i=0;
+      while($i<8)
+      {
+        try{
+          $trades = $this->jsonRequest('GET', '/trading/order_history', $params);
+          break;
+        }catch (Exception $e){ $i++; usleep(500000); print_dbg("Failed to getOrdersHistory. [{$e->getMessage()}]..$i");}
+      }
+      if($trades['success']) {
+        $status = [];
+        var_dump($trades['result']['orders']);
+        $trades = $trades['result']['orders'];
+        foreach($trades as $idx => $order)
+        {
+          if( !isset($filter['since']) || ((time() - strtotime($order['completed_at'])) < $filter['since']) ) {
+            $side_translate = array_flip($this->side_translate);
+            $status[] = [ 'id' => $order['id'],
+                        'side' => $side_translate[$order['side']],
+                        'status' => $order['state'],
+                        'filled' => floatval($order['filled']),
+                        'filled_btc' => floatval($order['filled']) * $order['eq_price'],
+                        'price' => $order['eq_price']
+                      ];
+
+          }
+        }
+        print_dbg("{$this->name} getOrdersHistory: " . count($status) . " trades found in history");
+        return $status;
+      }
     }
 
     function cancelOrder($alt, $orderId)
@@ -287,12 +351,25 @@ class CobinhoodApi
         try{
           $ret = $this->jsonRequest('DELETE', '/trading/orders',["order_id" => $orderId]);
           break;
-        }catch (Exception $e){ $i++; sleep(1); print_dbg("Failed to cancel order. retrying...$i");}
+        }catch (Exception $e){ $i++; sleep(1); print_dbg("Failed to cancel order. [{$e->getMessage}] retrying...$i");}
       }
       var_dump($ret);
       if(isset($ret['error']))
         return false;
       return true;
 
+    }
+
+    static function crypto2Cobinhood($crypto, $reverse = false)
+    {
+      $table = ['BSV' => 'BCHSV',
+                ];
+      if($reverse)
+        $table = array_flip($table);
+      if(array_key_exists($crypto,$table))
+        return $table[$crypto];
+      else {
+        return $crypto;
+      }
     }
 }

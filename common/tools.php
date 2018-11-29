@@ -44,7 +44,7 @@ class product
   }
 }
 
-class OrderBook
+class Market
 {
   public $api;
   public $product;
@@ -55,6 +55,8 @@ class OrderBook
     $this->api = $api;
     $this->product = new product($api, $alt);
     $this->book = null;
+    $api->products[$alt] = $this->product;
+
   }
 
   function refreshBook($depth_btc, $depth_alt)
@@ -160,11 +162,13 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     catch(Exception $e){
        print ("unable to $first_action retrying...: $e\n");
        $err = $e->getMessage();
-       if( $err != 'no response from api' && $err != 'EAPI:Invalid nonce' )
+       if( $err != 'no response from api' || $err != 'EAPI:Invalid nonce' )
          print_dbg("unable to $first_action $alt (first action) [$err] on {$first_api->name}: tradeSize=$tradeSize at $price. try $i");
 
        if($i == 5 || $err == 'ERROR: Insufficient Funds.' || $err == 'Market is closed.')
          throw new \Exception("unable to $first_action. [$err]");
+       if ($err == 'Rest API trading is not enabled.')
+         throw new \Exception($err);
        usleep(500000);
        $i++;
     }
@@ -179,41 +183,48 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   if($tradeSize > 0)
   {
     $i=0;
-    while(true)
-    {
-      try{
+    while(true) {
+      try {
         $price = $second_action == 'buy' ? $buy_price : $sell_price;
         $second_status = $second_api->place_order('market',$alt, $second_action, $price, $tradeSize, $arbId);
         break;
       }
-      catch(Exception $e){
+      catch(Exception $e) {
          print ("unable to $second_action retrying...: $e\n");
 
          var_dump($second_status);
          $err = $e->getMessage();
-         if( $err != 'no response from api' && $err != 'EAPI:Invalid nonce' )
-         {
-           print_dbg("unable to $second_action $alt (second action) [$err] on {$second_api->name}: tradeSize=$tradeSize at $price. try $i");
-         }
+
          if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance'|| $err == 'ERROR: Insufficient Funds.' ||
             $err == 'Account has insufficient balance for requested action.')
          {
            $second_api->getBalance();
+           print_dbg("Insufficient funds to $second_action $tradeSize $alt @ $price , btc_bal:{$second_api->balances['BTC']} alt_bal:{$second_api->balances[$alt]}");
            if($second_action == 'buy')
            {
              $btc_bal = $second_api->balances['BTC'];
-             $tradeSize = $btc_bal / $price;
+             //price may be not relevant anymore. moreover we want a market order
+             $book = $buy_market->refreshBook($btc_bal,$tradeSize);
+             $tradeSize = min(floordec($btc_bal / ($book['asks']['order_price'] * (1 + $buy_market->product->fees/100)) , $precision), $tradeSize);
+             $buy_price = $book['asks']['order_price'];
            } else {
              $alt_bal = $second_api->balances[$alt];
-             $tradeSize = $alt_bal;
+             $tradeSize = floordec($alt_bal, $precision);
            }
-           print_dbg("Insufficient funds to $second_action $alt, btc_bal:$btc_bal alt_bal:$alt_bal");
+           print_dbg("new tradesize: $tradeSize, price $price");
          }
-         if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size')
+         // if( $err != 'no response from api' && $err != 'EAPI:Invalid nonce' )
+         // {
+         //   print_dbg("unable to $second_action $alt (second action) [$err] on {$second_api->name}: tradeSize=$tradeSize at $price. try $i");
+         // }
+         if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size' ||
+             $err == 'Filter failure: MIN_NOTIONAL' || $err == 'balance_locked' || $err == 'try_again_later')
          {
            $tradeSize = 0;
            break;
          }
+         if ($err == 'Rest API trading is not enabled.')
+           throw new \Exception($err);
          if($i == 8){
            $tradeSize = 0;
            break;
@@ -257,8 +268,10 @@ function computeGains($buy_price, $fees1, $sell_price, $fees2, $tradeSize)
             'btc' => $gain_btc ];
 }
 
-function print_dbg($dbg_str)
+function print_dbg($dbg_str, $print_stderr = false)
 {
   $str = date("Y-m-d H:i:s")." $dbg_str\n";
   file_put_contents('debug',$str,FILE_APPEND);
+  if ($print_stderr)
+    print($str);
 }
