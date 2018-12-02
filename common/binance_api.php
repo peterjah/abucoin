@@ -356,6 +356,6 @@ class BinanceApi
 
     static function binance2crypto($crypto)
     {
-        return crypto2binance($crypto, true);
+        return self::crypto2binance($crypto, true);
     }
 }
