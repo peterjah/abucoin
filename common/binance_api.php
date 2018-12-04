@@ -100,20 +100,25 @@ class BinanceApi
     		return $content;
     }
 
-    function getBalance(...$cryptos)
+    function getBalance($alt = null)
     {
       $res = [];
       $i=0;
       while ( true )
       {
         try {
-          $balances = $this->jsonRequest('GET', "v3/account")['balances'];
+          $balances = $this->jsonRequest('GET', "v3/account");
+          if( isset($balances['balances']))
+            $balances = $balances['balances'];
+          else {
+            throw new BinanceAPIException('failed to get balances');
+          }
           break;
         }
         catch (Exception $e)
         {
           if($i > 8)
-            throw new BinanceAPIException('failed to get balances');
+            throw new BinanceAPIException("failed to get balances [{$e->getMessage()}]");
           $i++;
           print "{$this->name}: failed to get balances. retry $i...\n";
           usleep(50000);
@@ -122,14 +127,12 @@ class BinanceApi
 
       foreach($balances as $bal)
       {
-        $this->balances[self::binance2crypto($bal['asset'])] = floatval($bal['free']);
+        $crypto = self::binance2crypto($bal['asset']);
+        $res[$crypto] = $this->balances[$crypto] = floatval($bal['free']);
       }
-      foreach($cryptos as $crypto)
-      {
-        $res[$crypto] = isset($this->balances[$crypto]) ? $this->balances[$crypto] : 0;
-      }
-      if(count($res) == 1)
-       return array_pop($res);
+
+      if($alt != null)
+       return $res[$alt];
       else return $res;
     }
 
@@ -137,18 +140,45 @@ class BinanceApi
     {
       $list = [];
       $products = $this->jsonRequest('GET','v1/exchangeInfo')["symbols"];
+      //var_dump($products);
+      foreach($products as $product) {
+        if ($product['status'] == 'TRADING') {
+          $alt = self::binance2crypto($product['baseAsset']);
+          $base = self::binance2crypto($product['quoteAsset']);
+          $params = [ 'api' => $this,
+                      'alt' => $alt,
+                      'base' => $base,
+                      'fees' => 0.075,
+                    ];
+          foreach($product['filters'] as $filter) {
+            if ($filter['filterType'] == 'PRICE_FILTER') {
+              $params['price_decimals'] = strlen(substr(strrchr(rtrim($filter['tickSize'],0), "."), 1));
+            }
+            if ($filter['filterType'] == 'LOT_SIZE') {
+              $params['min_order_size'] = floatval($filter['minQty']);
+              $params['size_decimals'] = strlen(substr(strrchr(rtrim($filter['stepSize'],0), "."), 1));
+              $params['lot_size_step'] = floatval($filter['stepSize']);
+            }
+            if ($filter['filterType'] == 'MIN_NOTIONAL') {
+              $params['min_order_size_base'] = floatval($filter['minNotional']);
+            }
+          }
+          $product = new Product($params);
+          $list[$product->symbol] = $product;
 
-      foreach($products as $product)
-        if($product['quoteAsset'] == 'BTC')
-        {
-          $list[] = self::binance2crypto($product['baseAsset']);
+          if (!isset($this->balances[$alt]))
+            $this->balances[$alt] = 0;
+          if (!isset($this->balances[$base]))
+            $this->balances[$base] = 0;
         }
+      }
+      $this->products = $list;
       return $list;
     }
 
-    function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
+    function getOrderBook($product, $depth_alt = 0, $depth_base = 0)
     {
-      $symbol = self::crypto2binance($alt) . 'BTC';
+      $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
       $max_orders = 50;
       $book = $this->jsonRequest('GET', "v1/depth", ["symbol" => $symbol, "limit" => $max_orders]);
 
@@ -159,7 +189,7 @@ class BinanceApi
         $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
         $best[$side]['size'] = floatval($book[$side][0][1]);
         $i=1;
-        while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_btc)
+        while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_base)
               || ($best[$side]['size'] < $depth_alt) )
               && $i<$max_orders)
         {
@@ -177,37 +207,17 @@ class BinanceApi
       return $best;
     }
 
-    function getProductInfo($alt)
+    function place_order($product, $type, $side, $price, $size, $tradeId)
     {
-      $symbol = self::crypto2binance($alt) . 'BTC';
-      $products = $this->jsonRequest('GET','v1/exchangeInfo')["symbols"];
-
-      foreach ($products as $product)
-        if($product['symbol'] == $symbol)
-          break;
-      //var_dump($product);
-      if($product == null)
-        throw new BinanceAPIException('failed to get product infos');
-      $info['min_order_size_alt'] = floatval($product["filters"][1]["minQty"]);
-      $info['increment'] = floatval($product["filters"][1]["stepSize"]);
-      $info['fees'] = 0.075;
-      $info['min_order_size_btc'] = floatval($product["filters"][2]["minNotional"]);
-      $info['alt_size_decimals'] = strlen(substr(strrchr(rtrim($product["filters"][1]["stepSize"],0), "."), 1));
-      $info['alt_price_decimals'] = strlen(substr(strrchr(rtrim($product["filters"][0]["tickSize"],0), "."), 1));
-
-      return $info;
-    }
-
-    function place_order($type, $alt, $side, $price, $size, $tradeId)
-    {
+      $alt = $product->alt;
+      $base = $product->base;
       $table = ['sell' => 'SELL', 'buy' => 'BUY'];
       $table2 = ['market' => 'MARKET', 'limit' => 'LIMIT'];
       $orderSide = $table[$side];
       $orderType = $table2[$type];
 
-      $size_precision = $this->products[$alt]->alt_size_decimals;
-      $size_str = sprintf("%.{$size_precision}f", $size);
-      $order = ['symbol' =>  self::crypto2binance($alt) . 'BTC',
+      $size_str = number_format($size, $product->size_decimals, '.', '');
+      $order = ['symbol' =>  self::crypto2binance($alt) . self::crypto2binance($base),
                 'quantity'=>  $size_str,
                 'side'=> $orderSide,
                 'type'=> $orderType,
@@ -215,8 +225,7 @@ class BinanceApi
 
       if($type == 'limit')
       {
-        $price_precision = $this->products[$alt]->alt_price_decimals;
-        $order['price'] = sprintf("%.{$price_precision}f", $price);
+        $order['price'] = number_format($price, $product->price_decimals, '.', '');
         $order['timeInForce'] = 'GTC';
       }
 
@@ -229,12 +238,12 @@ class BinanceApi
       {
         $id = $status['orderId'];
         $filled_size = 0;
-        $filled_btc = 0;
+        $filled_base = 0;
 
         if($status['status'] == 'FILLED')
         {
           $filled_size = floatval($status['executedQty']);
-          $filled_btc = floatval($status['cummulativeQuoteQty']);
+          $filled_base = floatval($status['cummulativeQuoteQty']);
           /*real price*/
           $pond_price = 0;
           foreach($status['fills'] as $fills)
@@ -246,34 +255,37 @@ class BinanceApi
         else
         {
           sleep(3);
-          $this->cancelOrder($alt, $id);
-          $status = $this->getOrderStatus($alt, $id);
+          $this->cancelOrder($product, $id);
+          $status = $this->getOrderStatus($product, $id);
           print_dbg("Check {$this->name} order $id status: {$status['status']} $side $alt filled:{$status['filled']} ");
           var_dump($status);
           $filled_size = $status['filled'];
-          $filled_btc = $status['filled_btc'];
+          $filled_base = $status['filled_base'];
         }
         if ($filled_size > 0)
-          $this->save_trade($id, $alt, $side, $filled_size, $price, $tradeId);
-        return ['filled_size' => $filled_size, 'id' => $id, 'filled_btc' => $filled_btc, 'price' => $price];
+          $this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
+        return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $filled_base, 'price' => $price];
       }
       else
         throw new BinanceAPIException("place order failed: {$status['msg']}");
     }
 
-    function save_trade($id, $alt, $side, $size, $price, $tradeId)
+    function save_trade($id, $product, $side, $size, $price, $tradeId)
     {
+      $alt = $product->alt;
+      $base = $product->base;
       print("saving trade\n");
-      $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price\n";
+      $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price $base\n";
       file_put_contents('trades',$trade_str,FILE_APPEND);
     }
 
-    function getOrderStatus($alt, $orderId)
+    function getOrderStatus($product, $orderId)
     {
       print "get order status of $orderId \n";
       $i=0;
-      $alt = self::crypto2binance($alt);
-      $symbol = "{$alt}BTC";
+      $alt = self::crypto2binance($product->alt);
+      $base = self::crypto2binance($product->base);
+      $symbol = "{$alt}{$base}";
       while($i<5)
       {
         try{
@@ -294,16 +306,17 @@ class BinanceApi
                             'side' => strtolower($order['side']),
                             'status' => $status,
                             'filled' => floatval($order['executedQty']),
-                            'filled_btc' => floatval($order['executedQty']) * $order['price'],
+                            'filled_base' => floatval($order['executedQty']) * $order['price'],
                             'price' => $order['price']
                           ];
         }
     }
 
-    function cancelOrder($alt, $orderId)
+    function cancelOrder($product, $orderId)
     {
-      $alt = self::crypto2binance($alt);
-      $symbol = "{$alt}BTC";
+      $alt = self::crypto2binance($product->alt);
+      $base = self::crypto2binance($product->base);
+      $symbol = "{$alt}{$base}";
       print_dbg("canceling $symbol order $orderId");
 
       $i=0;

@@ -116,7 +116,7 @@ class CobinhoodApi
       return $list;
     }
 
-    function getOrderBook($alt, $depth_btc = 0, $depth_alt = 0)
+    function getOrderBook($alt, $base = 'BTC', $depth_alt = 0, $depth_base = 0)
     {
       $id = self::crypto2Cobinhood($alt) . '-BTC';
       $limit = ['limit' => 50];
@@ -129,7 +129,7 @@ class CobinhoodApi
         $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
         $best[$side]['size'] = floatval($book[$side][0][2]);
         $i=1;
-        while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_btc)
+        while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_base)
               || ($best[$side]['size'] < $depth_alt) )
               && $i<50/*max offers for level=2*/)
         {
@@ -162,10 +162,10 @@ class CobinhoodApi
 
       if($product == null)
         throw new CobinhoodAPIException('failed to get product infos');
-      $info['min_order_size_alt'] = $product['base_min_size'];
-      $info['increment'] = $product['quote_increment'];
+      $info['min_order_size'] = $product['base_min_size'];
+      $info['lot_size_step'] = $product['quote_lot_size_step'];
       $info['fees'] = 0;
-      $info['min_order_size_btc'] = 0;
+      $info['min_order_size_base'] = 0;
       return $info;
     }
 
@@ -194,14 +194,14 @@ class CobinhoodApi
       if(isset($ret['result']))
       {
         $status = $ret['result']['order'];
-        $filled_size = $filled_btc = 0;
+        $filled_size = $filled_base = 0;
 //        if(($status['state'] == 'filled') || ($status['state'] == 'partially_filled')/*nogood for limit order*/)
         if($ret['success'] && $status['state'] != 'rejected')
         {
           print_dbg("Cobinhood trade state: {$status['state']}");
           if($status['state'] == 'filled') {
             $filled_size = $size;
-            $filled_btc = $filled_size * floatval($status['price']);
+            $filled_base = $filled_size * floatval($status['price']);
           }
           else {
             sleep(3);
@@ -213,27 +213,27 @@ class CobinhoodApi
               print_dbg("checking history: {$trades[0]['status']}");
               if($trades[0]['status'] != 'rejected') {
                 $filled_size += $trades[0]['filled'];
-                $filled_btc += $trades[0]['filled_btc'];
+                $filled_base += $trades[0]['filled_base'];
               }
 
             }
             else {
               if($this->cancelOrder('notUsed',$status['id'])) {
                 $filled_size = $status2['filled'];
-                $filled_btc = $status2['filled_btc'];
+                $filled_base = $status2['filled_base'];
               } else {
                   $filled_size = $size;
-                  $filled_btc = $filled_size * floatval($status['price']);
+                  $filled_base = $filled_size * floatval($status['price']);
                 }
             }
             print_dbg("order status state: {$status2['status']} filled_size = $filled_size");
           }
           if($status['state'] != 'open')
             $this->save_trade($status['id'], $alt, $side, $size, $price, $tradeId);
-          return ['filled_size' => $size, 'id' => $status['id'], 'filled_btc' => null, 'price' => $price];
+          return ['filled_size' => $size, 'id' => $status['id'], 'filled_base' => null, 'price' => $price];
         }
         else
-          return ['filled_size' => 0, 'id' => null, 'filled_btc' => null, 'price' => $price];
+          return ['filled_size' => 0, 'id' => null, 'filled_base' => null, 'price' => $price];
       }
       else {
         throw new CobinhoodAPIException("{$ret['error']}");
@@ -293,7 +293,7 @@ class CobinhoodApi
                               'side' => $side_translate[$order['side']],
                               'status' => $status,
                               'filled' => floatval($order['filled']),
-                              'filled_btc' => floatval($order['filled']) * $order['price'],
+                              'filled_base' => floatval($order['filled']) * $order['price'],
                               'price' => $order['price']
                             ];
         }
@@ -331,7 +331,7 @@ class CobinhoodApi
                         'side' => $side_translate[$order['side']],
                         'status' => $order['state'],
                         'filled' => floatval($order['filled']),
-                        'filled_btc' => floatval($order['filled']) * $order['eq_price'],
+                        'filled_base' => floatval($order['filled']) * $order['eq_price'],
                         'price' => $order['eq_price']
                       ];
 
