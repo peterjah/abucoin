@@ -156,7 +156,7 @@ class AbucoinsApi
       {
         if($ret->filled_size > 0)
           $this->save_trade($ret->id, $alt, $side, $ret->filled_size, $price);
-        return ['filled_size' => $ret->filled_size, 'id' => $ret->id, 'filled_btc' => $ret->executed_value];
+        return ['filled_size' => $ret->filled_size, 'id' => $ret->id, 'filled_base' => $ret->executed_value];
       }
       else
         throw new AbucoinsAPIException('place order failed');
@@ -196,11 +196,11 @@ class AbucoinsApi
       }
       if($product == null)
         throw new AbucoinsAPIException('failed to get product infos');
-      $info['min_order_size_alt'] = $product->base_min_size;
-      $info['increment'] = $product->quote_increment;
+      $info['min_order_size'] = $product->base_min_size;
+      $info['lot_size_step'] = $product->quote_lot_size_step;
       $info['fees'] = 0.1;
-      $info['min_order_size_btc'] = 0;
-      $info['alt_price_decimals'] = $info['increment'];
+      $info['min_order_size_base'] = 0;
+      $info['price_decimals'] = $info['lot_size_step'];
       return $info;
     }
 

@@ -1,6 +1,5 @@
 <?php
 
-require_once('../common/abucoin_api.php');
 require_once('../common/cryptopia_api.php');
 require_once('../common/kraken_api.php');
 require_once('../common/cobinhood_api.php');
@@ -8,113 +7,125 @@ require_once('../common/binance_api.php');
 
 date_default_timezone_set("UTC");
 
-function getMarket($market_name)
+class Product
 {
-  $market_table = [ 'abucoins' => 'AbucoinsApi',
-                    'cryptopia' => 'CryptopiaApi',
-                    'kraken' => 'KrakenApi',
-                    'cobinhood' => 'CobinhoodApi',
-                    'binance' => 'BinanceApi'
-                    ];
-  if( isset($market_table[$market_name]))
-    return new $market_table[$market_name]();
-  else throw new \Exception("Unknown market \"$market_name\"");
+  public $symbol;
+  public $alt;
+  public $base;
+  public $min_order_size;
+  public $lot_size_step;
+  public $size_decimals;
+  public $min_order_size_base;
+  public $price_decimals;
+  public $fees;
+  public $book;
+
+  public function __construct($params){
+    $this->api = $params['api'];
+    $this->alt = $params['alt'];
+    $this->base = $params['base'];
+    $this->symbol = "{$params['alt']}-{$params['base']}";
+    $this->fees = @$params['fees'];
+    $this->min_order_size = @$params['min_order_size'] ?: 0;
+    $this->lot_size_step = @$params['lot_size_step'];
+    $this->size_decimals = @$params['size_decimals'];
+    $this->min_order_size_base = @$params['min_order_size_base'] ?: 0;
+    $this->price_decimals = @$params['price_decimals'];
+    $book = null;
+  }
 }
 
-class product
+function getProductBySymbol($api, $symbol)
 {
-  public $alt;
-  public $min_order_size_alt;
-  public $min_order_size_btc;
-  public $alt_price_decimals;
-  public $fees;
-  public $increment;
-
-  public function __construct($api, $alt)
-  {
-    $this->alt = $alt;
-    $infos = $api->getProductInfo($alt);
-    $this->min_order_size_alt = $infos['min_order_size_alt'];
-    $this->increment = $infos['increment'];
-    $this->fees = $infos['fees'];
-    $this->min_order_size_btc = $infos['min_order_size_btc'];
-    $this->alt_price_decimals = isset($infos['alt_price_decimals']) ? $infos['alt_price_decimals'] : 8;
-    $this->alt_size_decimals = isset($infos['alt_size_decimals']) ? $infos['alt_size_decimals']
-                                          : strlen(substr(strrchr("{$this->increment}", "."), 1));
-  }
+  foreach($api->products as $product) {
+    if ($product->symbol == $symbol)
+      return $product;
+    }
 }
 
 class Market
 {
   public $api;
-  public $product;
-  public $book;
+  public $products;
 
-  public function __construct($api, $alt)
+  public function __construct($market_name)
   {
-    $this->api = $api;
-    $this->product = new product($api, $alt);
-    $this->book = null;
-    $api->products[$alt] = $this->product;
+    $market_table = [ 'cryptopia' => 'CryptopiaApi',
+                      'kraken' => 'KrakenApi',
+                      'cobinhood' => 'CobinhoodApi',
+                      'binance' => 'BinanceApi'
+                      ];
+    if( isset($market_table[$market_name]))
+      $this->api =  new $market_table[$market_name]();
+    else throw new \Exception("Unknown market \"$market_name\"");
 
+    $this->products = $this->api->getProductList();
   }
 
-  function refreshBook($depth_btc, $depth_alt)
+  function refreshBook($product, $depth_base, $depth_alt)
   {
-    $depth_btc = max($depth_btc, $this->product->min_order_size_btc);
-    $depth_alt = max($depth_alt, $this->product->min_order_size_alt);
-    $this->book = $this->api->getOrderBook($this->product->alt, $depth_btc, $depth_alt);
-    return $this->book;
+    $depth_base = max($depth_base, $product->min_order_size_base);
+    $depth_alt = max($depth_alt, $product->min_order_size);
+    return $this->products[$product->symbol]->book = $this->api->getOrderBook($product, $depth_alt, $depth_base);
+  }
+
+  function getBalance() {
+    $this->api->getBalance();
   }
 }
 
-function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
+function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
 {
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
+  $buy_product = $buy_market->products[$symbol];
+  $sell_product = $sell_market->products[$symbol];
+  $alt = $buy_product->alt;
+  $base = $sell_product->base;
   $alt_bal = $sell_api->balances[$alt];
-  $btc_bal = $buy_api->balances['BTC'];
+  $base_bal = $buy_api->balances[$base];
 
   if($sell_api->PriorityLevel < $buy_api->PriorityLevel) {
-    $first_api = $sell_api;
+    $first_market = $sell_market;
     $first_action = 'sell';
-    $second_api = $buy_api;
+    $second_market = $buy_market;
     $second_action = 'buy';
   }
   else {
-    $first_api = $buy_api;
+    $first_market = $buy_market;
     $first_action = 'buy';
-    $second_api = $sell_api;
+    $second_market = $sell_market;
     $second_action = 'sell';
   }
 
   $arbId = substr($sell_api->name, 0, 2) . substr($buy_api->name, 0, 2) . '_' . time();
 
-  print "start with= $first_api->name \n";
-  print "balances: $btc_bal BTC; $alt_bal $alt \n";
+  print "start with= {$first_market->api->name} \n";
+  print "balances: $base_bal $base; $alt_bal $alt \n";
 
-  $min_trade_btc = max($buy_market->product->min_order_size_btc, $sell_market->product->min_order_size_btc);
-  $min_trade_alt = max($buy_market->product->min_order_size_alt, $sell_market->product->min_order_size_alt);
+  $min_trade_base = max($buy_product->min_order_size_base, $sell_product->min_order_size_base);
+  $min_trade_alt = max($buy_product->min_order_size, $sell_product->min_order_size);
 
-  $precision = min($buy_market->product->alt_size_decimals, $sell_market->product->alt_size_decimals);
-  print "round to alt_size_decimals precision: $precision\n";
-  $tradeSize = floordec($tradeSize, $precision);
+  $size_decimals = min($buy_product->size_decimals, $sell_product->size_decimals);
+  print "truncate $tradeSize to size_decimals precision: $size_decimals\n";
+  $tradeSize = truncate($tradeSize, $size_decimals);
+  print "result: $tradeSize\n";
 
-  $btc_amount = $buy_price * $tradeSize;
+  $base_amount = $buy_price * $tradeSize;
 
-  $btc_to_spend_fee = ($btc_amount * (1 + $buy_market->product->fees/100));
-  print "btc_amount = $btc_amount , btc_to_spend_fee=$btc_to_spend_fee $alt\n";
-  if($btc_to_spend_fee > $btc_bal)//Check btc balance
+  $base_to_spend_fee = ($base_amount * (1 + $buy_product->fees/100));
+  print "base_amount = $base_amount $base, base_to_spend_fee = $base_to_spend_fee $base\n";
+  if($base_to_spend_fee > $base_bal)//Check base balance
   {
-    if($btc_bal > 0)
+    if($base_bal > 0)
     {
-      $btc_to_spend_fee = $btc_bal; //keep a minimum of btc...
-      $btc_amount = $btc_to_spend_fee * (1 - $buy_market->product->fees/100);
-      $tradeSize = floordec(($btc_amount / $buy_price),$precision);
+      $base_to_spend_fee = $base_bal;
+      $base_amount = $base_to_spend_fee * (1 - $buy_product->fees/100);
+      $tradeSize = truncate(($base_amount / $buy_price),$size_decimals);
     }
     else
     {
-      print "not enough BTC \n";
+      print "not enough $base \n";
       return 0;
     }
   }
@@ -122,21 +133,21 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   if($tradeSize > $alt_bal)//check alt balance
   {
     if($alt_bal > 0)
-      $tradeSize = floordec($alt_bal, $precision);
+      $tradeSize = truncate($alt_bal, $size_decimals);
     else
     {
       print "not enough $alt \n";
       return 0;
     }
   }
-  $btc_to_spend_fee = $buy_price*$tradeSize * (1 + $buy_market->product->fees/100);
+  $base_to_spend_fee = $buy_price * $tradeSize * (1 + $buy_product->fees/100);
 
-  print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price BTC = ".($btc_to_spend_fee)."BTC\n";
-  print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price BTC = ".($sell_price*$tradeSize)."BTC\n";
+  print "BUY $tradeSize $alt on {$buy_api->name} at $buy_price $base = ".($base_to_spend_fee)."$base\n";
+  print "SELL $tradeSize $alt on {$sell_api->name} at $sell_price $base = ".($sell_price*$tradeSize)."$base\n";
   //Some checks
-  if($btc_to_spend_fee < $min_trade_btc)
+  if($base_to_spend_fee < $min_trade_base)
   { //will be removed by tweeking orderbook feed
-    print "insufisent tradesize to process. btc_to_spend_fee=$btc_to_spend_fee min_trade_btc = $min_trade_btc BTC\n";
+    print "insufisent tradesize to process. base_to_spend_fee=$base_to_spend_fee min_trade_base = $min_trade_base $base\n";
     return 0;
   }
   if($tradeSize < $min_trade_alt)
@@ -144,11 +155,13 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     print "insufisent tradesize to process. tradeSize = $tradeSize min_trade_alt = $min_trade_alt $alt\n";
     return 0;
   }
+  print "base_to_spend_fee = $base_to_spend_fee for $tradeSize $alt\n";
 
-  $buy_price = ceiling($buy_price, 0.00000001);
-  $sell_price = floordec($sell_price, 8);
+  $buy_price = truncate($buy_price, $buy_product->price_decimals);
+  $sell_price = truncate($sell_price, $sell_product->price_decimals);
+  print "truncated: buy_price = $buy_price at {$buy_product->price_decimals} decimals sell_price =  $sell_price at {$sell_product->price_decimals} decimals\n";
 
-  print "btc_to_spend_fee = $btc_to_spend_fee for $tradeSize $alt\n";
+  print "base_to_spend_fee = $base_to_spend_fee for $tradeSize $alt\n";
 
   $price = $first_action == 'buy' ? $buy_price : $sell_price;
 
@@ -156,16 +169,16 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
   while(true)
   {
     try{
-      $order_status = $first_api->place_order('limit', $alt, $first_action, $price, $tradeSize, $arbId);
+      $order_status = $first_market->api->place_order($first_market->products[$symbol], 'limit', $first_action, $price, $tradeSize, $arbId);
       break;
     }
     catch(Exception $e){
        print ("unable to $first_action retrying...: $e\n");
        $err = $e->getMessage();
-       if( $err != 'no response from api' || $err != 'EAPI:Invalid nonce' )
-         print_dbg("unable to $first_action $alt (first action) [$err] on {$first_api->name}: tradeSize=$tradeSize at $price. try $i");
+       // if( $err != 'no response from api' || $err != 'EAPI:Invalid nonce' )
+       //   print_dbg("unable to $first_action $alt (first action) [$err] on {$first_market->api->name}: tradeSize=$tradeSize at $price. try $i");
 
-       if($i == 5 || $err == 'ERROR: Insufficient Funds.' || $err == 'Market is closed.')
+       if($i == 5 || $err == 'ERROR: Insufficient Funds.' || $err == 'Market is closed.' || $err == 'EOrder:Insufficient Funds.')
          throw new \Exception("unable to $first_action. [$err]");
        if ($err == 'Rest API trading is not enabled.')
          throw new \Exception($err);
@@ -186,7 +199,7 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
     while(true) {
       try {
         $price = $second_action == 'buy' ? $buy_price : $sell_price;
-        $second_status = $second_api->place_order('market',$alt, $second_action, $price, $tradeSize, $arbId);
+        $second_status = $second_market->api->place_order($second_market->products[$symbol], 'market', $second_action, $price, $tradeSize, $arbId);
         break;
       }
       catch(Exception $e) {
@@ -198,24 +211,24 @@ function do_arbitrage($alt, $sell_market, $sell_price, $buy_market, $buy_price, 
          if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance'|| $err == 'ERROR: Insufficient Funds.' ||
             $err == 'Account has insufficient balance for requested action.')
          {
-           $second_api->getBalance();
-           print_dbg("Insufficient funds to $second_action $tradeSize $alt @ $price , btc_bal:{$second_api->balances['BTC']} alt_bal:{$second_api->balances[$alt]}");
+           $second_market->getBalance();
+           print_dbg("Insufficient funds to $second_action $tradeSize $alt @ $price , base_bal:{$second_market->api->balances[$base]} alt_bal:{$second_market->api->balances[$alt]}");
            if($second_action == 'buy')
            {
-             $btc_bal = $second_api->balances['BTC'];
+             $base_bal = $second_market->api->balances[$base];
              //price may be not relevant anymore. moreover we want a market order
-             $book = $buy_market->refreshBook($btc_bal,$tradeSize);
-             $tradeSize = min(floordec($btc_bal / ($book['asks']['order_price'] * (1 + $buy_market->product->fees/100)) , $precision), $tradeSize);
+             $book = $buy_market->refreshBook($buy_product, $base_bal, $tradeSize);
+             $tradeSize = min(truncate($base_bal / ($book['asks']['order_price'] * (1 + $buy_product->fees/100)) , $size_decimals), $tradeSize);
              $buy_price = $book['asks']['order_price'];
            } else {
-             $alt_bal = $second_api->balances[$alt];
-             $tradeSize = floordec($alt_bal, $precision);
+             $alt_bal = $second_market->api->balances[$alt];
+             $tradeSize = truncate($alt_bal, $size_decimals);
            }
-           print_dbg("new tradesize: $tradeSize, price $price");
+           print_dbg("new tradesize: $tradeSize, new price $buy_price");
          }
          // if( $err != 'no response from api' && $err != 'EAPI:Invalid nonce' )
          // {
-         //   print_dbg("unable to $second_action $alt (second action) [$err] on {$second_api->name}: tradeSize=$tradeSize at $price. try $i");
+         //   print_dbg("unable to $second_action $alt (second action) [$err] on {$second_market->api->name}: tradeSize=$tradeSize at $price. try $i");
          // }
          if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size' ||
              $err == 'Filter failure: MIN_NOTIONAL' || $err == 'balance_locked' || $err == 'try_again_later')
@@ -245,27 +258,30 @@ function ceiling($number, $significance = 1)
     return ( is_numeric($number) && is_numeric($significance) ) ? (ceil($number/$significance)*$significance) : false;
 }
 
-function floordec($number,$precision = 0)
+function truncate($number, $decimals)
 {
-  if($precision == 0)
-    return floor($number);
-  return floor($number*pow(10,$precision))/pow(10,$precision);
+  return floatval(bcdiv(number_format($number,8,'.',''), 1, $decimals));
 }
 
-function findCommonProducts($market1, $market2)
+function getCommonProducts($market1, $market2)
 {
-  return array_values(array_intersect($market1->getProductList(), $market2->getProductList()));
+  $symbols1 = array_keys($market1->products);
+  $symbols2 = array_keys($market2->products);
+
+  return array_values(array_intersect($symbols1, $symbols2));
 }
 
 function computeGains($buy_price, $fees1, $sell_price, $fees2, $tradeSize)
 {
-    $spend_btc_unit = $buy_price*((100+$fees2)/100);
-    $sell_btc_unit = $sell_price*((100-$fees1)/100);
-    $gain_per_unit = $sell_btc_unit - $spend_btc_unit;
-    $gain_percent = (($sell_btc_unit / $spend_btc_unit)-1)*100;
-    $gain_btc = $tradeSize * $gain_per_unit;
+    if (empty($buy_price) || empty($sell_price) || empty($tradeSize))
+      return null;
+    $spend_base_unit = $buy_price*((100+$fees2)/100);
+    $sell_base_unit = $sell_price*((100-$fees1)/100);
+    $gain_per_unit = $sell_base_unit - $spend_base_unit;
+    $gain_percent = (($sell_base_unit / $spend_base_unit)-1)*100;
+    $gain_base = $tradeSize * $gain_per_unit;
     return ['percent' => $gain_percent,
-            'btc' => $gain_btc ];
+            'base' => $gain_base ];
 }
 
 function print_dbg($dbg_str, $print_stderr = false)

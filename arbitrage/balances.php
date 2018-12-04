@@ -9,8 +9,19 @@ function sortBalance($a, $b)
 }
 
 
-foreach(['cryptopia','kraken', 'cobinhood', 'binance'] as $api)
-  $apis[$api] = getMarket($api);
+foreach(['cryptopia','kraken', 'cobinhood', 'binance'] as $api) {
+  $i=0;
+  while ($i < 5) {
+    try {
+      $markets[$api] = new Market($api);
+      $markets[$api]->getBalance();
+      break;
+    } catch (Exception $e) {
+      $i++;
+      print "failed to get {$markets[$api]->api->name} infos. [{$e->getMessage()}]\n";
+    }
+  }
+}
 
 //$ticker = json_decode(file_get_contents("https://api.99cryptocoin.com/v1/ticker"), true);
 $cryptoInfo = [];
@@ -21,21 +32,10 @@ else {
   $btc_price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=EUR"), true);
   $balances = [];
   $total_btc = 0;
-  foreach( $apis as $exchange) {
-    $i=0;
-    while ($i < 5) {
-      try {
-        $exchange->getBalance();
-        break;
-      } catch (Exception $e) {
-          $i++;
-          print "failed to get {$exchange->name} infos. [{$e->getMessage()}]\n";
-        }
-    }
-
+  foreach( $markets as $market) {
     $crypto_string = '';
     $prices = [];
-    foreach($exchange->balances as $alt => $bal) {
+    foreach($market->api->balances as $alt => $bal) {
       if($bal > 0) {
         if (strlen("{$crypto_string},{$alt}") < 300) {
           $crypto_string .= empty($crypto_string) ? "$alt" : ",{$alt}";
@@ -47,15 +47,15 @@ else {
     }
     $prices = array_merge(json_decode(file_get_contents("https://min-api.cryptocompare.com/data/pricemulti?fsyms={$crypto_string}&tsyms=BTC"), true));
 
-    foreach($exchange->balances as $alt => $bal)
+    foreach($market->api->balances as $alt => $bal)
       if($bal >0) {
         if( ($key = array_search($alt, array_column($balances, 'alt'))) !== false) {
           $cryptoInfo = $balances[$key];
           $cryptoInfo['bal'] += $bal;
         } else {
+          $cryptoInfo['alt'] = $alt;
           $cryptoInfo['bal'] = $bal;
         }
-        $cryptoInfo['alt'] = $alt;
 
         if (isset($prices[$alt]['BTC'])) {
           $cryptoInfo['btc'] = $cryptoInfo['bal'] * $prices[$alt]['BTC'];
@@ -107,7 +107,7 @@ var_dump("price= {$price['BTC']}");
 
 $Cashroll = 0;
 foreach ( $apis as $api) {
-  $bal = in_array($crypto, $api->getProductList()) ? $api->getBalance($crypto) : 0;
+  $bal = array_key_exists($crypto, $api->balances) ? $api->balances[$crypto] : 0;
   print $api->name . ": ". $bal . "$crypto\n";
   $Cashroll += $bal;
 }
