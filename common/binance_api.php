@@ -188,12 +188,20 @@ class BinanceApi
       //var_dump($product);
       if($product == null)
         throw new BinanceAPIException('failed to get product infos');
-      $info['min_order_size_alt'] = floatval($product["filters"][1]["minQty"]);
-      $info['increment'] = floatval($product["filters"][1]["stepSize"]);
+        foreach($product['filters'] as $filter) {
+          if ($filter['filterType'] == 'PRICE_FILTER') {
+            $info['alt_price_decimals'] = strlen(substr(strrchr(rtrim($filter['tickSize'],0), "."), 1));
+          }
+          if ($filter['filterType'] == 'LOT_SIZE') {
+            $info['min_order_size_alt'] = floatval($filter['minQty']);
+            $info['alt_size_decimals'] = strlen(substr(strrchr(rtrim($filter['stepSize'],0), "."), 1));
+            $info['increment'] = floatval($filter['stepSize']);
+          }
+          if ($filter['filterType'] == 'MIN_NOTIONAL') {
+            $info['min_order_size_btc'] = floatval($filter['minNotional']);
+          }
+        }
       $info['fees'] = 0.075;
-      $info['min_order_size_btc'] = floatval($product["filters"][2]["minNotional"]);
-      $info['alt_size_decimals'] = strlen(substr(strrchr(rtrim($product["filters"][1]["stepSize"],0), "."), 1));
-      $info['alt_price_decimals'] = strlen(substr(strrchr(rtrim($product["filters"][0]["tickSize"],0), "."), 1));
 
       return $info;
     }
