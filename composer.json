@@ -1,0 +1,19 @@
+{
+    "name": "peterjah/abucoin",
+    "version": "0.0.1",
+    "description": "Multi exchange arbitrage bot",
+    "keywords": ["arbitrage", "bot", "binance", "cryptopia", "kraken", "cobinhood", "cryptocurrency", "php"],
+    "homepage": "https://github.com/peterjah/abucoin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Pierr Seznec",
+            "email": "petterseznec@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.0.32",
+	"php-bcmath": ">=1.7.0",
+	"php-curl": ">=1.7.0"
+    },
+} 
