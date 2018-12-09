@@ -364,6 +364,23 @@ class KrakenApi
                 'REP-ETH' => 'XREPXETH',
                 'MLN-ETH' => 'XMLNXETH',
                 'XTZ-ETH' => 'XTZETH',
+                'ZEC-USD' => 'XZECZUSD',
+                'XRP-USD' => 'XXRPZUSD',
+                'XRP-USD' => 'XXRPZUSD',
+                'XMR-USD' => 'XXMRZUSD',
+                'XLM-USD' => 'XXLMZUSD',
+                'BTC-USD' => 'XXBTZUSD',
+                'XTZ-USD' => 'XTZUSD',
+                'REP-USD' => 'XREPZUSD',
+                'LTC-USD' => 'XLTCZUSD',
+                'ETC-USD' => 'XETCZUSD',
+                'QTUM-USD' => 'QTUMUSD',
+                'GNO-USD' => 'GNOUSD',
+                'EOS-USD' => 'EOSUSD',
+                'DASH-USD' => 'DASHUSD',
+                'BSV-USD' => 'BSVUSD',
+                'BCH-USD' => 'BCHUSD',
+                'ADA-USD' => 'ADAUSD',
                 ];
     if(array_key_exists($product->symbol,$table))
       return $table[$product->symbol];

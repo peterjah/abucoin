@@ -355,6 +355,7 @@ class BinanceApi
     {
       $table = ['BSV' => 'BCHSV',
                 'BCH' => 'BCHABC',
+                'USD' => 'PAX',
                 ];
       if($reverse)
         $table = array_flip($table);
