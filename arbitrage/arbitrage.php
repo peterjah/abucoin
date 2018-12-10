@@ -83,6 +83,13 @@ while(true) {
       catch (Exception $e){}
     try {$market2->api->getBalance();}
       catch (Exception $e){}
+
+    try {
+      foreach([$market1, $market2] as $market)
+        //refresh product infos
+        if($market instanceof CobinhoodApi)
+          $market->api->getProductList();
+      } catch (Exception $e){}
   }
 
   $btc_cash_roll = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];

@@ -381,6 +381,7 @@ class KrakenApi
                 'BSV-USD' => 'BSVUSD',
                 'BCH-USD' => 'BCHUSD',
                 'ADA-USD' => 'ADAUSD',
+                'USDT-USD' => 'USDTZUSD'
                 ];
     if(array_key_exists($product->symbol,$table))
       return $table[$product->symbol];

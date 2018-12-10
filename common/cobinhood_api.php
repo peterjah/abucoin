@@ -126,10 +126,10 @@ class CobinhoodApi
                     'base' => $base,
                     'fees' => $product['maker_fee'],
                     'price_decimals' => strlen(substr(strrchr(rtrim($product['quote_increment'],0), "."), 1)),
-                    'min_order_size' => floatval($product['base_min_size']),
+                    'min_order_size' => floatval($product['base_min_size']),//=20$
                     'lot_size_step' => floatval($product['quote_increment']),
                     'min_order_size_base' => 0,
-                    'size_decimals' => 8,
+                    'size_decimals' => strlen(substr(strrchr(self::minimumAltTrade($alt), "."), 1)),
                   ];
         $product = new Product($params);
         $list[$product->symbol] = $product;
@@ -141,6 +141,19 @@ class CobinhoodApi
       }
       $this->products = $list;
       return $list;
+    }
+
+    static function minimumAltTrade($crypto)
+    {
+      $table = ['TRX' => 0.000001,
+                'USDT' => 0.000001,
+                'BCH' => 0.000002,
+              ];
+
+    if(array_key_exists($crypto,$table))
+      return $table[$crypto];
+    else
+      return 0.00000001;
     }
 
     function getOrderBook($product, $depth_alt = 0, $depth_base = 0)
@@ -210,9 +223,10 @@ class CobinhoodApi
           else {
             sleep(3);
             $status2 = $this->getOrderStatus($product, $status['id']);
-            if(empty($status2)) {
+            var_dump($status2);
+            if (empty($status2)) {
               //check closed orders
-              $status2 = $this->getOrdersHistory(['alt' => $alt, 'base' => $base, 'id' => $status['id']]);
+              $status2 = $this->getOrdersHistory(['alt' => $alt, 'base' => $base, 'id' => $status['id']])[0];
               var_dump($status2);
               print_dbg("checking history: {$status2['status']}");
               if($status2['status'] != 'rejected') {
@@ -233,7 +247,7 @@ class CobinhoodApi
                 $price = $status2['price'];
               } else {
                   $filled_size = $size;
-                  $filled_base = $filled_size * floatval($status['price']);
+                  $filled_base = $filled_size * floatval($status2['price']);
                 }
             }
             print_dbg("order status state: {$status2['status']} filled_size = $filled_size");
