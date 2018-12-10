@@ -8,7 +8,7 @@ function sortBalance($a, $b)
   return ($a["btc_percent"] < $b["btc_percent"]) ? 1 : -1;
 }
 
-
+$markets = [];
 foreach(['cryptopia','kraken', 'cobinhood', 'binance'] as $api) {
   $i=0;
   while ($i < 5) {
@@ -106,9 +106,9 @@ $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/p
 var_dump("price= {$price['BTC']}");
 
 $Cashroll = 0;
-foreach ( $apis as $api) {
-  $bal = array_key_exists($crypto, $api->balances) ? $api->balances[$crypto] : 0;
-  print $api->name . ": ". $bal . "$crypto\n";
+foreach ( $markets as $market) {
+  $bal = array_key_exists($crypto, $market->api->balances) ? $market->api->balances[$crypto] : 0;
+  print $market->api->name . ": ". $bal . "$crypto\n";
   $Cashroll += $bal;
 }
 print ("Cashroll: $Cashroll $crypto = ".($Cashroll*$price['BTC'])."BTC\n");
