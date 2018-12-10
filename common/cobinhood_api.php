@@ -212,13 +212,16 @@ class CobinhoodApi
             $status2 = $this->getOrderStatus($product, $status['id']);
             if(empty($status2)) {
               //check closed orders
-              $status2 = $this->getOrdersHistory(['alt' => $alt, 'base' => $base, 'since' => 15]);
-              print_dbg("checking history: {$trades[0]['status']}");
-              if($status2[0]['status'] != 'rejected') {
-                $filled_size += $trades[0]['filled'];
-                $filled_base += $trades[0]['filled_base'];
+              $status2 = $this->getOrdersHistory(['alt' => $alt, 'base' => $base, 'id' => $status['id']]);
+              var_dump($status2);
+              print_dbg("checking history: {$status2['status']}");
+              if($status2['status'] != 'rejected') {
+                $filled_size = $status2['filled'];
+                $filled_base = $status2['filled_base'];
+                $price = $status2['price'];
               }
               else {
+                usleep(100000);
                 throw new CobinhoodAPIException("Order rejected");
               }
 
@@ -227,6 +230,7 @@ class CobinhoodApi
               if($this->cancelOrder($product, $status['id'])) {
                 $filled_size = $status2['filled'];
                 $filled_base = $status2['filled_base'];
+                $price = $status2['price'];
               } else {
                   $filled_size = $size;
                   $filled_base = $filled_size * floatval($status['price']);
@@ -234,9 +238,9 @@ class CobinhoodApi
             }
             print_dbg("order status state: {$status2['status']} filled_size = $filled_size");
           }
-          if($status['state'] != 'open' && $status2[0]['status'] != 'rejected')
-            $this->save_trade($status['id'], $product, $side, $size, $price, $tradeId);
-          return ['filled_size' => $size, 'id' => $status['id'], 'filled_base' => null, 'price' => $price];
+          if($filled_size > 0)
+            $this->save_trade($status['id'], $product, $side, $filled_size, $price, $tradeId);
+          return ['filled_size' => $filled_size, 'id' => $status['id'], 'filled_base' => $filled_base, 'price' => $price];
         }
         else
           return ['filled_size' => 0, 'id' => null, 'filled_base' => null, 'price' => $price];
@@ -316,25 +320,23 @@ class CobinhoodApi
       $params['page'] = 1;
       $params['limit'] = 12;
 
-      if(isset($filter['alt']))
-      {
+      if(isset($filter['alt'])) {
         $params['trading_pair_id'] = self::crypto2cobinhood($filter['alt'])."-".self::crypto2cobinhood($filter['base']);
       }
 
       $i=0;
-      while($i<8)
-      {
-        try{
+      while($i<8) {
+        try {
           $trades = $this->jsonRequest('GET', '/trading/order_history', $params);
           break;
         }catch (Exception $e){ $i++; usleep(500000); print_dbg("Failed to getOrdersHistory. [{$e->getMessage()}]..$i");}
       }
       if($trades['success']) {
         $status = [];
-        $trades = $trades['result']['orders'];
-        foreach($trades as $idx => $order)
+        foreach($trades['result']['orders'] as $idx => $order)
         {
-          if( !isset($filter['since']) || ((time() - strtotime($order['completed_at'])) < $filter['since']) ) {
+          if( isset($filter['since']) && ((time() - strtotime($order['completed_at'])) < $filter['since']) ||
+              $filter['id'] == $order['id']) {
             $side_translate = array_flip($this->side_translate);
             $status[] = [ 'id' => $order['id'],
                         'side' => $side_translate[$order['side']],
@@ -343,7 +345,7 @@ class CobinhoodApi
                         'filled_base' => floatval($order['filled']) * $order['eq_price'],
                         'price' => $order['eq_price']
                       ];
-
+            var_dump($status);
           }
         }
         print_dbg("{$this->name} getOrdersHistory: " . count($status) . " trades found in history");
