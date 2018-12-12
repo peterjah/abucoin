@@ -139,18 +139,17 @@ function do_solve($markets, $symbol, $side, $ops, $traded)
 
     $book = $market->refreshBook($product, 0, $size);
 
-    $do_solve = false;
     if ($side == 'buy') {
       $book = $book['bids'];
       $action = 'sell';
-      $do_solve = ($book['price']*(1 - $product->fees/100)) > $traded['price'];
+      $expected_gains = computeGains($traded['price'], $traded['mean_fees'], $book['price'], $product->fees, $size);
       if ($alt_bal < $size)
         continue;
     }
     else {
       $action = 'buy';
       $book = $book['asks'];
-      $do_solve = ($book['price']*(1 + $product->fees/100)) < $traded['price'];
+      $expected_gains = computeGains($book['price'], $product->fees, $traded['price'], $traded['mean_fees'], $size);
       if ($base_bal < $size * $book['price'])
         continue;
     }
@@ -159,10 +158,11 @@ function do_solve($markets, $symbol, $side, $ops, $traded)
     if($size * $book['price'] < $product->min_order_size_base)
       continue;
 
-    if($do_solve) {
+    if($expected_gains['base'] > 0) {
       $i=0;
       while($i<6) {
         try {
+          print_dbg("Trade cleaner: $action $size $product->alt @ {$book['price']} $product->base");
           $status = $api->place_order($product, 'market', $action, $book['order_price'], $size, 'solved');
           break;
         } catch(Exception $e) {
@@ -175,10 +175,10 @@ function do_solve($markets, $symbol, $side, $ops, $traded)
         if ($op['side'] == $side)
           file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
       }
-      $gains = computeGains( $traded['price'], $traded['mean_fees'], $status['price'], $product->fees, $size);
-      print_dbg("solved on $api->name: buy_size:{$size} $product->alt, mean_buy_price:{$traded['price']}, mean_fees:{$traded['mean_fees']}, price:{$status['price']} $product->base");
+      $gains = computeGains( $traded['price'], $traded['mean_fees'], $status['price'], $product->fees, $status['filled_size']);
+      print_dbg("solved on $api->name: buy_size:{$status['filled_size']} $product->alt, mean_buy_price:{$traded['price']}, mean_fees:{$traded['mean_fees']}, price:{$status['price']} $product->base");
 
-      $trade_str = date("Y-m-d H:i:s").": {$gains['base']} $product->base {$gains['percent']}%\n";
+      $trade_str = date("Y-m-d H:i:s").": {$gains['base']} $product->base {$expected_gains['percent']}% ({$gains['percent']}%)\n";
       file_put_contents('gains',$trade_str,FILE_APPEND);
       $market->api->getBalance();
       break;
