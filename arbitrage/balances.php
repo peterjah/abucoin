@@ -88,14 +88,17 @@ else {
    exit();
 }
 
-
 $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$crypto}&tsyms=BTC"), true);
 var_dump("price= {$price['BTC']}");
 
 $Cashroll = 0;
 foreach ( $markets as $market) {
-  $bal = array_key_exists($crypto, $market->api->balances) ? $market->api->balances[$crypto] : 0;
-  print $market->api->name . ": ". $bal . "$crypto\n";
-  $Cashroll += $bal;
+  if(array_key_exists($crypto, $market->api->balances)) {
+    $bal =  $market->api->balances[$crypto];
+    $Cashroll += $bal;
+  } else {
+    $bal = 'N/A';
+  }
+  print $market->api->name . ": ". $bal . " $crypto\n";
 }
 print ("Cashroll: $Cashroll $crypto = ".($Cashroll*$price['BTC'])."BTC\n");
