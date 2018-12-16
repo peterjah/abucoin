@@ -88,7 +88,7 @@ while(true) {
       foreach([$market1, $market2] as $market)
         //refresh product infos
         if($market instanceof CobinhoodApi)
-          $market->api->getProductList();
+          $market->updateProductList();
       } catch (Exception $e){}
   }
 

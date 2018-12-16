@@ -11,7 +11,7 @@ class CryptopiaApi
     protected $curl;
     public $nApicalls;
     public $name;
-    public $products;
+    protected $products;
     public $balances;
 
     public function __construct()
@@ -152,7 +152,7 @@ class CryptopiaApi
         try{
           $open_orders = $this->jsonRequest('POST', 'GetOpenOrders', $params);
           break;
-        }catch (Exception $e){ $i++; usleep(50000); print_dbg("Failed to GetOpenOrders. [{$e->getMessage()}]..$i");}
+        }catch (Exception $e){ $i++; usleep(50000); /*print_dbg("Failed to GetOpenOrders. [{$e->getMessage()}]..$i");*/}
       }
       if(isset($filter['since']))//in seconds
       {
@@ -410,7 +410,19 @@ class CryptopiaApi
    {
      $id = "{$product->alt}_{$product->base}";
      $ordercount = 25;
-     $book = $this->jsonRequest('GET', "GetMarketOrders/{$id}/$ordercount");
+     $i=0;
+     while (true) {
+       try {
+         $book = $this->jsonRequest('GET', "GetMarketOrders/{$id}/$ordercount");
+         break;
+       } catch (Exception $e) {
+         if($i > 8)
+           throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
+         $i++;
+         print "{$this->name}: failed to get order book. retry $i...\n";
+         usleep(50000);
+       }
+     }
      //var_dump($book);
      if(!isset($book->Sell, $book->Buy))
        return null;

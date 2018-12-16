@@ -72,6 +72,9 @@ class Market
   function getBalance() {
     $this->api->getBalance();
   }
+  function updateProductList() {
+    $this->products = $this->api->getProductList();
+  }
 }
 
 function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $tradeSize)
@@ -207,7 +210,11 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
 
          var_dump($second_status);
          $err = $e->getMessage();
-
+         if($err == 'Order status: rejected') {
+           print_dbg("Cobinhood order rejected. update products");
+           $second_market->updateProductList();
+           $second_market->getBalance();
+         }
          if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance'|| $err == 'ERROR: Insufficient Funds.' ||
             $err == 'Account has insufficient balance for requested action.')
          {
@@ -222,7 +229,7 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
              $buy_price = $book['asks']['order_price'];
            } else {
              $alt_bal = $second_market->api->balances[$alt];
-             $tradeSize = truncate($alt_bal, $size_decimals);
+             $tradeSize = truncate($alt_bal* (1 - $sell_product->fees/100), $size_decimals);
            }
            print_dbg("new tradesize: $tradeSize, new price $buy_price");
          }

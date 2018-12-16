@@ -80,56 +80,55 @@ while(1) {
     }
     fclose($handle);
   }
-//init api
-$markets = [];
-foreach( ['binance','kraken','cobinhood','cryptopia'] as $name) {
-  $i=0;
-  while($i<6) {
-    try{
-      $markets[$name] = new Market($name);
-      $markets[$name]->api->getBalance();
-      break;
-    } catch(Exception $e) {
-      print "failed to get market $name: $e \n";
-      usleep(500000);
-      $i++;
+if(@$autoSolve) {
+  //init api
+  $markets = [];
+  foreach( ['binance','kraken','cobinhood','cryptopia'] as $name) {
+    $i=0;
+    while($i<6) {
+      try{
+        $markets[$name] = new Market($name);
+        $markets[$name]->api->getBalance();
+        break;
+      } catch(Exception $e) {
+        print "failed to get market $name: $e \n";
+        usleep(500000);
+        $i++;
+      }
     }
   }
 }
-
-  foreach($ledger as $symbol => $trades) {
-    $mean_sell_price = $sell_size = 0;
-    $mean_buy_price = $buy_size = 0;
-    $balance = 0;
-    if(count($trades)) {
-      print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
-      $traded = getFailedTrades($markets, $symbol, $trades);
-      foreach (['buy','sell'] as $side ) {
-        if (($size = @$traded[$side]['size']) > 0) {
-          @$balance += $side == 'buy' ? $size : -1 * $size;
-          print "$side: size= {$size} price= {$traded[$side]['price']} mean_fee= {$traded[$side]['mean_fees']}\n";
-          if (@$autoSolve) {
-            do_solve($markets, $symbol, $side, $trades, $traded[$side]);
-          }
+foreach($ledger as $symbol => $trades) {
+  $mean_sell_price = $sell_size = 0;
+  $mean_buy_price = $buy_size = 0;
+  $balance = 0;
+  if(count($trades)) {
+    print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
+    $traded = getFailedTrades(@$markets, $symbol, $trades);
+    foreach (['buy','sell'] as $side ) {
+      if (($size = @$traded[$side]['size']) > 0) {
+        @$balance += $side == 'buy' ? $size : -1 * $size;
+        print "$side: size= {$size} price= {$traded[$side]['price']} mean_fee= {$traded[$side]['mean_fees']}\n";
+        if (@$autoSolve) {
+          do_solve($markets, $symbol, $side, $traded[$side]);
         }
       }
-      print("balance: $balance\n");
-
     }
+    print("balance: $balance\n");
   }
+}
 
 if(@$autoSolve)
-  sleep(3600);
+  sleep(1800);
 else
   break;
 }
 
-function do_solve($markets, $symbol, $side, $ops, $traded)
+function do_solve($markets, $symbol, $side, $traded)
 {
   print "trying to solve tx..\n";
   $size = $traded['size'];
   foreach($markets as $market) {
-    print "try with {$market->api->name}...\n";
     $api = $market->api;
     if(!isset($market->products[$symbol]))
       continue;
@@ -153,6 +152,7 @@ function do_solve($markets, $symbol, $side, $ops, $traded)
       if ($base_bal < $size * $book['price'])
         continue;
     }
+    print "try with {$market->api->name}... price: {$book['price']} {$product->base}\n";
     if($size < $product->min_order_size )
       continue;
     if($size * $book['price'] < $product->min_order_size_base)
@@ -171,17 +171,21 @@ function do_solve($markets, $symbol, $side, $ops, $traded)
           $i++;
         }
       }
-      foreach($ops as $id => $op) {
-        if ($op['side'] == $side)
+      if ($status['filled_size'] > 0) {
+        foreach($traded['ids'] as $id ) {
           file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
+        }
+        if ($action == 'buy') {
+          $gains = computeGains( $status['price'], $product->fees, $traded['price'], $traded['mean_fees'], $status['filled_size']);
+        } else {
+          $gains = computeGains( $traded['price'], $traded['mean_fees'], $status['price'], $product->fees, $status['filled_size']);
+        }
+        print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, mean_price:{$traded['price']}, mean_fees:{$traded['mean_fees']}, price:{$status['price']} $product->base");
+        $trade_str = date("Y-m-d H:i:s").": {$gains['base']} $product->base {$expected_gains['percent']}% ({$gains['percent']}%)\n";
+        file_put_contents('gains',$trade_str,FILE_APPEND);
+        $market->api->getBalance();
+        break;
       }
-      $gains = computeGains( $traded['price'], $traded['mean_fees'], $status['price'], $product->fees, $status['filled_size']);
-      print_dbg("solved on $api->name: buy_size:{$status['filled_size']} $product->alt, mean_buy_price:{$traded['price']}, mean_fees:{$traded['mean_fees']}, price:{$status['price']} $product->base");
-
-      $trade_str = date("Y-m-d H:i:s").": {$gains['base']} $product->base {$expected_gains['percent']}% ({$gains['percent']}%)\n";
-      file_put_contents('gains',$trade_str,FILE_APPEND);
-      $market->api->getBalance();
-      break;
     }
   }
 }
@@ -193,14 +197,15 @@ function getFailedTrades($markets, $symbol, $ops)
     $ret[$side]['size'] = 0;
     $ret[$side]['price'] = 0;
     $ret[$side]['mean_fees'] = 0;
-    foreach($ops as $op) {
+    foreach($ops as $id => $op) {
       if ($op['side'] != $side)
         continue;
       $market = $markets[$op['exchange']];
-      $product = $market->products[$symbol];
+      $product = @$market->products[$symbol];
       $ret[$side]['price'] = ($ret[$side]['price'] * $ret[$side]['size'] + $op['price'] * $op['size']) / ( $ret[$side]['size'] + $op['size'] );
-      $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + $product->fees*$op['size']) / ($ret[$side]['size'] + $op['size']);
+      $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + @$product->fees*$op['size']) / ($ret[$side]['size'] + $op['size']);
       $ret[$side]['size'] += $op['size'];
+      $ret[$side]['ids'][] = $id;
       print($op['line']);
     }
   }

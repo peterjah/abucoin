@@ -12,7 +12,7 @@ class BinanceApi
     protected $account_id;
     public $nApicalls;
     public $name;
-    public $products;
+    protected $products;
     public $balances;
 
     protected $default_curl_opt = [
@@ -104,7 +104,7 @@ class BinanceApi
     {
       $res = [];
       $i=0;
-      while ( true ) {
+      while (true) {
         try {
           $balances = $this->jsonRequest('GET', "v3/account");
           if( isset($balances['balances']))
@@ -175,10 +175,23 @@ class BinanceApi
 
     function getOrderBook($product, $depth_alt = 0, $depth_base = 0)
     {
+
+
       $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
       $max_orders = 50;
-      $book = $this->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => $max_orders]);
-
+      $i=0;
+      while (true) {
+        try {
+          $book = $this->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => $max_orders]);
+          break;
+        } catch (Exception $e) {
+          if($i > 8)
+            throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
+          $i++;
+          print "{$this->name}: failed to get order book. retry $i...\n";
+          usleep(50000);
+        }
+      }
       if(!isset($book['asks'][0][0], $book['bids'][0][0]))
         return null;
       foreach( ['asks', 'bids'] as $side)

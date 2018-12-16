@@ -11,7 +11,7 @@ class KrakenApi
     protected $curl;    // curl handle
     public $nApicalls;
     public $name;
-    public $products;
+    protected $products;
     public $balances;
 
     public function __construct()
@@ -393,7 +393,19 @@ class KrakenApi
     {
       $id = $this->getPair($product);
       $ordercount = 25;
-      $book = $this->jsonRequest('Depth',['pair' => $id, 'count' => $ordercount]);
+      $i=0;
+      while (true) {
+        try {
+            $book = $this->jsonRequest('Depth',['pair' => $id, 'count' => $ordercount]);
+            break;
+          } catch (Exception $e) {
+            if($i > 8)
+              throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
+            $i++;
+            print "{$this->name}: failed to get order book. retry $i...\n";
+            usleep(50000);
+          }
+        }
 
       if(count($book['error']))
         throw new KrakenAPIException($book['error'][0]);

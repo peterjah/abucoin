@@ -12,7 +12,7 @@ class CobinhoodApi
     protected $account_id;
     public $nApicalls;
     public $name;
-    public $products;
+    protected $products;
     public $balances;
 
     protected $side_translate = ['sell' => 'ask', 'buy' => 'bid'];
@@ -160,7 +160,19 @@ class CobinhoodApi
     {
       $symbol = self::crypto2Cobinhood($product->alt) ."-". self::crypto2Cobinhood($product->base);
       $limit = ['limit' => 50];
-      $book = $this->jsonRequest('GET', "/market/orderbooks/{$symbol}", $limit)['result']['orderbook'];
+      $i=0;
+      while (true) {
+        try {
+            $book = $this->jsonRequest('GET', "/market/orderbooks/{$symbol}", $limit)['result']['orderbook'];
+            break;
+          } catch (Exception $e) {
+            if($i > 8)
+              throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
+            $i++;
+            print "{$this->name}: failed to get order book. retry $i...\n";
+            usleep(50000);
+          }
+        }
 
       if(!isset($book['asks'][0][0], $book['bids'][0][0]))
         return null;
@@ -229,16 +241,13 @@ class CobinhoodApi
               $status2 = $this->getOrdersHistory(['alt' => $alt, 'base' => $base, 'id' => $status['id']])[0];
               var_dump($status2);
               print_dbg("checking history: {$status2['status']}");
-              if($status2['status'] != 'rejected') {
+              if ($status2['status'] == 'filled') {
                 $filled_size = $status2['filled'];
                 $filled_base = $status2['filled_base'];
                 $price = $status2['price'];
+              } else {
+                throw new CobinhoodAPIException("Order status: {$status2['status']}");
               }
-              else {
-                usleep(100000);
-                throw new CobinhoodAPIException("Order rejected");
-              }
-
             }
             else {
               if($this->cancelOrder($product, $status['id'])) {
