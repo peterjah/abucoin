@@ -110,10 +110,6 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
   $min_trade_alt = max($buy_product->min_order_size, $sell_product->min_order_size);
 
   $size_decimals = min($buy_product->size_decimals, $sell_product->size_decimals);
-  print "truncate $tradeSize to size_decimals precision: $size_decimals\n";
-  $tradeSize = truncate($tradeSize, $size_decimals);
-  print "result: $tradeSize\n";
-
   $base_amount = $buy_price * $tradeSize;
 
   $base_to_spend_fee = ($base_amount * (1 + $buy_product->fees/100));
@@ -164,6 +160,9 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
   $sell_price = truncate($sell_price, $sell_product->price_decimals);
   print "truncated: buy_price = $buy_price at {$buy_product->price_decimals} decimals sell_price =  $sell_price at {$sell_product->price_decimals} decimals\n";
 
+  print "truncate $tradeSize to size_decimals precision: $size_decimals\n";
+  $tradeSize = truncate($tradeSize, $size_decimals);
+  print "result: $tradeSize\n";
   print "base_to_spend_fee = $base_to_spend_fee for $tradeSize $alt\n";
 
   $price = $first_action == 'buy' ? $buy_price : $sell_price;

@@ -265,18 +265,16 @@ class KrakenApi
       $type = 'market';
       $pair = $this->getPair($product);
       // safety check
-      if($side == 'buy' && $price > 0) {
-        $bal = @$this->balances[$base];
-          while(!isset($bal) && $i < 6) {
-            try {
-              $bal = $this->getBalance($base);
-            } catch (Exception $e) {$i++;}
+      if ($side == 'buy') {
+        $bal = $this->balances[$base];
+          if ($bal == 0) {
+            $bal = $this->getBalance($base);
           }
         $size = min($size , $bal/$price);
       }
-      else if($side == 'sell') {
-        $altBal = @$this->balances[$alt];
-        if(!isset($altBal))
+      else {
+        $altBal = $this->balances[$alt];
+        if ($altBal == 0)
           $altBal = $this->getBalance($alt);
         $size = min($size , $altBal);
       }

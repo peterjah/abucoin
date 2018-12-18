@@ -263,29 +263,26 @@ class CryptopiaApi
       $alt = $product->alt;
       $base = $product->base;
 
-      if($type == 'market')
-      {
-        $book = $this->getOrderBook($product, null, $size);
+      if($type == 'market') {
+        $book = $this->getOrderBook($product, 0, $size);
         $offer = $side == 'buy' ? $book['asks'] : $book['bids'];
-        print "market offer:\n"; var_dump($offer);
-        $price_diff = 100*(abs($offer['price'] - $price)/$price);
-        print "price diff: $price_diff \n";
-        if($price_diff > 3/*%*/)
-        {
+        var_dump($offer);
+        $price_diff = 100*(abs($offer['price'] - $price) / $price);
+        print_dbg("market offer: {$offer['price']} price diff: $price_diff");
+        if($price_diff > 3/*%*/) {
           throw new CryptopiaAPIException('market order failed: real order price is too different from the expected price');
         }
         $price = $offer['price'];
       }
-
      if($side == 'buy') {
        $bal = @$this->balances[$base];
-       if(!isset($bal))
+       if($bal == 0)
          $bal = $this->getBalance($base);
        $size = min($size, $bal/$price);
      }
      else {
        $altBal = @$this->balances[$alt];
-       if(!isset($altBal))
+       if($bal == 0)
          $altBal = $this->getBalance($alt);
        $size = min($size, $altBal);
       }
@@ -308,16 +305,13 @@ class CryptopiaApi
           $filled_base = 0;
 
           //order filled
-          if($id == null)
-          {
+          if($id == null) {
             $filled_size = $size;
             $filled_base = $filled_size * $price;
             $id = $ret->FilledOrders[0];
           }
-          else //order partially filled or not filled
-          {
-            foreach($ret->FilledOrders as $fillsId)
-            {
+          else {//order partially filled or not filled
+            foreach($ret->FilledOrders as $fillsId) {
               $fills = $this->getOrderStatus($product, $fillsId, true);
               var_dump($fills);
               $filled_size += $fills['filled'];
@@ -328,8 +322,7 @@ class CryptopiaApi
             $status = $this->getOrderStatus($product, $id);
             print_dbg("{$this->name} order $id status: {$status['status']} $side $alt order size:{$status['size']} original order size: $size filled:{$status['filled']} ", true);
             var_dump($status);
-            if($this->cancelOrder($product,$id))
-            {
+            if($this->cancelOrder($product,$id)) {
               $filled_size += $status['filled'];
               $filled_base += $status['filled_base'];
             }
@@ -377,7 +370,7 @@ class CryptopiaApi
               }
             }
           }
-            print_dbg("{$this->name} $alt order failed: $err");
+            //print_dbg("{$this->name} $alt order failed: $err");
         }
         throw new CryptopiaAPIException($err);
       }

@@ -152,7 +152,7 @@ function testSwap($symbol, $buy_market, $sell_market)
       if ($get_base_market_critical && $base == 'BTC') {
         $half_cash = $base_cash_roll / 2;
         if ((($tradeSize * $sell_price) > $half_cash) && $expected_gains['base'] < 0) {
-          $new_tradeSize = $half_cash > $min_order_size_alt ? $half_cash : $min_order_size_alt;
+          $new_tradeSize = $half_cash / $sell_price > $min_order_size_alt ? $half_cash / $sell_price: $min_order_size_alt;
           print_dbg("Critical swap: reducing tradesize from $tradeSize to $new_tradeSize $alt", true);
           $tradeSize = $new_tradeSize;
         }
