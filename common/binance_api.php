@@ -181,8 +181,6 @@ class BinanceApi
 
     function getOrderBook($product, $depth_alt = 0, $depth_base = 0)
     {
-
-
       $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
       $max_orders = 50;
       $i=0;

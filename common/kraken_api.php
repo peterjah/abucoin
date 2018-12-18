@@ -298,11 +298,14 @@ class KrakenApi
        if(count($ret['error']))
          throw new KrakenAPIException($ret['error'][0]);
        else {
-         $filled_size = $size; //todo !! no filled infos in kraken return :(
          $id = $ret['result']['txid'][0];
-         $this->save_trade($id, $product, $side, $size, $price, $tradeId);
+         $status = $this->getOrdersHistory(['id' => $id]);
+         print_dbg("{$this->name} trade status: {$status['status']}");
+         $filled_size = $status['filled'];
+       if($filled_size > 0)
+         $this->save_trade($id, $product, $side, $filled_size, $status['price'], $tradeId);
        }
-       return ['filled_size' => $filled_size, 'id' => $id, 'price' => $price];//price maybe wrong :/
+       return ['filled_size' => $filled_size, 'id' => $id, 'price' => $status['price']];
     }
 
     static function minimumAltTrade($crypto)
@@ -518,4 +521,35 @@ class KrakenApi
      return symbol2kraken($symbol, true);
    }
 
+   function getOrdersHistory($filter = null)
+   {
+     $params = [];
+     if(isset($filter['id'])) {
+       $params['txid'] = $filter['id'];
+     }
+
+     $i=0;
+     while($i<8) {
+       try {
+         $trades = $this->jsonRequest('QueryOrders', $params);
+         break;
+       }catch (Exception $e){ $i++; usleep(500000); print_dbg("Failed to getOrdersHistory. [{$e->getMessage()}]..$i");}
+     }
+     if(!empty($trades['result'])) {
+       foreach($trades['result'] as $idx => $order)
+       {
+         if ($filter['id'] == $idx) {
+           $status = [ 'id' => $idx,
+                       'side' => $order['descr']['type'],
+                       'status' => $order['status'],
+                       'filled' => floatval($order['vol_exec']),
+                       'filled_base' => floatval($order['cost']),
+                       'price' => floatval($order['price'])
+                     ];
+           var_dump($status);
+         }
+       }
+       return $status;
+     }
+   }
 }
