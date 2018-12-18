@@ -363,10 +363,12 @@ class CryptopiaApi
               foreach($history as $order) // should be only one
               {
                 var_dump($order);
-                if ($order->Amount == $size)
+                if ($order->Amount == $size) {
                   print_dbg("{$this->name} Saving $size $alt order after no api response: ", true);
-                  //$this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
-                //return ['filled_size' => $filled_size, 'id' => $id , 'filled_base' => $filled_base, 'price' => $price];
+                  $price = $order->Rate;
+                  $this->save_trade($id, $product, $side, $size, $price, $tradeId);
+                  return ['filled_size' => $size, 'id' => $order->TradeId , 'filled_base' => $price * $size, 'price' => $price];
+                }
               }
             }
           }
