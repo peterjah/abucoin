@@ -9,96 +9,105 @@ class CryptopiaApi
     protected $publicKey;
     protected $privateKey;
     protected $curl;
-    public $nApicalls;
+    protected $api_calls;
+    public $api_calls_rate;
     public $name;
     protected $products;
     public $balances;
+    protected $time;
 
     public function __construct()
     {
-        $keys = json_decode(file_get_contents("../common/private.keys"));
-        $this->publicKey = $keys->cryptopia->publicKey;
-        $this->privateKey = $keys->cryptopia->privateKey;
-        $this->name = 'Cryptopia';
-        $this->nApicalls = 0;
-        $this->curl = curl_init();
-        $this->PriorityLevel = 0;
-        //App specifics
-        $this->products = [];
-        $this->balances = [];
+      $keys = json_decode(file_get_contents("../common/private.keys"));
+      $this->publicKey = $keys->cryptopia->publicKey;
+      $this->privateKey = $keys->cryptopia->privateKey;
+      $this->name = 'Cryptopia';
+      $this->api_calls = 0;
+      $this->api_calls_rate = 0;
+      $this->time = time();
+      $this->curl = curl_init();
+      $this->PriorityLevel = 0;
+      //App specifics
+      $this->products = [];
+      $this->balances = [];
     }
+
     function __destruct()
     {
-        curl_close($this->curl);
+      curl_close($this->curl);
     }
 
     public function jsonRequest($method = null, $path, array $datas = array())
     {
-        if($this->nApicalls < PHP_INT_MAX)
-          $this->nApicalls++;
-        else
-          $this->nApicalls = 0;
-        $public_set = array( "GetCurrencies", "GetTradePairs", "GetMarkets", "GetMarket", "GetMarketHistory", "GetMarketOrders" );
-        //$private_set = array( "GetBalance", "GetDepositAddress", "GetOpenOrders", "GetTradeHistory", "GetTransactions", "SubmitTrade", "CancelTrade", "SubmitTip" );
-        $ch = curl_init();
-        $url = static::API_URL . "$path";
-        $nonce = time();
-        $i = 1;
-        while($i < count(explode('/', $path)))
-        {
-          $path = dirname($path);
-          $i++;
-        }
-        if ( !in_array($path ,$public_set ) ) {
-          $requestContentBase64String = base64_encode( md5( json_encode( $datas ), true ) );
-          $signature = $this->publicKey . "POST" . strtolower( urlencode($url) ) . $nonce . $requestContentBase64String;
-          $hmacsignature = base64_encode( hash_hmac("sha256", $signature, base64_decode( $this->privateKey ), true ) );
-          $header_value = "amx " . $this->publicKey . ":" . $hmacsignature . ":" . $nonce;
-          curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-          'Content-Type: application/json; charset=utf-8',
-          "Authorization: $header_value",
-          ));
+      $this->api_calls++;
+      $now = time();
+      if (($now - $this->time) > 60) {
+        $this->api_calls_rate = $this->api_calls;
+        $this->api_calls = 0;
+        $this->time = $now;
+      }
 
-        }
-        if ($method == 'POST') {
-          curl_setopt($ch, CURLOPT_POST, 1);
-          curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($datas));
-        }
+      $public_set = array( "GetCurrencies", "GetTradePairs", "GetMarkets", "GetMarket", "GetMarketHistory", "GetMarketOrders" );
+      //$private_set = array( "GetBalance", "GetDepositAddress", "GetOpenOrders", "GetTradeHistory", "GetTransactions", "SubmitTrade", "CancelTrade", "SubmitTip" );
+      $ch = curl_init();
+      $url = static::API_URL . "$path";
+      $nonce = time();
+      $i = 1;
+      while($i < count(explode('/', $path)))
+      {
+        $path = dirname($path);
+        $i++;
+      }
+      if ( !in_array($path ,$public_set ) ) {
+        $requestContentBase64String = base64_encode( md5( json_encode( $datas ), true ) );
+        $signature = $this->publicKey . "POST" . strtolower( urlencode($url) ) . $nonce . $requestContentBase64String;
+        $hmacsignature = base64_encode( hash_hmac("sha256", $signature, base64_decode( $this->privateKey ), true ) );
+        $header_value = "amx " . $this->publicKey . ":" . $hmacsignature . ":" . $nonce;
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'Content-Type: application/json; charset=utf-8',
+        "Authorization: $header_value",
+        ));
 
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-        curl_setopt($ch, CURLOPT_FRESH_CONNECT, TRUE); // Do Not Cache
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+      }
+      if ($method == 'POST') {
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($datas));
+      }
 
-        $server_output = curl_exec($ch);
-        curl_close($ch);
+      curl_setopt($ch, CURLOPT_URL, $url);
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+      curl_setopt($ch, CURLOPT_FRESH_CONNECT, TRUE); // Do Not Cache
+      curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+      curl_setopt($ch, CURLOPT_TIMEOUT, 5);
 
-        $response = json_decode($server_output);
-        if(isset($response->Success))
-        {
-          if ($response->Success)
-            return $response->Data;
-          else
-          {
-            print "Cryptopia Api error: $response->Error \n";
-            return ['error' => $response->Error];
-          }
-        }
+      $server_output = curl_exec($ch);
+      curl_close($ch);
+
+      $response = json_decode($server_output);
+      if(isset($response->Success))
+      {
+        if ($response->Success)
+          return $response->Data;
         else
         {
-          if (isset($response))
-          {
-            var_dump($response);
-            throw new CryptopiaAPIException($response->Message);
-          }
-          else
-          {
-            usleep(50000);
-            throw new CryptopiaAPIException('no response from api');
-          }
+          print "Cryptopia Api error: $response->Error \n";
+          return ['error' => $response->Error];
         }
+      }
+      else
+      {
+        if (isset($response))
+        {
+          var_dump($response);
+          throw new CryptopiaAPIException($response->Message);
+        }
+        else
+        {
+          usleep(50000);
+          throw new CryptopiaAPIException('no response from api');
+        }
+      }
     }
 
     function getBalance($alt = null)

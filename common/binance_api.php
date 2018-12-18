@@ -10,7 +10,9 @@ class BinanceApi
     protected $api_secret;
     protected $curl;
     protected $account_id;
-    public $nApicalls;
+    public $api_calls_rate;
+    protected $api_calls;
+    protected $time;
     public $name;
     protected $products;
     public $balances;
@@ -31,73 +33,77 @@ class BinanceApi
         $this->api_key = $keys->binance->api_key;
         $this->api_secret = $keys->binance->secret;
 
-        $this->nApicalls = 0;
+        $this->api_calls = 0;
         $this->name = 'Binance';
 
         $this->PriorityLevel = 1;
         //App specifics
         $this->products = [];
         $this->balances = [];
+        $this->api_calls = 0;
+        $this->api_calls_rate = 0;
+        $this->time = time();
     }
 
     public function jsonRequest($method = null, $path, array $params = [])
     {
-        if($this->nApicalls < PHP_INT_MAX)
-          $this->nApicalls++;
-        else
-          $this->nApicalls = 0;
+      $this->api_calls++;
+      $now = time();
+      if (($now - $this->time) > 60) {
+        $this->api_calls_rate = $this->api_calls;
+        $this->api_calls = 0;
+        $this->time = $now;
+      }
 
-        $public_set = array( 'v1/depth', 'v1/exchangeInfo', 'v1/ping');
+      $public_set = array( 'v1/depth', 'v1/exchangeInfo', 'v1/ping');
 
-        $opt = $this->default_curl_opt;
-        $url = self::API_URL . $path;
-        $headers = array(
-            "X-MBX-APIKEY: {$this->api_key}"
-            );
-        if ( !in_array($path ,$public_set ) )
-        { //private method
-          $params['timestamp'] = number_format(microtime(true) * 1000, 0, '.', '');
-          $query = http_build_query($params, '', '&');
-          $signature = hash_hmac('sha256', $query, $this->api_secret);
-          $url .= '?' . $query . "&signature={$signature}";
-        }
-        else if (count($params) > 0) {
-          $query = http_build_query($params, '', '&');
-          $url .= '?' . $query;
-        }
+      $opt = $this->default_curl_opt;
+      $url = self::API_URL . $path;
+      $headers = array(
+          "X-MBX-APIKEY: {$this->api_key}"
+          );
+      if ( !in_array($path ,$public_set ) )
+      { //private method
+        $params['timestamp'] = number_format(microtime(true) * 1000, 0, '.', '');
+        $query = http_build_query($params, '', '&');
+        $signature = hash_hmac('sha256', $query, $this->api_secret);
+        $url .= '?' . $query . "&signature={$signature}";
+      }
+      else if (count($params) > 0) {
+        $query = http_build_query($params, '', '&');
+        $url .= '?' . $query;
+      }
 
-        if ($method !== null)
-      			$opt[CURLOPT_CUSTOMREQUEST] = $method;
+      if ($method !== null)
+        $opt[CURLOPT_CUSTOMREQUEST] = $method;
 
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_USERAGENT, "User-Agent: Mozilla/4.0 (compatible; PHP Binance API)");
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-//      curl_setopt($ch, CURLOPT_VERBOSE, true);
-        curl_setopt_array($ch, $opt);
+      $ch = curl_init($url);
+      curl_setopt($ch, CURLOPT_USERAGENT, "User-Agent: Mozilla/4.0 (compatible; PHP Binance API)");
+      curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+      curl_setopt_array($ch, $opt);
 
-        $content = curl_exec($ch);
-    		$errno   = curl_errno($ch);
-    		$errmsg  = curl_error($ch);
-    		$header  = curl_getinfo($ch);
-    		curl_close($ch);
-    		if ($errno !== 0)
-    			return ["error" => $errmsg];
-    		$content = json_decode($content, true);
-//        var_dump($content);
-        if (null === $content && json_last_error() !== JSON_ERROR_NONE) {
-    			return ["error" => "json_decode() error $errmsg"];
-    		}
-        if(isset($content['code']) && $content['code'] < 0)
+      $content = curl_exec($ch);
+      $errno   = curl_errno($ch);
+      $errmsg  = curl_error($ch);
+      $header  = curl_getinfo($ch);
+      curl_close($ch);
+      if ($errno !== 0)
+        return ["error" => $errmsg];
+      $content = json_decode($content, true);
+
+      if (null === $content && json_last_error() !== JSON_ERROR_NONE) {
+        return ["error" => "json_decode() error $errmsg"];
+      }
+      if(isset($content['code']) && $content['code'] < 0)
+      {
+        if( substr_compare($content['msg'],'Way too many requests;',0,20) == 0)
         {
-          if( substr_compare($content['msg'],'Way too many requests;',0,20) == 0)
-          {
-            print_dbg ("Too many api calls on Binance. Sleeping....");
-            sleep(60);
-          }
-          throw new BinanceAPIException($content['msg']);
+          print_dbg ("Too many api calls on Binance. Sleeping....");
+          sleep(60);
         }
-
-    		return $content;
+        throw new BinanceAPIException($content['msg']);
+      }
+      return $content;
     }
 
     function getBalance($alt = null)

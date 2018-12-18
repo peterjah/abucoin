@@ -9,33 +9,37 @@ class KrakenApi
     protected $key;     // API key
     protected $secret;  // API secret
     protected $curl;    // curl handle
-    public $nApicalls;
+    public $api_calls_rate;
+    protected $api_calls;
+    protected $time;
     public $name;
     protected $products;
     public $balances;
 
     public function __construct()
     {
-        $keys = json_decode(file_get_contents("../common/private.keys"));
-        $this->secret = $keys->kraken->secret;
-        $this->key = $keys->kraken->key;
-        $this->nApicalls = 0;
-        $this->name = 'Kraken';
-        $this->PriorityLevel = 9;
+      $keys = json_decode(file_get_contents("../common/private.keys"));
+      $this->secret = $keys->kraken->secret;
+      $this->key = $keys->kraken->key;
+      $this->name = 'Kraken';
+      $this->PriorityLevel = 9;
 
-        $this->curl = curl_init();
-        curl_setopt_array($this->curl, array(
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_USERAGENT => 'Kraken PHP API Agent',
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 20)
-        );
+      $this->curl = curl_init();
+      curl_setopt_array($this->curl, array(
+          CURLOPT_SSL_VERIFYPEER => true,
+          CURLOPT_SSL_VERIFYHOST => 2,
+          CURLOPT_USERAGENT => 'Kraken PHP API Agent',
+          CURLOPT_POST => true,
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_TIMEOUT => 20)
+      );
 
-        //App specifics
-        $this->products = [];
-        $this->balances = [];
+      //App specifics
+      $this->products = [];
+      $this->balances = [];
+      $this->api_calls = 0;
+      $this->api_calls_rate = 0;
+      $this->time = time();
     }
 
     function __destruct()
@@ -45,56 +49,58 @@ class KrakenApi
 
     public function jsonRequest($method, array $request = array())
     {
-        if($this->nApicalls < PHP_INT_MAX)
-          $this->nApicalls++;
-        else
-          $this->nApicalls = 0;
-
-        $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs', 'Time');
-        if ( !in_array($method ,$public_set ) )
-        { //private method
-          if(!isset($request['nonce'])) {
-            // generate a 64 bit nonce using a timestamp at microsecond resolution
-            // string functions are used to avoid problems on 32 bit systems
-            $nonce = explode(' ', microtime());
-            $request['nonce'] = $nonce[1] . str_pad(substr($nonce[0], 2, 6), 6, '0');
-          }
-          $postdata = http_build_query($request, '', '&');
-          // set API key and sign the message
-          $path = '/' . self::API_VERSION . '/private/' . $method;
-          $sign = hash_hmac('sha512', $path . hash('sha256', $request['nonce'] . $postdata, true), base64_decode($this->secret), true);
-          $headers = array(
-              'API-Key: ' . $this->key,
-              'API-Sign: ' . base64_encode($sign)
-              );
+      $this->api_calls++;
+      $now = time();
+      if (($now - $this->time) > 60) {
+        $this->api_calls_rate = $this->api_calls;
+        $this->api_calls = 0;
+        $this->time = $now;
+      }
+      $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs', 'Time');
+      if ( !in_array($method ,$public_set ) )
+      { //private method
+        if(!isset($request['nonce'])) {
+          // generate a 64 bit nonce using a timestamp at microsecond resolution
+          // string functions are used to avoid problems on 32 bit systems
+          $nonce = explode(' ', microtime());
+          $request['nonce'] = $nonce[1] . str_pad(substr($nonce[0], 2, 6), 6, '0');
         }
-        else
-        {
-          $path = '/' . self::API_VERSION . '/public/' . $method;
-          $headers = array ();
-          $postdata = http_build_query($request, '', '&');
-        }
-        // make request
-        curl_setopt($this->curl, CURLOPT_URL, self::API_URL . $path);
-        curl_setopt($this->curl, CURLOPT_POSTFIELDS, $postdata);
-        curl_setopt($this->curl, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($this->curl, CURLOPT_CONNECTTIMEOUT, 5);
-        $result = curl_exec($this->curl);
-        if($result===false)
-            throw new KrakenAPIException('CURL error: ' . curl_error($this->curl));
+        $postdata = http_build_query($request, '', '&');
+        // set API key and sign the message
+        $path = '/' . self::API_VERSION . '/private/' . $method;
+        $sign = hash_hmac('sha512', $path . hash('sha256', $request['nonce'] . $postdata, true), base64_decode($this->secret), true);
+        $headers = array(
+            'API-Key: ' . $this->key,
+            'API-Sign: ' . base64_encode($sign)
+            );
+      }
+      else
+      {
+        $path = '/' . self::API_VERSION . '/public/' . $method;
+        $headers = array ();
+        $postdata = http_build_query($request, '', '&');
+      }
+      // make request
+      curl_setopt($this->curl, CURLOPT_URL, self::API_URL . $path);
+      curl_setopt($this->curl, CURLOPT_POSTFIELDS, $postdata);
+      curl_setopt($this->curl, CURLOPT_HTTPHEADER, $headers);
+      curl_setopt($this->curl, CURLOPT_CONNECTTIMEOUT, 5);
+      $result = curl_exec($this->curl);
+      if($result===false)
+          throw new KrakenAPIException('CURL error: ' . curl_error($this->curl));
 
-        // decode results
-        $result = json_decode($result, true);
-        if(!is_array($result))
-            throw new KrakenAPIException('JSON decode error');
-        if(isset($result['error'][0]) && $result['error'][0] == 'EAPI:Rate limit exceeded')
-        {
-          print "Kraken Api call limit reached\n";
-          sleep(15);
-          throw new KrakenAPIException($result['error'][0]);
-        }
+      // decode results
+      $result = json_decode($result, true);
+      if(!is_array($result))
+          throw new KrakenAPIException('JSON decode error');
+      if(isset($result['error'][0]) && $result['error'][0] == 'EAPI:Rate limit exceeded')
+      {
+        print "Kraken Api call limit reached\n";
+        sleep(15);
+        throw new KrakenAPIException($result['error'][0]);
+      }
 
-        return $result;
+      return $result;
     }
 
     static function crypto2kraken($crypto, $reverse = false)

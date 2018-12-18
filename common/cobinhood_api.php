@@ -10,13 +10,14 @@ class CobinhoodApi
     protected $api_key;
     protected $curl;
     protected $account_id;
-    public $nApicalls;
+    public $api_calls_rate;
+    protected $api_calls;
+    protected $time;
     public $name;
     protected $products;
     public $balances;
 
     protected $side_translate = ['sell' => 'ask', 'buy' => 'bid'];
-
 
     protected $default_curl_opt = [
       CURLOPT_RETURNTRANSFER => true,
@@ -35,7 +36,6 @@ class CobinhoodApi
     {
         $keys = json_decode(file_get_contents("../common/private.keys"));
         $this->api_key = $keys->cobinhood->api_key;
-        $this->nApicalls = 0;
         $this->name = 'Cobinhood';
         $this->PriorityLevel = 10;
 
@@ -43,46 +43,53 @@ class CobinhoodApi
         $this->products = [];
         $this->balances = [];
 
+        //Api calls counter
+        $this->api_calls = 0;
+        $this->api_calls_rate = 0;
+        $this->time = time();
+
     }
 
     public function jsonRequest($method = null, $path, $datas = null, $params = false)
     {
-        $opt = $this->default_curl_opt;
-        if($this->nApicalls < PHP_INT_MAX)
-          $this->nApicalls++;
-        else
-          $this->nApicalls = 0;
+      $this->api_calls++;
+      $now = time();
+      if (($now - $this->time) > 60) {
+        $this->api_calls_rate = $this->api_calls;
+        $this->api_calls = 0;
+        $this->time = $now;
+      }
 
-        if ($method !== null)
-      			$opt[CURLOPT_CUSTOMREQUEST] = $method;
-      	if ($params)
-      			$opt[CURLOPT_POSTFIELDS] = json_encode($params);
-        if ($datas)
-          $datas = "?".http_build_query($datas);
+      $opt = $this->default_curl_opt;
+      if ($method !== null)
+        $opt[CURLOPT_CUSTOMREQUEST] = $method;
+      if ($params)
+        $opt[CURLOPT_POSTFIELDS] = json_encode($params);
+      if ($datas)
+        $datas = "?".http_build_query($datas);
 
-        $nonce = intval(round(microtime(true)*1000));
-        $opt[CURLOPT_HTTPHEADER] = [
-          "authorization: {$this->api_key}",
-          "nonce: {$nonce}"
-        ];
+      $nonce = intval(round(microtime(true)*1000));
+      $opt[CURLOPT_HTTPHEADER] = [
+        "authorization: {$this->api_key}",
+        "nonce: {$nonce}"
+      ];
 
-        $ch = curl_init(self::API_URL . $path.$datas);
-        curl_setopt_array($ch, $opt);
-        $content = curl_exec($ch);
-    		$errno   = curl_errno($ch);
-    		$errmsg  = curl_error($ch);
-    		//$header  = curl_getinfo($ch);
-    		curl_close($ch);
-    		if ($errno !== 0)
-    			return ["error" => $errmsg];
-    		$content = json_decode($content, true);
+      $ch = curl_init(self::API_URL . $path.$datas);
+      curl_setopt_array($ch, $opt);
+      $content = curl_exec($ch);
+      $errno   = curl_errno($ch);
+      $errmsg  = curl_error($ch);
+      curl_close($ch);
+      if ($errno !== 0)
+        return ["error" => $errmsg];
+      $content = json_decode($content, true);
 
-        if (null === $content && json_last_error() !== JSON_ERROR_NONE) {
-          return ["error" => json_last_error_msg()];
-    		} else if (false === $content["success"]) {
-    			return ["error" => $content["error"]["error_code"]];
-    		}
-    		return $content;
+      if (null === $content && json_last_error() !== JSON_ERROR_NONE) {
+        return ["error" => json_last_error_msg()];
+      } else if (false === $content["success"]) {
+        return ["error" => $content["error"]["error_code"]];
+      }
+      return $content;
     }
 
     function getBalance($alt = null)
