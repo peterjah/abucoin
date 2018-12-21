@@ -30,7 +30,7 @@ while(1) {
   $ledger = [];
   if ($handle) {
     while (($line = fgets($handle)) !== false) {
-      preg_match('/^(\d+-\d+-\d+ \d+:\d+:\d+): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) (\d+|\d+\.\d+) ([A-Z]+) at (\d+|\d+\.\d+E?-?\d+?) ?([A-Z]+)?$/',$line, $matches);
+      preg_match('/^(.*): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) ([.-E0-]+) ([A-Z]+) at ([.-E0-]+) ([A-Z]+)$/',$line, $matches);
 
       if(count($matches) == 10) {
         $date = $matches[1];
@@ -41,7 +41,7 @@ while(1) {
         $size = floatval($matches[6]);
         $alt = $matches[7];
         $price = $matches[8];
-        $base = isset($matches[9]) ? $matches[9] : 'BTC';
+        $base = $matches[9];
         $symbol = "{$alt}-{$base}";
 
         if($OpId != 'solved') {
@@ -60,7 +60,7 @@ while(1) {
           }
           else {
             if($ledger[$symbol][$OpId]['size'] != $size) {
-              //print "Different size trade: {$ledger[$symbol][$OpId]['side']} {$ledger[$symbol][$OpId]['size']} != $side $size\n";
+              //print "$symbol Different size trade: {$ledger[$symbol][$OpId]['side']} {$ledger[$symbol][$OpId]['size']} != $side $size\n";
               if($ledger[$symbol][$OpId]['size'] < $size) {
                  $ledger[$symbol][$OpId]['side'] = $side;
                  $ledger[$symbol][$OpId]['exchange'] = $exchange;
@@ -76,6 +76,9 @@ while(1) {
               unset($ledger[$symbol][$OpId]);
           }
         }
+      } else {
+        print "following line doesnt match the regex:\n";
+        print "$line\n";
       }
     }
     fclose($handle);

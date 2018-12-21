@@ -70,7 +70,6 @@ else {
     } else
         $balances[$alt]['btc_percent'] = -1;
   }
-  print "btc value: $total_btc \n";
   $bal = uasort($balances, "sortBalance");
 
   printf (" Crypto   | %-15s | %-15s |  %s\n", 'Balance', 'percent', 'EUR');
@@ -85,6 +84,7 @@ else {
     }
   }
    print "total holdings: ".count($balances)." cryptos \n";
+   print "BTC value: $total_btc \n";
    exit();
 }
 
