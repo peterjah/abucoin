@@ -2,6 +2,20 @@
 
 require_once('../common/tools.php');
 
+declare(ticks = 1);
+function sig_handler($sig) {
+  global $sig_stop;
+    switch($sig) {
+        case SIGINT:
+        case SIGTERM:
+          print_dbg("signal $sig catched! Exiting...", true);
+          $sig_stop = true;
+    }
+}
+pcntl_signal(SIGINT,  "sig_handler");
+pcntl_signal(SIGTERM, "sig_handler");
+$sig_stop = false;
+
 @define('BUY_TRESHOLD', 0.000001);
 @define('CRITICAL_BUY_TRESHOLD', -0.000005);
 @define('CRITICAL_BUY_TRESHOLD2', -0.00001);
@@ -26,70 +40,75 @@ $btc_start_cash = $market1->api->balances['BTC'] + $market2->api->balances['BTC'
 $nLoops = 0;
 while(true) {
   foreach( $symbol_list as $symbol) {
-    print "Testing $symbol trade\n";
-    $base = $market1->products[$symbol]->base;
-    try {
-      @$profits[$base] += testSwap($symbol, $market1, $market2);
-    }
-    catch (Exception $e)
-    {
-      print $e;
-      //refresh balances
-      sleep(3);
+    if (!$sig_stop) {
+      print "Testing $symbol trade\n";
+      $base = $market1->products[$symbol]->base;
       try {
-        $market1->getBalance();
-        $market2->getBalance();
-      }catch (Exception $e){}
-    }
-    try {
-      @$profits[$base] += testSwap($symbol, $market2, $market1);
-    }
-    catch (Exception $e) {
-      print $e;
-      //refresh balances
-      sleep(3);
-      if($e->getMessage() == 'Rest API trading is not enabled.')
+        @$profits[$base] += testSwap($symbol, $market1, $market2);
+      }
+      catch (Exception $e)
       {
-        sleep(3600);//exchange maintenance ?
-        break;
+        print $e;
+        //refresh balances
+        sleep(3);
+        try {
+          $market1->getBalance();
+          $market2->getBalance();
+        }catch (Exception $e){}
       }
       try {
-        $market1->getBalance();
-        $market2->getBalance();
-      }catch (Exception $e){}
+        @$profits[$base] += testSwap($symbol, $market2, $market1);
+      }
+      catch (Exception $e) {
+        print $e;
+        //refresh balances
+        sleep(3);
+        if($e->getMessage() == 'Rest API trading is not enabled.')
+        {
+          sleep(3600);//exchange maintenance ?
+          break;
+        }
+        try {
+          $market1->getBalance();
+          $market2->getBalance();
+        }catch (Exception $e){}
+      }
+    } else {
+      exit();
     }
-  }
 
-  if($nLoops == PHP_INT_MAX)
-    $nLoops=0;
-  else
-    $nLoops++;
+    if($nLoops == PHP_INT_MAX)
+      $nLoops=0;
+    else
+      $nLoops++;
 
-  if( ($nLoops % 10) == 0) {
-    //ping api
-    try {
-      while($market1->api->ping() === false) {
-        print "Failed to ping {$market1->api->name} api. Sleeping...\n";
-        sleep(30);
-      }
-      while($market2->api->ping() === false) {
-        print "Failed to ping {$market2->api->name} api. Sleeping...\n";
-        sleep(30);
-      }
-    }catch (Exception $e){}
+    if( ($nLoops % 10) == 0) {
+      //ping api
+      try {
+        while($market1->api->ping() === false) {
+          print "Failed to ping {$market1->api->name} api. Sleeping...\n";
+          sleep(30);
+        }
+        while($market2->api->ping() === false) {
+          print "Failed to ping {$market2->api->name} api. Sleeping...\n";
+          sleep(30);
+        }
+      }catch (Exception $e){}
 
-    print "Refreshing balances\n";
-    try {$market1->api->getBalance();}
-      catch (Exception $e){}
-    try {$market2->api->getBalance();}
-      catch (Exception $e){}
+      print "Refreshing balances\n";
+      try {$market1->api->getBalance();}
+        catch (Exception $e){}
+      try {$market2->api->getBalance();}
+        catch (Exception $e){}
 
-    try {
-      foreach([$market1, $market2] as $market)
-        //refresh product infos
-        if($market instanceof CobinhoodApi)
-          $market->updateProductList();
+      try {
+        foreach([$market1, $market2] as $market) {
+          //refresh product infos
+          if($market instanceof CobinhoodApi)
+            $market->updateProductList();
+        }
       } catch (Exception $e){}
+    }
   }
 
   $btc_cash_roll = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
