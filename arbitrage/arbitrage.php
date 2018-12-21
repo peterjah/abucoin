@@ -126,12 +126,12 @@ while(true) {
 function testSwap($symbol, $buy_market, $sell_market)
 {
   $profit = 0;
-  $tradeSize = 1; //dummy init
+  $final_gains['base'] = 1; //dummy init
   $buy_product = $buy_market->products[$symbol];
   $sell_product = $sell_market->products[$symbol];
   $alt = $buy_product->alt;
   $base = $sell_product->base;
-  while($tradeSize > 0) {
+  while($final_gains['base'] > 0) {
     $base_cash_roll = $buy_market->api->balances[$base] + $sell_market->api->balances[$base];
     $get_base_market = $buy_market->api->balances[$base] > $sell_market->api->balances[$base];
     $get_base_market_critical = $base_cash_roll > 0.001 ? $sell_market->api->balances[$base] < $base_cash_roll * 0.1 /*10% of cashroll*/: false;
@@ -200,10 +200,10 @@ function testSwap($symbol, $buy_market, $sell_market)
         $sell_market->api->balances[$alt] -= $status['sell']['filled_size'];
       }
       else
-        $tradeSize = 0;
+        $final_gains['base'] = 0;
     }
     else
-        $tradeSize = 0;
+        $final_gains['base'] = 0;
   }
   return $profit;
 }
