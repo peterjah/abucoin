@@ -299,11 +299,20 @@ class KrakenApi
          throw new KrakenAPIException($ret['error'][0]);
        else {
          $id = $ret['result']['txid'][0];
-         $status = $this->getOrdersHistory(['id' => $id]);
-         print_dbg("{$this->name} trade status: {$status['status']}");
-         $filled_size = $status['filled'];
-       if($filled_size > 0)
-         $this->save_trade($id, $product, $side, $filled_size, $status['price'], $tradeId);
+         $i=0;
+         $status = [];
+         while (empty($status['status']) && $i < 4) {
+           usleep(20000);
+           $status = $this->getOrdersHistory(['id' => $id]);
+           $filled_size = $status['filled'];
+           print_dbg("{$this->name} trade $id status: {$status['status']}. filled: $filled_size");
+           $i++;
+         }
+         if($filled_size > 0) {
+           $this->save_trade($id, $product, $side, $filled_size, $status['price'], $tradeId);
+         } else {
+          throw new KrakenAPIException("{$this->name}: Unable to $side");
+         }
        }
        return ['filled_size' => $filled_size, 'id' => $id, 'price' => $status['price']];
     }
