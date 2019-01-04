@@ -1,5 +1,11 @@
 <?php
 require_once('../common/tools.php');
+@define('FILE',"portfolio.json");
+
+$options =  getopt('', array(
+   'diff:',
+   'alt:',
+ ));
 
 function sortBalance($a, $b)
 {
@@ -26,9 +32,10 @@ foreach(['cryptopia','kraken', 'cobinhood', 'binance'] as $api) {
 //$ticker = json_decode(file_get_contents("https://api.99cryptocoin.com/v1/ticker"), true);
 $cryptoInfo = [];
 
-if(isset($argv[1]))
-  $crypto = strtoupper($argv[1]);
+if(isset($options['alt']))
+  $crypto = strtoupper($options['alt']);
 else {
+  $saved_data = json_decode(file_get_contents(FILE),true);
   $btc_price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=EUR"), true);
   $balances = [];
   foreach( $markets as $market) {
@@ -60,31 +67,64 @@ else {
   }
 
   foreach($balances as $balance) {
-    if($balance['btc'] != -1)
-      @$total_btc += $balance['btc'];
+      @$total_btc += $balance['btc'] != -1 ? $balance['btc'] : 0;
+      @$total_eur += $balance['eur'] != -1 ? $balance['eur'] : 0;
   }
+
+  $changes = [];
+  $change_days = isset($options['diff']) ? $options['diff'] : 1;
+  $today = date('d-m-Y', time());
+  $date_ref = DateTime::createFromFormat('d-m-Y', $today);
+  $date_ref->modify("-{$change_days} day");
+
+  $ref = @$saved_data[$date_ref->format('d-m-Y')];
 
   foreach($balances as $alt => $balance) {
     if ($balance['btc'] > 0) {
       $balances[$alt]['btc_percent'] = ($balance['btc'] / $total_btc)*100;
-    } else
-        $balances[$alt]['btc_percent'] = -1;
+    } else {
+      $balances[$alt]['btc_percent'] = -1;
+    }
+    if (isset($ref['balances'][$alt]['bal'])) {
+      $changes[$alt]['bal_percent'] = (($balance['bal'] - $ref['balances'][$alt]['bal']) / $ref['balances'][$alt]['bal'])*100;
+    } else {
+      $changes[$alt]['bal_percent'] = 100;
+    }
+
   }
+
   $bal = uasort($balances, "sortBalance");
 
-  printf (" Crypto   | %-15s | %-15s |  %s\n", 'Balance', 'percent', 'EUR');
+  printf (" Crypto   | %-15s | %-15s | %-15s |  %s\n", 'Balance','Change', 'Percent', 'EUR');
   foreach($balances as $alt => $cryptoInfo) {
     if( $cryptoInfo['btc_percent'] === -1)
-      printf (" %-8s | %-15s | %-15s | -- EUR\n", $alt, $cryptoInfo['bal'], '--%');
+      printf (" %-8s | %-15s | %-15s | %-15s | -- EUR\n", $alt, $cryptoInfo['bal'], "{$changes[$alt]['bal_percent']}%", '--%');
     else {
       $bal = number_format($cryptoInfo['bal'], 5);
       $btc_percent = number_format($cryptoInfo['btc_percent'], 3);
       $eur =  number_format($cryptoInfo['eur'], 3);
-      printf (" %-8s | %-15s | %-15s | %s EUR\n", $alt, $bal, "$btc_percent%", $eur);
+      $bal_percent = number_format($changes[$alt]['bal_percent'], 2);
+      printf (" %-8s | %-15s | %-15s | %-15s | %s EUR\n", $alt, $bal, "$bal_percent%", "$btc_percent%", $eur);
     }
   }
    print "total holdings: ".count($balances)." cryptos \n";
-   print "BTC value: $total_btc \n";
+   if (isset($ref)) {
+     $btc_change = (($total_btc - $ref['total_btc']) / $ref['total_btc'])*100;
+     $btc_change = $btc_change > 0 ? "+".number_format($btc_change, 3) : number_format($btc_change, 3);
+     $eur_change = (($total_eur - $ref['total_eur']) / $ref['total_eur'])*100;
+     $eur_change = $eur_change > 0 ? "+".number_format($eur_change, 3) : number_format($eur_change, 3);
+   }
+   print "BTC value: $total_btc (".(isset($ref) ? $btc_change : '-')."%)\n";
+   print "EUR value: $total_eur (".(isset($ref) ? $eur_change : '-')."%)\n";
+
+   //save it
+   if(!isset($saved_data[$today])) {
+     $saved_data[$today] = ['prices' => $prices,
+                            'balances' => $balances,
+                            'total_btc' => $total_btc,
+                            'total_eur' => $total_eur,];
+    file_put_contents(FILE,json_encode($saved_data));
+   }
    exit();
 }
 
