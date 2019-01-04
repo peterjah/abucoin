@@ -85,26 +85,29 @@ class CryptopiaApi
       curl_close($ch);
 
       $response = json_decode($server_output);
-      if(isset($response->Success))
-      {
+
+      if(isset($response->Success)) {
         if ($response->Success)
           return $response->Data;
-        else
-        {
+        else {
           print "Cryptopia Api error: $response->Error \n";
           return ['error' => $response->Error];
         }
       }
-      else
-      {
-        if (isset($response))
-        {
+      else {
+        if (isset($response)) {
           var_dump($response);
           throw new CryptopiaAPIException($response->Message);
         }
-        else
-        {
-          usleep(50000);
+        else {
+          if ($server_output == 'The service is unavailable.' || empty($server_output)) {
+            usleep(50000);
+          }
+          else
+            print_dbg("Cryptopia api error: request: $path. unable to decode \"$server_output\"");
+
+          //jeson_decode may fail to decode:
+          //"﻿{"Success":false,"Error":"Nonce has already been used for this request."}"
           throw new CryptopiaAPIException('no response from api');
         }
       }
@@ -264,11 +267,10 @@ class CryptopiaApi
       $base = $product->base;
 
       if($type == 'market') {
-        $book = $this->getOrderBook($product, 0, $size);
+        $book = $this->getOrderBook($product, $product->min_order_size_base, $size);
         $offer = $side == 'buy' ? $book['asks'] : $book['bids'];
-        var_dump($offer);
-        $price_diff = 100*(abs($offer['price'] - $price) / $price);
-        print_dbg("market offer: {$offer['price']} price diff: $price_diff");
+        $price_diff = 100*(abs($offer['order_price'] - $price) / $price);
+        print_dbg("market offer: {$offer['order_price']} price diff: $price_diff");
         if($price_diff > 3/*%*/) {
           throw new CryptopiaAPIException('market order failed: real order price is too different from the expected price');
         }
@@ -282,7 +284,7 @@ class CryptopiaApi
      }
      else {
        $altBal = @$this->balances[$alt];
-       if($bal == 0)
+       if($altBal == 0)
          $altBal = $this->getBalance($alt);
        $size = min($size, $altBal);
       }
@@ -295,6 +297,7 @@ class CryptopiaApi
 
       var_dump($order);
       try {
+        $order_timestamp = time();
         $ret = $this->jsonRequest('POST', 'SubmitTrade', $order);
         print "{$this->name} trade says:\n";
         var_dump($ret);
@@ -344,7 +347,7 @@ class CryptopiaApi
           //what to do with no traced executed trade? :(
           //this could be dangerous...
 
-          $open_orders = $this->GetOpenOrders(['alt' => $alt, 'base' => $base, 'since' => 5]);
+          $open_orders = $this->GetOpenOrders(['alt' => $alt, 'base' => $base, 'since' => time() - $order_timestamp]);
           if(!empty($open_orders))
           {
             print_dbg("{$this->name} $err: ".count($open_orders)." open order found", true);
@@ -356,7 +359,7 @@ class CryptopiaApi
           }
           else {// order has been filled ??
             print_dbg("{$this->name} $err: No open orders found", true);
-            $history = $this->getOrderHistory(['alt' => $alt, 'base' => $base, 'since' => 8]);
+            $history = $this->getOrderHistory(['alt' => $alt, 'base' => $base, 'since' => time() - $order_timestamp]);
             if(!empty($history))
             {
               print_dbg("{$this->name} $err: ".count($history)." closed order found in history", true);
@@ -366,8 +369,9 @@ class CryptopiaApi
                 if ($order->Amount == $size) {
                   print_dbg("{$this->name} Saving $size $alt order after no api response: ", true);
                   $price = $order->Rate;
+                  $id = $order->TradeId;
                   $this->save_trade($id, $product, $side, $size, $price, $tradeId);
-                  return ['filled_size' => $size, 'id' => $order->TradeId , 'filled_base' => $price * $size, 'price' => $price];
+                  return ['filled_size' => $size, 'id' => $id, 'filled_base' => $price * $size, 'price' => $price];
                 }
               }
             }
@@ -410,7 +414,7 @@ class CryptopiaApi
       return $list;
     }
 
-   function getOrderBook($product, $depth_alt = 0, $depth_base = 0)
+   function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
    {
      $id = "{$product->alt}_{$product->base}";
      $ordercount = 25;

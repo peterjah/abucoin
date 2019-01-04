@@ -405,7 +405,7 @@ class KrakenApi
       throw new KrakenAPIException("Unknown symbol $product->symbol");
     }
 
-    function getOrderBook($product, $depth_alt = 0, $depth_base = 0)
+    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
     {
       $id = $this->getPair($product);
       $ordercount = 25;

@@ -174,7 +174,7 @@ function do_solve($markets, $symbol, $side, $traded)
           $i++;
         }
       }
-      if ($status['filled_size'] > 0) {
+      if (@$status['filled_size'] > 0) {
         foreach($traded['ids'] as $id ) {
           file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
         }

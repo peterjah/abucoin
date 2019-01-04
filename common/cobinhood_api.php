@@ -163,7 +163,7 @@ class CobinhoodApi
       return 0.00000001;
     }
 
-    function getOrderBook($product, $depth_alt = 0, $depth_base = 0)
+    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
     {
       $symbol = self::crypto2Cobinhood($product->alt) ."-". self::crypto2Cobinhood($product->base);
       $limit = ['limit' => 50];
@@ -231,6 +231,7 @@ class CobinhoodApi
       if(isset($ret['result']))
       {
         $status = $ret['result']['order'];
+        $id = $status['id'];
         $filled_size = $filled_base = 0;
         if($ret['success'] && $status['state'] != 'rejected')
         {
@@ -241,36 +242,36 @@ class CobinhoodApi
           }
           else {
             sleep(3);
-            $status2 = $this->getOrderStatus($product, $status['id']);
-            var_dump($status2);
-            if (empty($status2)) {
+            $status = $this->getOrderStatus($product, $id);
+            var_dump($status);
+            if (empty($status)) {
               //check closed orders
-              $status2 = $this->getOrdersHistory(['alt' => $alt, 'base' => $base, 'id' => $status['id']])[0];
-              var_dump($status2);
-              print_dbg("checking history: {$status2['status']}");
-              if ($status2['status'] == 'filled') {
-                $filled_size = $status2['filled'];
-                $filled_base = $status2['filled_base'];
-                $price = $status2['price'];
+              $status = $this->getOrdersHistory(['alt' => $alt, 'base' => $base, 'id' => $id])[0];
+              var_dump($status);
+              print_dbg("checking history: {$status['status']}");
+              if ($status['status'] == 'filled') {
+                $filled_size = $status['filled'];
+                $filled_base = $status['filled_base'];
+                $price = $status['price'];
               } else {
-                throw new CobinhoodAPIException("Order status: {$status2['status']}");
+                throw new CobinhoodAPIException("Order status: {$status['status']}");
               }
             }
             else {
-              if($this->cancelOrder($product, $status['id'])) {
-                $filled_size = $status2['filled'];
-                $filled_base = $status2['filled_base'];
-                $price = $status2['price'];
+              if($this->cancelOrder($product, $id)) {
+                $filled_size = $status['filled'];
+                $filled_base = $status['filled_base'];
+                $price = $status['price'];
               } else {
                   $filled_size = $size;
-                  $filled_base = $filled_size * floatval($status2['price']);
+                  $filled_base = $filled_size * floatval($status['price']);
                 }
             }
-            print_dbg("order status state: {$status2['status']} filled_size = $filled_size");
+            print_dbg("order status state: {$status['status']} filled_size = $filled_size");
           }
           if($filled_size > 0)
-            $this->save_trade($status['id'], $product, $side, $filled_size, $price, $tradeId);
-          return ['filled_size' => $filled_size, 'id' => $status['id'], 'filled_base' => $filled_base, 'price' => $price];
+            $this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
+          return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $filled_base, 'price' => $price];
         }
         else
           return ['filled_size' => 0, 'id' => null, 'filled_base' => null, 'price' => $price];
