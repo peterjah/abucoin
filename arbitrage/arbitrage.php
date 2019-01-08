@@ -169,14 +169,12 @@ function testSwap($symbol, $buy_market, $sell_market)
         if ($get_base_market_critical) {
           $half_cash = $base_cash_roll / 2;
           if ($expected_gains['base'] < 0) {
-            $tmptradesize = $trade_size;
             $trade_size = min($trade_size, $half_cash / $sell_price);
             $trade_size = check_tradesize($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size);
             $multiplier = ($trade_size *$sell_price) / $half_cash;
-            $critical_treshold = CRITICAL_BUY_TRESHOLD_BASE * (1 + 10 * $multiplier);
+            $critical_treshold = CRITICAL_BUY_TRESHOLD_BASE * (1 + 5 * $multiplier);
           }
         }
-        $critical_tresh = $trade_size * $sell_size / $half_cash;
         if ($expected_gains['base'] > BUY_TRESHOLD ||
            ($get_base_market_critical && ($expected_gains['base'] >= $critical_treshold)) ||
            ($get_base_market && ($expected_gains['base'] >= 0)) ) {
@@ -186,13 +184,6 @@ function testSwap($symbol, $buy_market, $sell_market)
         $do_swap = true;
       }
 
-      // if($base == 'BTC' && $expected_gains['base'] < 0 && $get_base_market_critical) {
-      //   $factor = (($trade_size *$sell_price) / $half_cash );
-      //   print_dbg("Critical swap: reducing tradesize from $tmptradesize to $trade_size $alt", true);
-      //   print_dbg("Critical tresh: $critical_treshold => swap ".(($trade_size *$sell_price*100) / $half_cash)."% multiplier: $factor", true);
-      //   print_dbg("Critical do_swap: ".($do_swap?'yes':'no')." expected gains: {$expected_gains['base']}" , true);
-      //
-      // }
       if ($do_swap) {
         $buy_market->getBalance();
         $sell_market->getBalance();
