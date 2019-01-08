@@ -139,7 +139,7 @@ function do_solve($markets, $symbol, $side, $traded)
     $alt_bal = $api->balances[$product->alt];
     $base_bal = $api->balances[$product->base];
 
-    $book = $market->refreshBook($product, 0, $size);
+    $book = $product->refreshBook(0, $size);
 
     if ($side == 'buy') {
       $book = $book['bids'];

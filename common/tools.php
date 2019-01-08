@@ -19,8 +19,9 @@ class Product
   public $price_decimals;
   public $fees;
   public $book;
+  public $api;
 
-  public function __construct($params){
+  public function __construct($params) {
     $this->api = $params['api'];
     $this->alt = $params['alt'];
     $this->base = $params['base'];
@@ -32,6 +33,13 @@ class Product
     $this->min_order_size_base = @$params['min_order_size_base'] ?: 0;
     $this->price_decimals = @$params['price_decimals'];
     $book = null;
+  }
+
+  function refreshBook($depth_base = 0, $depth_alt = 0)
+  {
+    $depth_base = max($depth_base, $this->min_order_size_base);
+    $depth_alt = max($depth_alt, $this->min_order_size);
+    return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
   }
 }
 
@@ -60,13 +68,6 @@ class Market
     else throw new \Exception("Unknown market \"$market_name\"");
 
     $this->products = $this->api->getProductList();
-  }
-
-  function refreshBook($product, $depth_base = 0, $depth_alt = 0)
-  {
-    $depth_base = max($depth_base, $product->min_order_size_base);
-    $depth_alt = max($depth_alt, $product->min_order_size);
-    return $this->products[$product->symbol]->book = $this->api->getOrderBook($product, $depth_base, $depth_alt);
   }
 
   function getBalance() {
@@ -167,7 +168,7 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
            {
              $base_bal = $second_market->api->balances[$base];
              //price may be not relevant anymore. moreover we want a market order
-             $book = $buy_market->refreshBook($buy_product, $base_bal, $trade_size);
+             $book = $buy_product->refreshBook($base_bal, $trade_size);
              $trade_size = min(truncate($base_bal / ($book['asks']['order_price'] * (1 + $buy_product->fees/100)) , $buy_product->size_decimals), $trade_size);
              $buy_price = $book['asks']['order_price'];
              print_dbg("new tradesize: $trade_size, new price $buy_price base_bal: $base_bal");

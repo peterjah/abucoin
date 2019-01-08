@@ -146,8 +146,8 @@ function testSwap($symbol, $buy_market, $sell_market)
         || $buy_market->api->balances[$base] < $min_order_size_base)
       break;
 
-    $buy_book = $buy_market->refreshBook($buy_product, $min_order_size_base, $min_order_size_alt);
-    $sell_book = $sell_market->refreshBook($sell_product, $min_order_size_base, $min_order_size_alt);
+    $buy_book = $buy_product->refreshBook($min_order_size_base, $min_order_size_alt);
+    $sell_book = $sell_product->refreshBook($min_order_size_base, $min_order_size_alt);
 
     $sell_price = $sell_book['bids']['price'];
     $sell_order_price = $sell_book['bids']['order_price'];
