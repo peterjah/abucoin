@@ -19,6 +19,8 @@ class CryptopiaApi
     public function __construct()
     {
       $keys = json_decode(file_get_contents("../common/private.keys"));
+      if (!isset($keys->cryptopia))
+        throw new CryptopiaAPIException("Unable to retrieve private keys");
       $this->publicKey = $keys->cryptopia->publicKey;
       $this->privateKey = $keys->cryptopia->privateKey;
       $this->name = 'Cryptopia';

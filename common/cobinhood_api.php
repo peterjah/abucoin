@@ -35,6 +35,8 @@ class CobinhoodApi
     public function __construct()
     {
         $keys = json_decode(file_get_contents("../common/private.keys"));
+        if (!isset($keys->cobinhood))
+          throw new CobinhoodAPIException("Unable to retrieve private keys");
         $this->api_key = $keys->cobinhood->api_key;
         $this->name = 'Cobinhood';
         $this->PriorityLevel = 10;

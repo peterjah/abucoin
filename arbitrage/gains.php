@@ -33,11 +33,19 @@ print ("total: $total_gains_eur EUR\n");
 print "\n";
 
 $Cashroll = 0;
-foreach (['binance','cryptopia','kraken','cobinhood'] as $market_name)
-{
-  $market = new Market($market_name);
-  $market->api->getBalance();
-  print ("{$market->api->name}: {$market->api->balances['BTC']} BTC\n");
-  $Cashroll += $market->api->balances['BTC'];
+foreach (['binance','cryptopia','kraken','cobinhood'] as $market_name) {
+  $i=0;
+  while ($i < 5) {
+    try {
+      $market = new Market($market_name);
+      $market->api->getBalance();
+      print ("{$market->api->name}: {$market->api->balances['BTC']} BTC\n");
+      $Cashroll += $market->api->balances['BTC'];
+      break;
+    } catch (Exception $e) {
+      $i++;
+      print "failed to get $market_name infos. [{$e->getMessage()}]\n";
+    }
+  }
 }
 print ("Total cashroll: $Cashroll BTC = ".($Cashroll*$prices['BTC'])."EUR\n");

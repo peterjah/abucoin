@@ -24,7 +24,7 @@ foreach(['cryptopia','kraken', 'cobinhood', 'binance'] as $api) {
       break;
     } catch (Exception $e) {
       $i++;
-      print "failed to get {$markets[$api]->api->name} infos. [{$e->getMessage()}]\n";
+      print "failed to get $api infos. [{$e->getMessage()}]\n";
     }
   }
 }

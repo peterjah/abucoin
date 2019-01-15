@@ -19,6 +19,8 @@ class KrakenApi
     public function __construct()
     {
       $keys = json_decode(file_get_contents("../common/private.keys"));
+      if (!isset($keys->kraken))
+        throw new KrakenAPIException("Unable to retrieve private keys");
       $this->secret = $keys->kraken->secret;
       $this->key = $keys->kraken->key;
       $this->name = 'Kraken';

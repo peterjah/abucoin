@@ -29,7 +29,10 @@ class BinanceApi
 
     public function __construct()
     {
+
         $keys = json_decode(file_get_contents("../common/private.keys"));
+        if (!isset($keys->binance))
+          throw new BinanceAPIException("Unable to retrieve private keys");
         $this->api_key = $keys->binance->api_key;
         $this->api_secret = $keys->binance->secret;
 
