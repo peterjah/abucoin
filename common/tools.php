@@ -4,6 +4,7 @@ require_once('../common/cryptopia_api.php');
 require_once('../common/kraken_api.php');
 require_once('../common/cobinhood_api.php');
 require_once('../common/binance_api.php');
+require_once('../common/paymium_api.php');
 
 date_default_timezone_set("UTC");
 
@@ -64,7 +65,8 @@ class Market
     $market_table = [ 'cryptopia' => 'CryptopiaApi',
                       'kraken' => 'KrakenApi',
                       'cobinhood' => 'CobinhoodApi',
-                      'binance' => 'BinanceApi'
+                      'binance' => 'BinanceApi',
+                      'paymium' => 'PaymiumApi'
                       ];
     if( isset($market_table[$market_name]))
       $this->api =  new $market_table[$market_name]();
