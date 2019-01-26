@@ -231,7 +231,9 @@ class KrakenApi
       }
       //var_dump($products);
       $fees = $tradeVolume['result']['fees']['XLTCXXBT']['fee'];
-      foreach($products['result'] as $product) {
+      foreach($products['result'] as $kraken_symbol => $product) {
+        if (substr($kraken_symbol, -2) == '.d')
+          continue;
         $alt = self::kraken2crypto($product['base']);
         $base = self::kraken2crypto($product['quote']);
         if (!isset($alt) || !isset($base))
@@ -245,6 +247,7 @@ class KrakenApi
                     'size_decimals' => $product['lot_decimals'],
                     'min_order_size_base' => 0,//sel,::minimumAltTrade($base),
                     'price_decimals' => $product['pair_decimals'],
+                    'symbol_exchange' => $kraken_symbol,
                   ];
         $product = new Product($params);
         $list[$product->symbol] = $product;
@@ -265,7 +268,7 @@ class KrakenApi
       $base = $product->base;
 
       $type = 'market';
-      $pair = $this->getPair($product);
+      $pair = $product->symbol_exchange;
       // safety check
       if ($side == 'buy') {
         $bal = $this->balances[$base];
@@ -304,7 +307,7 @@ class KrakenApi
          $i=0;
          $status = [];
          while (empty($status['status']) && $i < 4) {
-           usleep(20000);
+           usleep(200000);
            $status = $this->getOrdersHistory(['id' => $id]);
            $filled_size = $status['filled'];
            print_dbg("{$this->name} trade $id status: {$status['status']}. filled: $filled_size");
@@ -352,64 +355,9 @@ class KrakenApi
       throw new KrakenAPIException("Unknown crypto $crypto");
     }
 
-    static function getPair($product)
-    {
-      $table = ['XRP-BTC' => 'XXRPXXBT',
-                'LTC-BTC' => 'XLTCXXBT',
-                'XLM-BTC' => 'XXLMXXBT',
-                'ETH-BTC' => 'XETHXXBT',
-                'ETC-BTC' => 'XETCXXBT',
-                'REP-BTC' => 'XREPXXBT',
-                'ZEC-BTC' => 'XZECXXBT',
-                'XMR-BTC' => 'XXMRXXBT',
-                'EOS-BTC' => 'EOSXBT',
-                'BCH-BTC' => 'BCHXBT',
-                'DASH-BTC' => 'DASHXBT',
-                'GNO-BTC' => 'GNOXBT',
-                'ICN-BTC' => 'XICNXXBT',
-                'MLN-BTC' => 'XMLNXXBT',
-                'XDG-BTC' => 'XXDGXXBT',
-                'ADA-BTC' => 'ADAXBT',
-                'QTUM-BTC' => 'QTUMXBT',
-                'BSV-BTC' => 'BSVXBT',
-                'XTZ-BTC' => 'XTZXBT',
-                'ADA-ETH' => 'ADAETH',
-                'EOS-ETH' => 'EOSETH',
-                'GNO-ETH' => 'GNOETH',
-                'QTUM-ETH' => 'QTUMETH',
-                'ETC-ETH' => 'XETCXETH',
-                'ETH-USD' => 'XETHZUSD',
-                'REP-ETH' => 'XREPXETH',
-                'MLN-ETH' => 'XMLNXETH',
-                'XTZ-ETH' => 'XTZETH',
-                'ZEC-USD' => 'XZECZUSD',
-                'XRP-USD' => 'XXRPZUSD',
-                'XRP-USD' => 'XXRPZUSD',
-                'XMR-USD' => 'XXMRZUSD',
-                'XLM-USD' => 'XXLMZUSD',
-                'BTC-USD' => 'XXBTZUSD',
-                'XTZ-USD' => 'XTZUSD',
-                'REP-USD' => 'XREPZUSD',
-                'LTC-USD' => 'XLTCZUSD',
-                'ETC-USD' => 'XETCZUSD',
-                'QTUM-USD' => 'QTUMUSD',
-                'GNO-USD' => 'GNOUSD',
-                'EOS-USD' => 'EOSUSD',
-                'DASH-USD' => 'DASHUSD',
-                'BSV-USD' => 'BSVUSD',
-                'BCH-USD' => 'BCHUSD',
-                'ADA-USD' => 'ADAUSD',
-                'USDT-USD' => 'USDTZUSD'
-                ];
-    if(array_key_exists($product->symbol,$table))
-      return $table[$product->symbol];
-    else
-      throw new KrakenAPIException("Unknown symbol $product->symbol");
-    }
-
     function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
     {
-      $id = $this->getPair($product);
+      $id = $product->symbol_exchange;
       $ordercount = 25;
       $i=0;
       while (true) {
@@ -486,50 +434,6 @@ class KrakenApi
    {
      $ping = $this->jsonRequest('Time');
      return count($ping['error']) ? false : true;
-   }
-
-   static function symbol2kraken($symbol, $reverse = false)
-   {
-     $table = ['XRP-BTC' => 'XXRPXXBT',
-               'LTC-BTC' => 'XLTCXXBT',
-               'XLM-BTC' => 'XXLMXXBT',
-               'ETH-BTC' => 'XETHXXBT',
-               'ETC-BTC' => 'XETCXXBT',
-               'REP-BTC' => 'XREPXXBT',
-               'ZEC-BTC' => 'XZECXXBT',
-               'XMR-BTC' => 'XXMRXXBT',
-               'EOS-BTC' => 'EOSXBT',
-               'BCH-BTC' => 'BCHXBT',
-               'DASH-BTC' => 'DASHXBT',
-               'GNO-BTC' => 'GNOXBT',
-               'ICN-BTC' => 'XICNXXBT',
-               'MLN-BTC' => 'XMLNXXBT',
-               'XDG-BTC' => 'XXDGXXDG',
-               'ADA-BTC' => 'ADAXBT',
-               'QTUM-BTC' => 'QTUMXBT',
-               'BSV-BTC' => 'BSVXBT',
-               'XTZ-BTC' => 'XTZXBT',
-               'ADA-ETH' => 'ADAETH',
-               'EOS-ETH' => 'EOSETH',
-               'GNO-ETH' => 'GNOETH',
-               'QTUM-ETH' => 'QTUMETH',
-               'ETC-ETH' => 'XETCXETH',
-               'REP-ETH' => 'XREPXETH',
-               'XTZ-ETH' => 'XTZETH',
-               'DOGE-BTC' => 'XXDGXXBT',
-               ];
-     if($reverse)
-       $table = array_flip($table);
-     if(array_key_exists($symbol, $table))
-       return $table[$symbol];
-     else {
-       return null;
-     }
-   }
-
-   static function kraken2symbol($symbol)
-   {
-     return symbol2kraken($symbol, true);
    }
 
    function getOrdersHistory($filter = null)

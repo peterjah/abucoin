@@ -53,7 +53,7 @@ class CryptopiaApi
       //$private_set = array( "GetBalance", "GetDepositAddress", "GetOpenOrders", "GetTradeHistory", "GetTransactions", "SubmitTrade", "CancelTrade", "SubmitTip" );
       $ch = curl_init();
       $url = static::API_URL . "$path";
-      $nonce = microtime();
+      $nonce = number_format(microtime(true) * 1000, 0, '.', '');
       $i = 1;
       while($i < count(explode('/', $path)))
       {

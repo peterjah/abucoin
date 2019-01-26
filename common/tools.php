@@ -20,6 +20,7 @@ class Product
   public $fees;
   public $book;
   public $api;
+  public $symbol_exchange;
 
   public function __construct($params) {
     $this->api = $params['api'];
@@ -32,6 +33,8 @@ class Product
     $this->size_decimals = @$params['size_decimals'];
     $this->min_order_size_base = @$params['min_order_size_base'] ?: 0;
     $this->price_decimals = @$params['price_decimals'];
+    $this->symbol_exchange = @$params['symbol_exchange'];
+
     $book = null;
   }
 
@@ -71,7 +74,7 @@ class Market
   }
 
   function getBalance() {
-    $this->api->getBalance();
+    return $this->api->getBalance();
   }
   function updateProductList() {
     $this->products = $this->api->getProductList();
