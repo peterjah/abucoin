@@ -214,16 +214,17 @@ class PaymiumApi
 
         $i=0;
         $status = $status = $this->getOrderStatus($product, $id);;
-        while (($status['status'] != 'closed') && $i < 4) {
-          usleep(500000);
+        while (($status['status'] != 'closed') && $i < 6) {
+          print_dbg("Paymium trade state: {$status['status']}");
+          sleep(1);
           $status = $this->getOrderStatus($product, $id);
           $i++;
         }
 
         if($status['status'] == 'closed')
         {
-          $filled_size = $status['traded_btc'];
-          $filled_base = $status['traded_currency'];
+          $filled_size = $status['filled'];
+          $filled_base = $status['filled_base'];
           $price = $filled_base / $filled_size;
         }
         else
