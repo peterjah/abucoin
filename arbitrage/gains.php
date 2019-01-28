@@ -4,6 +4,7 @@ require_once('../common/tools.php');
 $handle = fopen("gains", "r");
 $gains = [];
 
+$prices['EUR'] = 1;
 $btc_price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=EUR"), true);
 $prices['BTC'] = $btc_price['EUR'];
 $eth_price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=EUR"), true);
