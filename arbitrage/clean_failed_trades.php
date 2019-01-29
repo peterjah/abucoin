@@ -133,40 +133,45 @@ function do_solve($markets, $symbol, $side, $traded)
   $size = $traded['size'];
   foreach($markets as $market) {
     $api = $market->api;
+    print "try with {$api->name}\n";
     if(!isset($market->products[$symbol]))
       continue;
+
     $product = $market->products[$symbol];
     $alt_bal = $api->balances[$product->alt];
     $base_bal = $api->balances[$product->base];
 
-    $book = $product->refreshBook(0, $size);
+    if($size < $product->min_order_size )
+      continue;
 
+    $book = $product->refreshBook(0, $size);
     if ($side == 'buy') {
-      $book = $book['bids'];
+      $price = $book['bids']['price'];
+      $order_price = $book['bids']['order_price'];
       $action = 'sell';
-      $expected_gains = computeGains($traded['price'], $traded['mean_fees'], $book['price'], $product->fees, $size);
+      $expected_gains = computeGains($traded['price'], $traded['mean_fees'], $price, $product->fees, $size);
       if ($alt_bal < $size)
         continue;
     }
     else {
       $action = 'buy';
-      $book = $book['asks'];
-      $expected_gains = computeGains($book['price'], $product->fees, $traded['price'], $traded['mean_fees'], $size);
-      if ($base_bal < $size * $book['price'])
+      $price = $book['asks']['price'];
+      $order_price = $book['asks']['order_price'];
+      $expected_gains = computeGains($price, $product->fees, $traded['price'], $traded['mean_fees'], $size);
+      if ($base_bal < $size * $price)
         continue;
     }
-    print "try with {$market->api->name}... price: {$book['price']} {$product->base}\n";
-    if($size < $product->min_order_size )
-      continue;
-    if($size * $book['price'] < $product->min_order_size_base)
+
+    if($size * $price < $product->min_order_size_base)
       continue;
 
     if($expected_gains['base'] > 0) {
       $i=0;
-      while($i<6) {
+      while ($i<6) {
         try {
-          print_dbg("Trade cleaner: $action $size $product->alt @ {$book['price']} $product->base");
-          $status = $api->place_order($product, 'market', $action, $book['order_price'], $size, 'solved');
+          print_dbg("Trade cleaner: $action $size $product->alt @ {$price} $product->base");
+          $status = $api->place_order($product, 'market', $action, $order_price, $size, 'solved');
+          print_dbg("Trade cleaner: filled: {$status['filled_size']}");
           break;
         } catch(Exception $e) {
           print "{$api->name}: Unable to $action :  $e \n";

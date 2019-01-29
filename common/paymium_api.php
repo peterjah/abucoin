@@ -30,6 +30,8 @@ class PaymiumApi
     public function __construct()
     {
         $keys = json_decode(file_get_contents("../common/private.keys"));
+        if (!isset($keys->paymium))
+          throw new PaymiumAPIException("Unable to retrieve API keys");
         $this->api_key = $keys->paymium->api_key;
         $this->secret = $keys->paymium->secret;
         $this->name = 'Paymium';
