@@ -1,11 +1,12 @@
 <?php
+use WebSocket\Client;
 
 class CobinhoodAPIException extends ErrorException {};
 
 class CobinhoodApi
 {
     const API_URL = 'https://api.cobinhood.com/v1';
-    const WSS_URL = 'wss://feed.cobinhood.com/ws';
+    const WSS_URL = 'wss://ws.cobinhood.com/v2/ws';
 
     protected $api_key;
     protected $curl;
@@ -420,6 +421,49 @@ class CobinhoodApi
     static function cobinhood2crypto($crypto)
     {
       return self::crypto2Cobinhood($crypto, true);
+    }
+
+    public function startOrderBookWS($products, $callback = null, $keepAlive = true )
+    {
+        $client = new Client(self::WSS_URL, ['timeout' => 60]);
+
+        foreach ($products as $product) {
+            $client->send(json_encode([
+                "action" => "subscribe",
+                "type" => "order-book",
+                "trading_pair_id" => $product->symbol,
+                //"precision" => "1E-6"
+            ]));
+        }
+
+        $date = DateTime::createFromFormat('U.u', microtime(TRUE));
+        $date->add(new DateInterval('PT' . 5 . 'S'));
+
+        while (true) {
+            try
+            {
+                $message = $client->receive();
+                if ($message) {
+                    if($callback)
+                    {
+                        call_user_func_array($callback, array($message));
+                    }
+                    else
+                    {
+                        var_dump($message);
+                    }
+                    if ($date < DateTime::createFromFormat('U.u', microtime(TRUE)) && $keepAlive) {
+                        $client->send(json_encode(["action"=>"ping"]));
+                        $date->add(new DateInterval('PT' . 5 . 'S'));
+                    }
+                }
+            }
+            catch(Exception $e)
+            {
+                echo "Socket Timeout";
+                break;
+            }
+        }
     }
 
 }
