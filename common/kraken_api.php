@@ -22,7 +22,7 @@ class KrakenApi
       if (!isset($keys->kraken))
         throw new KrakenAPIException("Unable to retrieve private keys");
       $this->secret = $keys->kraken->secret;
-      $this->key = $keys->kraken->key;
+      $this->key = $keys->kraken->api_key;
       $this->name = 'Kraken';
       $this->PriorityLevel = 9;
 
@@ -418,7 +418,7 @@ class KrakenApi
           }
       }
       if( !isset($status) )
-      { //todo get trade history to know if its fillet or canceled
+      {
         $status = 'closed';
         $filled = null;
         $filled_base = null;

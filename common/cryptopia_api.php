@@ -6,8 +6,8 @@ class CryptopiaApi
 {
     const API_URL = 'https://www.cryptopia.co.nz/api/';
 
-    protected $publicKey;
-    protected $privateKey;
+    protected $key;
+    protected $secret;
     protected $curl;
     protected $api_calls;
     public $api_calls_rate;
@@ -21,8 +21,8 @@ class CryptopiaApi
       $keys = json_decode(file_get_contents("../common/private.keys"));
       if (!isset($keys->cryptopia))
         throw new CryptopiaAPIException("Unable to retrieve private keys");
-      $this->publicKey = $keys->cryptopia->publicKey;
-      $this->privateKey = $keys->cryptopia->privateKey;
+      $this->$key = $keys->cryptopia->api_key;
+      $this->$secret = $keys->cryptopia->secret;
       $this->name = 'Cryptopia';
       $this->api_calls = 0;
       $this->api_calls_rate = 0;
