@@ -86,7 +86,7 @@ while(1) {
 if(@$autoSolve) {
   //init api
   $markets = [];
-  foreach( ['binance','kraken','cobinhood','cryptopia'] as $name) {
+  foreach( ['binance','kraken','cobinhood','paymium', 'cryptopia'] as $name) {
     $i=0;
     while($i<6) {
       try{
@@ -101,13 +101,14 @@ if(@$autoSolve) {
     }
   }
 }
+
 foreach($ledger as $symbol => $trades) {
   $mean_sell_price = $sell_size = 0;
   $mean_buy_price = $buy_size = 0;
   $balance = 0;
   if(count($trades)) {
     print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
-    $traded = getFailedTrades(@$markets, $symbol, $trades);
+    $traded = getFailedTrades($markets, $symbol, $trades);
     foreach (['buy','sell'] as $side ) {
       if (($size = @$traded[$side]['size']) > 0) {
         @$balance += $side == 'buy' ? $size : -1 * $size;
@@ -208,10 +209,16 @@ function getFailedTrades($markets, $symbol, $ops)
     foreach($ops as $id => $op) {
       if ($op['side'] != $side)
         continue;
-      $market = $markets[$op['exchange']];
-      $product = @$market->products[$symbol];
+      if(isset($markets[$op['exchange']])){
+        $market = $markets[$op['exchange']];
+        $product = @$market->products[$symbol];
+        $fees = $product->fees;
+      }
+      elseif ($op['exchange'] == 'cryptopia')
+        $fees = 0.2;
+
       $ret[$side]['price'] = ($ret[$side]['price'] * $ret[$side]['size'] + $op['price'] * $op['size']) / ( $ret[$side]['size'] + $op['size'] );
-      $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + @$product->fees*$op['size']) / ($ret[$side]['size'] + $op['size']);
+      $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + $fees * $op['size']) / ($ret[$side]['size'] + $op['size']);
       $ret[$side]['size'] += $op['size'];
       $ret[$side]['ids'][] = $id;
       print($op['line']);
