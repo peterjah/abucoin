@@ -21,8 +21,8 @@ class CryptopiaApi
       $keys = json_decode(file_get_contents("../common/private.keys"));
       if (!isset($keys->cryptopia))
         throw new CryptopiaAPIException("Unable to retrieve private keys");
-      $this->$key = $keys->cryptopia->api_key;
-      $this->$secret = $keys->cryptopia->secret;
+      $this->key = $keys->cryptopia->api_key;
+      $this->secret = $keys->cryptopia->secret;
       $this->name = 'Cryptopia';
       $this->api_calls = 0;
       $this->api_calls_rate = 0;
@@ -62,9 +62,9 @@ class CryptopiaApi
       }
       if ( !in_array($path ,$public_set ) ) {
         $requestContentBase64String = base64_encode( md5( json_encode( $datas ), true ) );
-        $signature = $this->publicKey . "POST" . strtolower( urlencode($url) ) . $nonce . $requestContentBase64String;
-        $hmacsignature = base64_encode( hash_hmac("sha256", $signature, base64_decode( $this->privateKey ), true ) );
-        $header_value = "amx " . $this->publicKey . ":" . $hmacsignature . ":" . $nonce;
+        $signature = $this->key . "POST" . strtolower( urlencode($url) ) . $nonce . $requestContentBase64String;
+        $hmacsignature = base64_encode( hash_hmac("sha256", $signature, base64_decode( $this->secret ), true ) );
+        $header_value = "amx " . $this->key . ":" . $hmacsignature . ":" . $nonce;
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
         'Content-Type: application/json; charset=utf-8',
         "Authorization: $header_value",
@@ -234,7 +234,6 @@ class CryptopiaApi
              break;
           }
         $status = 'closed';
-
       }
       else {
         var_dump($order);
