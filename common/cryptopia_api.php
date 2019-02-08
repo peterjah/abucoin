@@ -98,7 +98,7 @@ class CryptopiaApi
       }
       else {
         if (isset($response)) {
-          var_dump($response);
+          //var_dump($response);
           throw new CryptopiaAPIException($response->Message);
         }
         else {
@@ -106,7 +106,7 @@ class CryptopiaApi
             usleep(50000);
           }
           else
-            print_dbg("Cryptopia api error: request: $path. unable to decode \"$server_output\"");
+            //print("Cryptopia api error: request: $path. unable to decode \"$server_output\"");
 
           //jeson_decode may fail to decode:
           //"﻿{"Success":false,"Error":"Nonce has already been used for this request."}"

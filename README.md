@@ -1,3 +1,6 @@
 # Arbitrage bot
+installation:
+sudo apt-get update && sudo apt-get install -y php7.0 php-bcmath php-curl composer
 
-deps: php7.2-bcmath php7.0-curl
+In the repository root directory:
+composer create-project
