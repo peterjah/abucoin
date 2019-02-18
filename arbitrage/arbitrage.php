@@ -187,9 +187,9 @@ function testSwap($symbol, $buy_market, $sell_market)
       if ($do_swap) {
         $buy_market->getBalance();
         $sell_market->getBalance();
-
+        $arbId = substr($sell_market->api->name, 0, 2) . substr($buy_market->api->name, 0, 2) . '_' . number_format(microtime(true) * 100, 0, '.', '');
         print "do arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."%";
-        $status = do_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size);
+        $status = do_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size, $arbId);
         if ($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
 
           if ($status['buy']['filled_size'] != $status['sell']['filled_size'])
@@ -199,8 +199,8 @@ function testSwap($symbol, $buy_market, $sell_market)
           $final_gains = computeGains($status['buy']['price'], $buy_fees, $status['sell']['price'], $sell_fees, $trade_size);
           $profit += $final_gains['base'];
           print("log tx\n");
-          $trade_str = date("Y-m-d H:i:s").": {$final_gains['base']} $base {$expected_gains['percent']}% ({$final_gains['percent']}%)\n";
-          file_put_contents('gains',$trade_str,FILE_APPEND);
+          $trade_str = date("Y-m-d H:i:s") . ": Id={$arbId} {$final_gains['base']} $base {$expected_gains['percent']}% ({$final_gains['percent']}%)\n";
+          file_put_contents('gains', $trade_str, FILE_APPEND);
 
           //Just in case
           $buy_market->api->balances[$alt] += $status['buy']['filled_size'];

@@ -83,7 +83,7 @@ class Market
   }
 }
 
-function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $trade_size)
+function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $trade_size, $arbId)
 {
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
@@ -106,8 +106,6 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
     $second_market = $sell_market;
     $second_action = 'sell';
   }
-
-  $arbId = substr($sell_api->name, 0, 2) . substr($buy_api->name, 0, 2) . '_' . time();
 
   print "start with= {$first_market->api->name} \n";
   print "balances: $base_bal $base; $alt_bal $alt \n";
