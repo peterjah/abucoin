@@ -229,7 +229,7 @@ class KrakenApi
               throw new KrakenAPIException("failed to get product infos [{$e->getMessage()}]");
         }
       }
-      //var_dump($products);
+
       $fees = $tradeVolume['result']['fees']['XLTCXXBT']['fee'];
       foreach($products['result'] as $kraken_symbol => $product) {
         if (substr($kraken_symbol, -2) == '.d')
@@ -306,20 +306,23 @@ class KrakenApi
          $id = $ret['result']['txid'][0];
          $i=0;
          $status = [];
-         while (empty($status['status']) && $i < 4) {
+         while (empty($status['status']) && $i < 10) {
            usleep(200000);
            $status = $this->getOrdersHistory(['id' => $id]);
-           $filled_size = $status['filled'];
-           print_dbg("{$this->name} trade $id status: {$status['status']}. filled: $filled_size");
            $i++;
          }
-         if($filled_size > 0) {
-           $this->save_trade($id, $product, $side, $filled_size, $status['price'], $tradeId);
+         if($status['status'] == 'open') {
+           $this->cancelOrder(null, $id);
+           $status = $this->getOrdersHistory(['id' => $id]);
+         }
+         print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
+         if($status['filled'] > 0) {
+           $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
          } else {
           throw new KrakenAPIException("{$this->name}: Unable to $side");
          }
        }
-       return ['filled_size' => $filled_size, 'id' => $id, 'price' => $status['price']];
+       return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
     }
 
     static function minimumAltTrade($crypto)
@@ -466,5 +469,34 @@ class KrakenApi
        }
        return $status;
      }
+   }
+
+   function cancelOrder($product, $orderId)
+   {
+     print_dbg($this->name . " canceling order $orderId");
+     $i=0;
+     while($i<10)
+     {
+       try{
+         $ret = $this->jsonRequest('CancelOrder', ['txid' => $orderId]);
+         break;
+       }catch (Exception $e)
+       {
+         print_dbg("Failed to cancel order. [{$e->getMessage()}] retrying...$i");
+         if($e->getMessage() == 'EOrder:Unknown order')
+         {
+           return false;
+         }
+         $i++;
+         sleep(1);
+       }
+     }
+     if(isset($ret['error'][0]))
+     {
+       var_dump($ret);
+       print_dbg("Failed to cancel order. [{$ret['error'][0]}]");
+       return false;
+     }
+     return true;
    }
 }

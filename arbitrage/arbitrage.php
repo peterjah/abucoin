@@ -18,7 +18,6 @@ $sig_stop = false;
 
 @define('BUY_TRESHOLD', 0.000001);
 @define('CRITICAL_BUY_TRESHOLD_BASE', -0.000001);
-@define('CRITICAL_BUY_TRESHOLD_MAX', 0.00001);
 
 $market1 = new Market($argv[1]);
 $market2 = new Market($argv[2]);
@@ -171,7 +170,7 @@ function testSwap($symbol, $buy_market, $sell_market)
           if ($expected_gains['base'] < 0) {
             $trade_size = min($trade_size, $half_cash / $sell_price);
             $trade_size = check_tradesize($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size);
-            $multiplier = ($trade_size *$sell_price) / $half_cash;
+            $multiplier = ($trade_size * $sell_price) / $half_cash;
             $critical_treshold = CRITICAL_BUY_TRESHOLD_BASE * (1 + 5 * $multiplier);
           }
         }
