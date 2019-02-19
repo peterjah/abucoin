@@ -190,7 +190,7 @@ function do_solve($markets, $symbol, $side, $traded)
           $gains = computeGains( $traded['price'], $traded['mean_fees'], $status['price'], $product->fees, $status['filled_size']);
         }
         print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, mean_price:{$traded['price']}, mean_fees:{$traded['mean_fees']}, price:{$status['price']} $product->base");
-        $trade_str = date("Y-m-d H:i:s").": {$gains['base']} $product->base {$expected_gains['percent']}% ({$gains['percent']}%)\n";
+        $trade_str = date("Y-m-d H:i:s").": Id=solved {$gains['base']} $product->base {$expected_gains['percent']}% ({$gains['percent']}%)\n";
         file_put_contents('gains',$trade_str,FILE_APPEND);
         $market->api->getBalance();
         break;
