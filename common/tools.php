@@ -154,16 +154,10 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
       }
       catch(Exception $e) {
          print ("unable to $second_action retrying...: $e\n");
-
          var_dump($second_status);
          $err = $e->getMessage();
-         if($err == 'Order status: rejected') {
-           print_dbg("Cobinhood order rejected. update products");
-           $second_market->updateProductList();
-           $second_market->getBalance();
-         }
          if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance'|| $err == 'ERROR: Insufficient Funds.' ||
-            $err == 'Account has insufficient balance for requested action.')
+            $err == 'Account has insufficient balance for requested action.' || $err == 'Order status: rejected')
          {
            $second_market->getBalance();
            print_dbg("Insufficient funds to $second_action $trade_size $alt @ $price , base_bal:{$second_market->api->balances[$base]} alt_bal:{$second_market->api->balances[$alt]}");
