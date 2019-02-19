@@ -57,11 +57,11 @@ if (isset($options['exchange1']) && !empty($gains[$exchange1])) {
 
 if (isset($gains)) {
   foreach ($gains as $base => $gain) {
-    $mean_percent_gains = $mean_percent_gains[$base] / $nTx[$base];
+    $mean_percent = number_format($mean_percent_gains[$base] / $nTx[$base], 3);
     $total_gains_eur += $gain * $prices[$base];
     print "~~~~~~~~~~~~~~~~ $base ~~~~~~~~~~~~~~~~~~~\n";
     print ("gains: $gain $base = ".($gain * $prices[$base])."EUR\n");
-    print ("mean gains: $mean_percent_gains %\n");
+    print ("Nb Tx: {$nTx[$base]}. Mean gains: $mean_percent %\n\n");
   }
 }
 print ("total: $total_gains_eur EUR\n");
