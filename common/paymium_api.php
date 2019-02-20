@@ -216,7 +216,7 @@ class PaymiumApi
 
         $i=0;
         $status = $status = $this->getOrderStatus($product, $id);;
-        while (($status['status'] != 'closed') && $i < 6) {
+        while (($status['status'] != 'closed') && $i < 10) {
           print_dbg("Paymium trade state: {$status['status']}");
           sleep(1);
           $status = $this->getOrderStatus($product, $id);

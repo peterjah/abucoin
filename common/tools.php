@@ -157,7 +157,7 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
          var_dump($second_status);
          $err = $e->getMessage();
          if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance'|| $err == 'ERROR: Insufficient Funds.' ||
-            $err == 'Account has insufficient balance for requested action.' || $err == 'Order status: rejected')
+            $err == 'Account has insufficient balance for requested action.' || $err == 'Order rejected')
          {
            $second_market->getBalance();
            print_dbg("Insufficient funds to $second_action $trade_size $alt @ $price , base_bal:{$second_market->api->balances[$base]} alt_bal:{$second_market->api->balances[$alt]}");
