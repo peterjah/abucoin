@@ -103,7 +103,7 @@ while(true) {
       try {
         foreach([$market1, $market2] as $market) {
           //refresh product infos
-          if($market instanceof CobinhoodApi)
+          if($market->api instanceof CobinhoodApi)
             $market->updateProductList();
         }
       } catch (Exception $e){}
@@ -182,7 +182,7 @@ function testSwap($symbol, $buy_market, $sell_market)
       } else if ($expected_gains['base'] > 0) {
         $do_swap = true;
       }
-      if($sell_market instanceof PaymiumApi || $buy_market instanceof PaymiumApi) {
+      if($sell_market->api instanceof PaymiumApi || $buy_market->api instanceof PaymiumApi) {
         if ($expected_gains['base'] > 1/*€*/)
           $do_swap = true;
       }
