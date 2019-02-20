@@ -180,10 +180,10 @@ function testSwap($symbol, $buy_market, $sell_market)
              $do_swap = true;
            }
       } else if ($expected_gains['base'] > 0) {
-        $do_swap = true;
-      }
-      if($sell_market->api instanceof PaymiumApi || $buy_market->api instanceof PaymiumApi) {
-        if ($expected_gains['base'] > 1/*€*/)
+        if($sell_market->api instanceof PaymiumApi || $buy_market->api instanceof PaymiumApi) {
+          if ($expected_gains['base'] > 1/*€*/)
+            $do_swap = true;
+        } else
           $do_swap = true;
       }
 
