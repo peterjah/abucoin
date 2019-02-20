@@ -182,6 +182,10 @@ function testSwap($symbol, $buy_market, $sell_market)
       } else if ($expected_gains['base'] > 0) {
         $do_swap = true;
       }
+      if($sell_market instanceof PaymiumApi || $buy_market instanceof PaymiumApi) {
+        if ($expected_gains['base'] > 1/*€*/)
+          $do_swap = true;
+      }
 
       if ($do_swap) {
         $buy_market->getBalance();
