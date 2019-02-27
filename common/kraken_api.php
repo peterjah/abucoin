@@ -149,7 +149,7 @@ class KrakenApi
       return self::crypto2kraken($crypto, true);
     }
 
-    function getBalance($alt = null)
+    function getBalance($alt = null, $in_order = true)
     {
       $res = [];
       //var_dump($cryptos);
@@ -157,7 +157,8 @@ class KrakenApi
       while ( true ) {
         try {
           $balances = $this->jsonRequest('Balance');
-          $orders = $this->jsonRequest('OpenOrders');
+          if ($in_order)
+            $open_orders = $this->jsonRequest('OpenOrders');
           break;
         }
         catch (Exception $e) {
@@ -170,8 +171,8 @@ class KrakenApi
       }
 
       $crypto_in_order = [];
-      if(isset($orders['result']) && count($orders['result']['open'])) {
-        foreach($orders['result']['open'] as $openOrder) {
+      if(isset($open_orders['result']) && count($open_orders['result']['open'])) {
+        foreach($open_orders['result']['open'] as $openOrder) {
           $krakenPair = $openOrder['descr']['pair'];
           $base = substr($krakenPair,-3);//fixme
           $base = $base == 'XBT' ? 'BTC' : $base;
@@ -272,15 +273,10 @@ class KrakenApi
       // safety check
       if ($side == 'buy') {
         $bal = $this->balances[$base];
-          if ($bal == 0) {
-            $bal = $this->getBalance($base);
-          }
         $size = min($size , $bal/$price);
       }
       else {
         $altBal = $this->balances[$alt];
-        if ($altBal == 0)
-          $altBal = $this->getBalance($alt);
         $size = min($size , $altBal);
       }
 

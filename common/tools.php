@@ -76,7 +76,7 @@ class Market
   }
 
   function getBalance() {
-    return $this->api->getBalance();
+    return $this->api->getBalance(null, false);
   }
   function updateProductList() {
     $this->products = $this->api->getProductList();

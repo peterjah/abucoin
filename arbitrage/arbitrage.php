@@ -31,6 +31,7 @@ foreach ([$market1, $market2] as $market) {
       if (method_exists($market->api, 'subscribeWsOrderBook')) {
         print "Subscribe {$market->api->name} Ws feed\n";
         $market->api->subscribeWsOrderBook($symbol_list, getmypid());
+        sleep(1);
       }
       print "retrieve {$market->api->name} balances\n";
       $market->getBalance();
@@ -100,9 +101,9 @@ while(true) {
       }catch (Exception $e){}
 
       print "Refreshing balances\n";
-      try {$market1->api->getBalance();}
+      try {$market1->getBalance();}
         catch (Exception $e){}
-      try {$market2->api->getBalance();}
+      try {$market2->getBalance();}
         catch (Exception $e){}
 
       try {
