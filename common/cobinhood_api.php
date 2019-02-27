@@ -6,7 +6,6 @@ class CobinhoodAPIException extends ErrorException {};
 class CobinhoodApi
 {
     const API_URL = 'https://api.cobinhood.com/v1';
-    const WSS_URL = 'wss://ws.cobinhood.com/v2/ws';
 
     protected $api_key;
     protected $curl;
@@ -17,6 +16,8 @@ class CobinhoodApi
     public $name;
     protected $products;
     public $balances;
+    public $orderbook_file;
+    public $orderbook_depth;
 
     protected $side_translate = ['sell' => 'ask', 'buy' => 'bid'];
 
@@ -50,6 +51,8 @@ class CobinhoodApi
         $this->api_calls = 0;
         $this->api_calls_rate = 0;
         $this->time = time();
+
+        $this->orderbook_depth = 100;
 
     }
 
@@ -164,47 +167,6 @@ class CobinhoodApi
       return $table[$crypto];
     else
       return 0.00000001;
-    }
-
-    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
-    {
-      $symbol = self::crypto2Cobinhood($product->alt) ."-". self::crypto2Cobinhood($product->base);
-      $limit = ['limit' => 50];
-      $i=0;
-      while (true) {
-        try {
-            $book = $this->jsonRequest('GET', "/market/orderbooks/{$symbol}", $limit)['result']['orderbook'];
-            break;
-          } catch (Exception $e) {
-            if($i > 8)
-              throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
-            $i++;
-            print "{$this->name}: failed to get order book. retry $i...\n";
-            usleep(50000);
-          }
-        }
-
-      if(!isset($book['asks'][0][0], $book['bids'][0][0]))
-        return null;
-      foreach( ['asks', 'bids'] as $side)
-      {
-        $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
-        $best[$side]['size'] = floatval($book[$side][0][2]);
-        $i=1;
-        while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_base)
-              || ($best[$side]['size'] < $depth_alt) )
-              && $i<50/*max offers for level=2*/)
-        {
-          if (!isset($book[$side][$i][0], $book[$side][$i][2]))
-            break;
-          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][2]) / ($book[$side][$i][2]+$best[$side]['size']));
-          $best[$side]['size'] += floatval($book[$side][$i][2]);
-          $best[$side]['order_price'] = floatval($book[$side][$i][0]);
-          //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
-          $i++;
-        }
-      }
-      return $best;
     }
 
     function place_order($product, $type, $side, $price, $size, $tradeId)
@@ -404,47 +366,38 @@ class CobinhoodApi
       return self::crypto2Cobinhood($crypto, true);
     }
 
-    public function startOrderBookWS($products, $callback = null, $keepAlive = true )
+    static function translate2marketName($crypto)
     {
-        $client = new Client(self::WSS_URL, ['timeout' => 60]);
-
-        foreach ($products as $product) {
-            $client->send(json_encode([
-                "action" => "subscribe",
-                "type" => "order-book",
-                "trading_pair_id" => $product->symbol,
-                //"precision" => "1E-6"
-            ]));
-        }
-
-        $date = DateTime::createFromFormat('U.u', microtime(TRUE));
-        $date->add(new DateInterval('PT' . 5 . 'S'));
-
-        while (true) {
-            try
-            {
-                $message = $client->receive();
-                if ($message) {
-                    if($callback)
-                    {
-                        call_user_func_array($callback, array($message));
-                    }
-                    else
-                    {
-                        var_dump($message);
-                    }
-                    if ($date < DateTime::createFromFormat('U.u', microtime(TRUE)) && $keepAlive) {
-                        $client->send(json_encode(["action"=>"ping"]));
-                        $date->add(new DateInterval('PT' . 5 . 'S'));
-                    }
-                }
-            }
-            catch(Exception $e)
-            {
-                echo "Socket Timeout";
-                break;
-            }
-        }
+      return self::crypto2Cobinhood($crypto);
     }
 
+    public function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
+    {
+      $symbol = self::crypto2Cobinhood($product->alt) ."-". self::crypto2Cobinhood($product->base);
+      $file = $this->orderbook_file;
+      if (!file_exists($file))
+        throw new CobinhoodAPIException("Ws orderbook file: \"$file\" empty");
+      $fp = fopen($file, "r");
+      flock($fp, LOCK_SH, $wouldblock);
+      $orderbook = json_decode(file_get_contents($file), true);
+      $book = $orderbook[$symbol];
+      foreach( ['asks', 'bids'] as $side)
+      {
+        $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
+        $best[$side]['size'] = floatval($book[$side][0][2]);
+        $i=1;
+        while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_base)
+              || ($best[$side]['size'] < $depth_alt) )
+              && $i<50/*max offers for level=2*/)
+        {
+          if (!isset($book[$side][$i][0], $book[$side][$i][2]))
+            break;
+          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][2]) / ($book[$side][$i][2]+$best[$side]['size']));
+          $best[$side]['size'] += floatval($book[$side][$i][2]);
+          $best[$side]['order_price'] = floatval($book[$side][$i][0]);
+          $i++;
+        }
+      }
+      return $best;
+    }
 }

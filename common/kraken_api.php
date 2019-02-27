@@ -15,6 +15,8 @@ class KrakenApi
     public $name;
     protected $products;
     public $balances;
+    public $orderbook_file;
+    public $orderbook_depth;
 
     public function __construct()
     {
@@ -42,6 +44,8 @@ class KrakenApi
       $this->api_calls = 0;
       $this->api_calls_rate = 0;
       $this->time = time();
+
+      $this->orderbook_depth = 100;
     }
 
     function __destruct()
@@ -149,7 +153,20 @@ class KrakenApi
       return self::crypto2kraken($crypto, true);
     }
 
-    function getBalance($alt = null)
+    //Used in websockets
+    static function translate2marketName($crypto, $reverse = false)
+    {
+      $table = ['BTC' => 'XBT'];
+      if($reverse)
+        $table = array_flip($table);
+      if(array_key_exists($crypto,$table))
+        return $table[$crypto];
+      else {
+        return $crypto;
+      }
+    }
+
+    function getBalance($alt = null, $in_order = true)
     {
       $res = [];
       //var_dump($cryptos);
@@ -157,7 +174,8 @@ class KrakenApi
       while ( true ) {
         try {
           $balances = $this->jsonRequest('Balance');
-          $orders = $this->jsonRequest('OpenOrders');
+          if ($in_order)
+            $open_orders = $this->jsonRequest('OpenOrders');
           break;
         }
         catch (Exception $e) {
@@ -170,8 +188,8 @@ class KrakenApi
       }
 
       $crypto_in_order = [];
-      if(isset($orders['result']) && count($orders['result']['open'])) {
-        foreach($orders['result']['open'] as $openOrder) {
+      if(isset($open_orders['result']) && count($open_orders['result']['open'])) {
+        foreach($open_orders['result']['open'] as $openOrder) {
           $krakenPair = $openOrder['descr']['pair'];
           $base = substr($krakenPair,-3);//fixme
           $base = $base == 'XBT' ? 'BTC' : $base;
@@ -272,15 +290,10 @@ class KrakenApi
       // safety check
       if ($side == 'buy') {
         $bal = $this->balances[$base];
-          if ($bal == 0) {
-            $bal = $this->getBalance($base);
-          }
         $size = min($size , $bal/$price);
       }
       else {
         $altBal = $this->balances[$alt];
-        if ($altBal == 0)
-          $altBal = $this->getBalance($alt);
         $size = min($size , $altBal);
       }
 
@@ -356,50 +369,6 @@ class KrakenApi
       return $table[$crypto];
     else
       throw new KrakenAPIException("Unknown crypto $crypto");
-    }
-
-    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
-    {
-      $id = $product->symbol_exchange;
-      $ordercount = 25;
-      $i=0;
-      while (true) {
-        try {
-            $book = $this->jsonRequest('Depth',['pair' => $id, 'count' => $ordercount]);
-            break;
-          } catch (Exception $e) {
-            if($i > 8)
-              throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
-            $i++;
-            print "{$this->name}: failed to get order book. retry $i...\n";
-            usleep(50000);
-          }
-        }
-
-      if(count($book['error']))
-        throw new KrakenAPIException($book['error'][0]);
-
-      $book = $book['result'][$id];
-
-      foreach( ['asks', 'bids'] as $side)
-      {
-        $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
-        $best[$side]['size'] = floatval($book[$side][0][1]);
-        $i=1;
-        while( (($best[$side]['size'] * $best[$side]['price'] < $depth_base)
-                || ($best[$side]['size'] < $depth_alt) )
-                && $i < $ordercount)
-        {
-          if (!isset($book[$side][$i][0], $book[$side][$i][1]))
-            break;
-          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][1]) / ($book[$side][$i][1]+$best[$side]['size']));
-          $best[$side]['size'] += floatval($book[$side][$i][1]);
-          $best[$side]['order_price'] = floatval($book[$side][$i][0]);
-          //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
-          $i++;
-        }
-      }
-      return $best;
     }
 
     function getOrderStatus($alt = null, $order_id)
@@ -498,5 +467,37 @@ class KrakenApi
        return false;
      }
      return true;
+   }
+
+   function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
+   {
+
+     $symbol = $this->translate2marketName($product->alt) ."-". $this->translate2marketName($product->base);
+     $file = $this->orderbook_file;
+     if (!file_exists($file))
+       throw new krakenAPIException("Ws orderbook file: \"$file\" empty");
+     $fp = fopen($file, "r");
+     flock($fp, LOCK_SH, $wouldblock);
+     $orderbook = json_decode(file_get_contents($file), true);
+     $book = $orderbook[$symbol];
+
+     foreach( ['asks', 'bids'] as $side)
+     {
+       $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
+       $best[$side]['size'] = floatval($book[$side][0][1]);
+       $i=1;
+       while( (($best[$side]['size'] * $best[$side]['price'] < $depth_base)
+               || ($best[$side]['size'] < $depth_alt) )
+               && $i < $this->orderbook_depth)
+       {
+         if (!isset($book[$side][$i][0], $book[$side][$i][1]))
+           break;
+         $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][1]) / ($book[$side][$i][1]+$best[$side]['size']));
+         $best[$side]['size'] += floatval($book[$side][$i][1]);
+         $best[$side]['order_price'] = floatval($book[$side][$i][0]);
+         $i++;
+       }
+     }
+     return $best;
    }
 }

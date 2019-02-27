@@ -76,7 +76,7 @@ class Market
   }
 
   function getBalance() {
-    return $this->api->getBalance();
+    return $this->api->getBalance(null, false);
   }
   function updateProductList() {
     $this->products = $this->api->getProductList();
@@ -279,4 +279,27 @@ function check_tradesize($symbol, $sell_market, $sell_price, $buy_market, $buy_p
   }
 
   return $trade_size;
+}
+
+function subscribeWsOrderBook($market, $products_list, $suffix)
+{
+  $websocket_script = "../common/".strtolower($market->api->name)."_websockets.php";
+  if (file_exists($websocket_script)) {
+    print ("Subscribing {$market->api->name} Orderbook WS feed\n");
+    $market->api->orderbook_file  = "{$market->api->name}_orderbook_{$suffix}.json";
+    $products_str = '';
+    $idx = 1;
+    foreach ($products_list as $symbol) {
+      $product = $market->products[$symbol];
+      $products_str .= $market->api->translate2marketName($product->alt) ."-". $market->api->translate2marketName($product->base);
+      if ($idx != count($products_list) )
+        $products_str .= ',';
+      $idx++;
+    }
+    $cmd = "nohup php ../common/".strtolower($market->api->name)."_websockets.php --file {$market->api->orderbook_file} --cmd getOrderBook \
+           --products {$products_str} --bookdepth {$market->api->orderbook_depth}>/dev/null 2>&1 &";
+    print ("$cmd\n");
+    shell_exec($cmd);
+    sleep(1);
+  }
 }
