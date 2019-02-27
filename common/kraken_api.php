@@ -358,50 +358,6 @@ class KrakenApi
       throw new KrakenAPIException("Unknown crypto $crypto");
     }
 
-    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
-    {
-      $id = $product->symbol_exchange;
-      $ordercount = 25;
-      $i=0;
-      while (true) {
-        try {
-            $book = $this->jsonRequest('Depth',['pair' => $id, 'count' => $ordercount]);
-            break;
-          } catch (Exception $e) {
-            if($i > 8)
-              throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
-            $i++;
-            print "{$this->name}: failed to get order book. retry $i...\n";
-            usleep(50000);
-          }
-        }
-
-      if(count($book['error']))
-        throw new KrakenAPIException($book['error'][0]);
-
-      $book = $book['result'][$id];
-
-      foreach( ['asks', 'bids'] as $side)
-      {
-        $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
-        $best[$side]['size'] = floatval($book[$side][0][1]);
-        $i=1;
-        while( (($best[$side]['size'] * $best[$side]['price'] < $depth_base)
-                || ($best[$side]['size'] < $depth_alt) )
-                && $i < $ordercount)
-        {
-          if (!isset($book[$side][$i][0], $book[$side][$i][1]))
-            break;
-          $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][1]) / ($book[$side][$i][1]+$best[$side]['size']));
-          $best[$side]['size'] += floatval($book[$side][$i][1]);
-          $best[$side]['order_price'] = floatval($book[$side][$i][0]);
-          //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
-          $i++;
-        }
-      }
-      return $best;
-    }
-
     function getOrderStatus($alt = null, $order_id)
     {
       $open_orders = $this->jsonRequest('OpenOrders');
@@ -498,5 +454,57 @@ class KrakenApi
        return false;
      }
      return true;
+   }
+
+   public function subscribeWsOrderBook($products_list, $suffix) //This function should be factorized
+   {
+     print ("Subscribing {$this->name} Orderbook WS feed\n");
+     $this->orderbook_file  = "{$this->name}_orderbook_{$suffix}.json";
+     $products_str = '';
+     $idx = 1;
+     foreach ($products_list as $symbol) {
+       $products_str .= $symbol;
+       if ($idx != count($products_list) )
+         $products_str .= ',';
+       $idx++;
+     }
+     $cmd = "nohup php ../common/kraken_websockets.php --file {$this->orderbook_file} --cmd getOrderBook --products {$products_str} >/dev/null 2>&1 &";
+     print ("$cmd\n");
+     shell_exec($cmd);
+   }
+
+   function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
+   {
+     $base = $product->base;
+     if ($product->base == 'BTC')
+       $base = 'XBT';
+     $symbol = $product->alt ."-". $base;
+     $file = $this->orderbook_file;
+     if (!file_exists($file))
+       throw new krakenAPIException("Ws orderbook file: \"$file\" empty");
+     $fp = fopen($file, "r");
+     flock($fp, LOCK_SH, $wouldblock);
+     $orderbook = json_decode(file_get_contents($file), true);
+     $book = $orderbook[$symbol];
+
+     $ordercount = 100;//should be passed on arg of websocket script
+     foreach( ['asks', 'bids'] as $side)
+     {
+       $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
+       $best[$side]['size'] = floatval($book[$side][0][1]);
+       $i=1;
+       while( (($best[$side]['size'] * $best[$side]['price'] < $depth_base)
+               || ($best[$side]['size'] < $depth_alt) )
+               && $i < $ordercount)
+       {
+         if (!isset($book[$side][$i][0], $book[$side][$i][1]))
+           break;
+         $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][1]) / ($book[$side][$i][1]+$best[$side]['size']));
+         $best[$side]['size'] += floatval($book[$side][$i][1]);
+         $best[$side]['order_price'] = floatval($book[$side][$i][0]);
+         $i++;
+       }
+     }
+     return $best;
    }
 }

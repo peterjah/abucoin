@@ -26,12 +26,17 @@ $profits = [];
 
 $symbol_list = getCommonProducts($market1, $market2);
 
-print "retrieve balances\n";
-while (true) { try {
-    $market1->getBalance();
-    $market2->getBalance();
-    break;
-  } catch (Exception $e) {}
+foreach ([$market1, $market2] as $market) {
+  while (true) { try {
+      if (method_exists($market->api, 'subscribeWsOrderBook')) {
+        print "Subscribe {$market->api->name} Ws feed\n";
+        $market->api->subscribeWsOrderBook($symbol_list, getmypid());
+      }
+      print "retrieve {$market->api->name} balances\n";
+      $market->getBalance();
+      break;
+    } catch (Exception $e) {}
+  }
 }
 
 $btc_start_cash = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
