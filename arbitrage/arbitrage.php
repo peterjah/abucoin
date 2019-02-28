@@ -120,6 +120,9 @@ while(true) {
 
   print "~~~~Api call stats: {$market2->api->name}: {$market2->api->api_calls_rate}/min , {$market1->api->name}: {$market1->api->api_calls_rate}/min~~~~\n\n";
 
+  if($market1->api instanceof PaymiumApi || $market2->api instanceof PaymiumApi) {
+    sleep(3600);
+  }
 }
 
 function testSwap($symbol, $buy_market, $sell_market)
@@ -180,7 +183,7 @@ function testSwap($symbol, $buy_market, $sell_market)
              $do_swap = true;
            }
       } else if ($expected_gains['base'] > 0) {
-        if(/*$sell_market->api instanceof PaymiumApi ||*/ $buy_market->api instanceof PaymiumApi) {
+        if($buy_market->api instanceof PaymiumApi) {
           if ($expected_gains['base'] > 1/*€*/)
             $do_swap = true;
         } else
