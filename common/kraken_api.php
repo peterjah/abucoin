@@ -472,14 +472,32 @@ class KrakenApi
    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
    {
 
-     $symbol = $this->translate2marketName($product->alt) ."-". $this->translate2marketName($product->base);
      $file = $this->orderbook_file;
-     if (!file_exists($file))
-       throw new krakenAPIException("Ws orderbook file: \"$file\" empty");
-     $fp = fopen($file, "r");
-     flock($fp, LOCK_SH, $wouldblock);
-     $orderbook = json_decode(file_get_contents($file), true);
-     $book = $orderbook[$symbol];
+     if (file_exists($file)) {
+       $symbol = $this->translate2marketName($product->alt) ."-". $this->translate2marketName($product->base);
+       $fp = fopen($file, "r");
+       flock($fp, LOCK_SH, $wouldblock);
+       $orderbook = json_decode(file_get_contents($file), true);
+       $book = $orderbook[$symbol];
+     } else {
+       $id = $product->symbol_exchange;
+       $i=0;
+       while (true) {
+         try {
+             $book = $this->jsonRequest('Depth',['pair' => $id, 'count' => $this->orderbook_depth]);
+           break;
+           } catch (Exception $e) {
+             if($i > 8)
+             throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
+             $i++;
+             print "{$this->name}: failed to get order book. retry $i...\n";
+             usleep(50000);
+           }
+         }
+       if(count($book['error']))
+         throw new KrakenAPIException($book['error'][0]);
+       $book = $book['result'][$id];
+     }
 
      foreach( ['asks', 'bids'] as $side)
      {

@@ -375,12 +375,29 @@ class CobinhoodApi
     {
       $symbol = self::crypto2Cobinhood($product->alt) ."-". self::crypto2Cobinhood($product->base);
       $file = $this->orderbook_file;
-      if (!file_exists($file))
-        throw new CobinhoodAPIException("Ws orderbook file: \"$file\" empty");
-      $fp = fopen($file, "r");
-      flock($fp, LOCK_SH, $wouldblock);
-      $orderbook = json_decode(file_get_contents($file), true);
-      $book = $orderbook[$symbol];
+      if (file_exists($file)) {
+        $fp = fopen($file, "r");
+        flock($fp, LOCK_SH, $wouldblock);
+        $orderbook = json_decode(file_get_contents($file), true);
+        $book = $orderbook[$symbol];
+      } else {
+        $limit = ['limit' => $this->orderbook_depth];
+        $i=0;
+        while (true) {
+          try {
+              $book = $this->jsonRequest('GET', "/market/orderbooks/{$symbol}", $limit)['result']['orderbook'];
+              break;
+            } catch (Exception $e) {
+              if($i > 8)
+                throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
+              $i++;
+              print "{$this->name}: failed to get order book. retry $i...\n";
+              usleep(50000);
+            }
+          }
+        if(!isset($book['asks'][0][0], $book['bids'][0][0]))
+          return null;
+      }
       foreach( ['asks', 'bids'] as $side)
       {
         $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
@@ -388,7 +405,7 @@ class CobinhoodApi
         $i=1;
         while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_base)
               || ($best[$side]['size'] < $depth_alt) )
-              && $i<50/*max offers for level=2*/)
+              && $i<$this->orderbook_depth)
         {
           if (!isset($book[$side][$i][0], $book[$side][$i][2]))
             break;
