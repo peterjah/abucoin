@@ -191,11 +191,11 @@ class KrakenApi
       if(isset($open_orders['result']) && count($open_orders['result']['open'])) {
         foreach($open_orders['result']['open'] as $openOrder) {
           $krakenPair = $openOrder['descr']['pair'];
-          //search corresponding product
-          $key = array_search($krakenPair, array_column($kraken->products, 'symbol_exchange'));
-          $product = array_values(array_slice($kraken->products, $key, 1));
-          $alt = $product[0]->alt;
-          $base = $product[0]->base;
+          $base = substr($krakenPair,-3);//fixme
+          $base = $base == 'XBT' ? 'BTC' : $base;
+          $krakenAlt = substr($krakenPair,0, strlen($krakenPair)-3);
+          $alt = $this->kraken2crypto($krakenAlt);
+          $alt = $alt == null ? $this->kraken2crypto("X{$krakenAlt}") : $alt;
           print "alt=$alt base=$base\n";
           if($openOrder['descr']['type'] == 'sell') {
             $crypto_in_order[$alt] += $openOrder['vol'];
