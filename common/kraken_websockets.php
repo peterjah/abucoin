@@ -73,7 +73,7 @@ function getOrderBook($products)
               $date->add(new DateInterval('PT' . 5 . 'S'));
           }
           $msg = json_decode($message , true);
-          var_dump($msg);
+          //var_dump($msg);
           if (isset($msg['event'])) {
             switch ($msg['event']) {
               case 'systemStatus':
@@ -132,7 +132,7 @@ function getOrderBook($products)
                   foreach ($orderbook[$symbol][$side] as $key => $offer) {
                     if ($side == 'bids' && $new_offer[0] > $offer[0] ||
                         $side == 'asks' && $new_offer[0] < $offer[0] ) {
-                          var_dump($msg);
+                      //    var_dump($msg);
                       // var_dump($new_offer);
                       // print "new_offer[0] <> offer[0]\n";
                       // var_dump($offer);
