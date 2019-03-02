@@ -33,7 +33,6 @@ if(!isset($options['file'])) {
 $file = $options['file'];
 
 $products = explode(',', $options['products']);
-var_dump($products);
 
 switch($options['cmd']) {
   case 'getOrderBook':
@@ -80,11 +79,10 @@ function getOrderBook($products)
             case 's': foreach (['bids', 'asks'] as $side) {
                         $orderbook[$symbol][$side] = array_values($msg['d'][$side]);
                       }
-                      var_dump($orderbook[$symbol]['asks']);
                       break;
             case 'u':
               print "update received\n";
-              var_dump($msg['d']);
+            //  var_dump($msg['d']);
               foreach (['bids', 'asks'] as $side) {
                 foreach ($msg['d'][$side] as $new_offer) {
                   print("Nb of offer to update: ".count($msg['d'][$side])."\n");
@@ -95,14 +93,11 @@ function getOrderBook($products)
                       if ($offer[0] != $new_offer[0])
                         continue;
                       print "found it!\n";
-                      var_dump(intval($offer[1]));
-                      var_dump(intval($new_offer[1]));
                       //count
                       $orderbook[$symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
                       //volume
                       $orderbook[$symbol][$side][$key][2] += floatval($offer[1]) + floatval($new_offer[2]);
                       print "new $side\n";
-                      var_dump($orderbook[$symbol][$side][$key]);
                       if($orderbook[$symbol][$side][$key][1] == 0)
                         unset($orderbook[$symbol][$side][$key]);
                       break;
@@ -129,8 +124,8 @@ function getOrderBook($products)
                   }
                 }
               }
-              print "new $side book:\n";
-              var_dump($orderbook[$symbol]['asks']);
+              // print "new $side book:\n";
+              // var_dump($orderbook[$symbol]['asks']);
               break;
             case 'pong': break;
             default: var_dump($msg);
@@ -144,8 +139,7 @@ function getOrderBook($products)
       }
       catch(Exception $e)
       {
-        echo "Socket Timeout";
-        break;
+        print_dbg('Cobinhood websocket  error:' . $e->getMessage()):
       }
     }
 }
