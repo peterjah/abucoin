@@ -140,7 +140,7 @@ function getOrderBook($products)
       }
       catch(Exception $e)
       {
-        print_dbg('Cobinhood websocket  error:' . $e->getMessage()):
+        print_dbg('Cobinhood websocket  error:' . $e->getMessage());
       }
     }
 }
