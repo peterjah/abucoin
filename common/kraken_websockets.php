@@ -36,9 +36,11 @@ $products = explode(',', str_replace('-', '/', $options['products']));
 
 switch($options['cmd']) {
   case 'getOrderBook':
+  while (true) {
       print "Subscribing Kraken Orderbook WS feed\n";
       getOrderBook($products);
-      break;
+      sleep(1);
+    }
 }
 
 function getOrderBook($products)
@@ -145,8 +147,9 @@ function getOrderBook($products)
       }
       catch(Exception $e)
       {
-        print_dbg('Kraken websocket error:' . $e->getMessage());
+        print_dbg("$file error:" . $e->getMessage());
         print_dbg(var_dump($e));
+        break;
       }
     }
 }

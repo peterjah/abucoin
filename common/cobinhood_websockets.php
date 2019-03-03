@@ -39,6 +39,7 @@ switch($options['cmd']) {
       while(true) {
         print "Subscribing Cobinhood Orderbook WS feed\n";
         getOrderBook($products);
+        sleep(1);
       }
 }
 
@@ -133,8 +134,9 @@ function getOrderBook($products)
       }
       catch(Exception $e)
       {
-        print_dbg('Cobinhood websocket error:' . $e->getMessage());
-        print_dbg(var_dump($e));
+        print_dbg("$file error:" . $e->getMessage());
+        //if (preg_match('/Empty read; connection dead\?  Stream state: ({.+})$/', $e->getMessage(), $matchs));
+        break;
       }
     }
 }
