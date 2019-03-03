@@ -32,7 +32,7 @@ if(!isset($options['file'])) {
 }
 $file = $options['file'];
 
-$products = explode(',', str_replace('-', '/', $options['products']));
+$products = explode(',', $options['products']);
 
 switch($options['cmd']) {
   case 'getOrderBook':
@@ -49,9 +49,17 @@ function getOrderBook($products)
     global $file;
     global $options;
 
+    $streams = [];
+    $kraken_products = [];
+    foreach ($products as $product) {
+      $alts = explode ('-', $product);
+      $symbol = KrakenApi::translate2marketName($alts[0]) .'/'. KrakenApi::translate2marketName($alts[1]);
+      $streams[$symbol]['app_symbol'] = $product;
+      $kraken_products[] = $symbol;
+    }
     $client->send(json_encode([
         "event" => "subscribe",
-        "pair" => $products,
+        "pair" => $kraken_products,
         "subscription" => ['name' => 'book', 'depth' => intval($options['bookdepth'])]
     ]));
 
@@ -84,8 +92,8 @@ function getOrderBook($products)
               case 'subscriptionStatus':
                   if ($msg['status'] != 'subscribed')
                     throw new \Exception("Kraken WS subsscription failed: {$msg['errorMessage']}");
-                  $symbol = str_replace('/', "-", $msg['pair']);
-                  $channel_ids[$msg['channelID']] = $symbol;
+                  $app_symbol = $streams[$msg['pair']]['app_symbol'];
+                  $channel_ids[$msg['channelID']] = $app_symbol;
                   break;
               case 'pong':
               case 'heartbeat': break;
@@ -148,7 +156,6 @@ function getOrderBook($products)
       catch(Exception $e)
       {
         print_dbg("$file error:" . $e->getMessage());
-        print_dbg(var_dump($e));
         break;
       }
     }

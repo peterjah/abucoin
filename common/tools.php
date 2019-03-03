@@ -291,7 +291,7 @@ function subscribeWsOrderBook($market, $products_list, $suffix)
     $idx = 1;
     foreach ($products_list as $symbol) {
       $product = $market->products[$symbol];
-      $products_str .= $market->api->translate2marketName($product->alt) ."-". $market->api->translate2marketName($product->base);
+      $products_str .= $product->alt . "-" . $product->base;
       if ($idx != count($products_list) )
         $products_str .= ',';
       $idx++;

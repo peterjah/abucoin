@@ -156,7 +156,9 @@ class KrakenApi
     //Used in websockets
     static function translate2marketName($crypto, $reverse = false)
     {
-      $table = ['BTC' => 'XBT'];
+      $table = ['BTC' => 'XBT',
+                'DOGE' => 'XDG',
+               ];
       if($reverse)
         $table = array_flip($table);
       if(array_key_exists($crypto,$table))

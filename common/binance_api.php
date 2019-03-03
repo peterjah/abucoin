@@ -387,6 +387,11 @@ class BinanceApi
 
     static function binance2crypto($crypto)
     {
-        return self::crypto2binance($crypto, true);
+      return self::crypto2binance($crypto, true);
+    }
+
+    static function translate2marketName($crypto)
+    {
+      return self::crypto2binance($crypto);
     }
 }

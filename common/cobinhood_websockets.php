@@ -47,13 +47,16 @@ function getOrderBook($products)
 {
     $client = new Client(WSS_URL, ['timeout' => 60]);
     global $file;
+    $streams = [];
     foreach ($products as $product) {
-        $client->send(json_encode([
-            "action" => "subscribe",
-            "type" => "order-book",
-            "trading_pair_id" => $product,
-            //"precision" => "1E-6"
-        ]));
+      $alts = explode ('-', $product);
+      $symbol = CobinhoodApi::translate2marketName($alts[0]) .'-'. CobinhoodApi::translate2marketName($alts[1]);
+      $streams[$symbol]['app_symbol'] = $product;
+      $client->send(json_encode([
+          "action" => "subscribe",
+          "type" => "order-book",
+          "trading_pair_id" => $symbol,
+      ]));
     }
 
     $date = DateTime::createFromFormat('U.u', microtime(TRUE));
@@ -65,7 +68,7 @@ function getOrderBook($products)
         $message = $client->receive();
         $fp = fopen($file, "c+");
         flock($fp, LOCK_EX, $wouldblock);
-        //print "wouldblock=$wouldblock\n";
+
         $orderbook = [];
         $orderbook = json_decode(file_get_contents($file), true);
         if ($message) {
@@ -77,9 +80,10 @@ function getOrderBook($products)
 
           preg_match('/order-book.(.*-.*).1E-/', $msg['h'][0], $matches);
           $symbol = @$matches[1];
+          $app_symbol = $streams[$symbol]['app_symbol'];
           switch ($msg['h'][2]) {
             case 's': foreach (['bids', 'asks'] as $side) {
-                        $orderbook[$symbol][$side] = array_values($msg['d'][$side]);
+                        $orderbook[$app_symbol][$side] = array_values($msg['d'][$side]);
                       }
                       break;
             case 'u':
@@ -88,28 +92,28 @@ function getOrderBook($products)
                 foreach ($msg['d'][$side] as $new_offer) {
                   //remove offer
                   if ($new_offer[1] <= 0) {
-                    foreach ($orderbook[$symbol][$side] as $key => $offer) {
+                    foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
                       if ($offer[0] != $new_offer[0])
                         continue;
                       //count
-                      $orderbook[$symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
+                      $orderbook[$app_symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
                       //volume
-                      $orderbook[$symbol][$side][$key][2] += floatval($offer[1]) + floatval($new_offer[2]);
-                      if($orderbook[$symbol][$side][$key][1] == 0)
-                        unset($orderbook[$symbol][$side][$key]);
+                      $orderbook[$app_symbol][$side][$key][2] += floatval($offer[1]) + floatval($new_offer[2]);
+                      if($orderbook[$app_symbol][$side][$key][1] == 0)
+                        unset($orderbook[$app_symbol][$side][$key]);
                       break;
                     }
-                    $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
+                    $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
                   } else {
-                    foreach ($orderbook[$symbol][$side] as $key => $offer) {
+                    foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
                       if ($side == 'bids' && $new_offer[0] > $offer[0] ||
                           $side == 'asks' && $new_offer[0] < $offer[0] ) {
-                        array_splice($orderbook[$symbol][$side], $key, 0, [0 => $new_offer]);
+                        array_splice($orderbook[$app_symbol][$side], $key, 0, [0 => $new_offer]);
                         break;
                       } elseif ($new_offer[0] == $offer[0]) {
-                        $orderbook[$symbol][$side][$key][0] = $new_offer[0];
-                        $orderbook[$symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
-                        $orderbook[$symbol][$side][$key][2] = floatval($offer[2]) + floatval($new_offer[2]);
+                        $orderbook[$app_symbol][$side][$key][0] = $new_offer[0];
+                        $orderbook[$app_symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
+                        $orderbook[$app_symbol][$side][$key][2] = floatval($offer[2]) + floatval($new_offer[2]);
                         break;
                       } else {
                         continue;
