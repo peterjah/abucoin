@@ -75,42 +75,31 @@ while(true) {
         }catch (Exception $e){}
       }
     } else {
+      foreach ([$market1, $market2] as $market) {
+        if (isset($market->api->orderbook_file))
+          unlink($market->api->orderbook_file);
+      }
       exit();
     }
-
-    if($nLoops == PHP_INT_MAX)
-      $nLoops=0;
-    else
-      $nLoops++;
-
-    if( ($nLoops % 10) == 0) {
-      //ping api
-      try {
-        while($market1->api->ping() === false) {
-          print "Failed to ping {$market1->api->name} api. Sleeping...\n";
-          sleep(30);
-        }
-        while($market2->api->ping() === false) {
-          print "Failed to ping {$market2->api->name} api. Sleeping...\n";
-          sleep(30);
-        }
-      }catch (Exception $e){}
-
-      print "Refreshing balances\n";
-      try {$market1->getBalance();}
-        catch (Exception $e){}
-      try {$market2->getBalance();}
-        catch (Exception $e){}
-
-      try {
-        foreach([$market1, $market2] as $market) {
-          //refresh product infos
-          if($market->api instanceof CobinhoodApi)
-            $market->updateProductList();
-        }
-      } catch (Exception $e){}
-    }
   }
+
+  if( $nLoops >= 10) {
+    try {
+      foreach([$market1, $market2] as $market) {
+        $market->getBalance();
+        //refresh product infos
+        if($market->api instanceof CobinhoodApi)
+          $market->updateProductList();
+        while($market->api->ping() === false) {
+          print "Failed to ping {$market->api->name} api. Sleeping...\n";
+          sleep(30);
+        }
+      }
+    } catch (Exception $e){}
+    $nLoops=0;
+  }
+  else
+    $nLoops++;
 
   $btc_cash_roll = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
   print "~~~~ ".date("Y-m-d H:i:s")." ~~~~~\n\n";

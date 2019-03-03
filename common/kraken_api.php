@@ -35,7 +35,7 @@ class KrakenApi
           CURLOPT_USERAGENT => 'Kraken PHP API Agent',
           CURLOPT_POST => true,
           CURLOPT_RETURNTRANSFER => true,
-          CURLOPT_TIMEOUT => 20)
+          CURLOPT_TIMEOUT => 4)
       );
 
       //App specifics
