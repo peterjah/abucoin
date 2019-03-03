@@ -21,9 +21,8 @@ $options =  getopt('', array(
    'file:',
    'cmd:',
    'products:',
-   'bookdepth:',
+   'bookdepth:'
  ));
-
 
 if(!isset($options['cmd'])) {
   print_dbg("No websocket method provided",true);
@@ -85,7 +84,6 @@ function getOrderBook($products)
                     throw new \Exception("Kraken WS subsscription failed: {$msg['errorMessage']}");
                   $symbol = str_replace('/', "-", $msg['pair']);
                   $channel_ids[$msg['channelID']] = $symbol;
-                  print "$symbol subscriptionStatusid= {$msg['channelID']}\n";
                   break;
               case 'pong':
               case 'heartbeat': break;
@@ -95,14 +93,11 @@ function getOrderBook($products)
           }
           elseif (isset($msg[1]['as']) && isset($msg[1]['bs'])) {
             $symbol = $channel_ids[$msg[0]];
-            print "$symbol snapshot received\n";
             $orderbook[$symbol]['asks'] = $msg[1]['as'];
             $orderbook[$symbol]['bids'] = $msg[1]['bs'];
-            //var_dump($orderbook[$symbol]['asks']);
           }
           elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
             $symbol = $channel_ids[$msg[0]];
-            print "$symbol update received\n";
             //var_dump($msg);
             foreach ($msg as $idx => $data) {
               if ($idx == 0) {
@@ -115,34 +110,24 @@ function getOrderBook($products)
                 $kside = 'b';
               }
               foreach ($data[$kside] as $new_offer) {
-                print("Nb of offer to update: ".count($data[$kside])."\n");
                 //remove offer
                 if ($new_offer[1] == '0') {
-                  print "$symbol remove $side\n";
                   foreach ($orderbook[$symbol][$side] as $key => $offer) {
                     if ($offer[0] != $new_offer[0])
                       continue;
-                    print "found it!\n";
                     unset($orderbook[$symbol][$side][$key]);
                     break;
                   }
                   $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
                 } else {
-                  print "$symbol add $side\n";
                   foreach ($orderbook[$symbol][$side] as $key => $offer) {
                     if ($side == 'bids' && $new_offer[0] > $offer[0] ||
                         $side == 'asks' && $new_offer[0] < $offer[0] ) {
-                      //    var_dump($msg);
-                      // var_dump($new_offer);
-                      // print "new_offer[0] <> offer[0]\n";
-                      // var_dump($offer);
                       array_splice($orderbook[$symbol][$side], $key, 0, [0 => $new_offer]);
                       break;
                     } elseif ($new_offer[0] == $offer[0]) {
-                      print "offer[0] = new_offer[0]\n";
                       $orderbook[$symbol][$side][$key][0] = $new_offer[0];
                       $orderbook[$symbol][$side][$key][1] = floatval($offer[1]) + floatval($new_offer[1]);
-                      $orderbook[$symbol][$side][$key][2] = $new_offer[2];
                       break;
                     }
                   }
@@ -160,8 +145,8 @@ function getOrderBook($products)
       }
       catch(Exception $e)
       {
-        print $e->getMessage();
-        break;
+        print_dbg('Kraken websocket error:' . $e->getMessage());
+        print_dbg(var_dump($e));
       }
     }
 }

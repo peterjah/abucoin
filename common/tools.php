@@ -297,7 +297,7 @@ function subscribeWsOrderBook($market, $products_list, $suffix)
       $idx++;
     }
     $cmd = "nohup php ../common/".strtolower($market->api->name)."_websockets.php --file {$market->api->orderbook_file} --cmd getOrderBook \
-           --products {$products_str} --bookdepth {$market->api->orderbook_depth}>/dev/null 2>&1 &";
+           --products {$products_str} --bookdepth {$market->api->orderbook_depth} >/dev/null 2>&1 &";
     print ("$cmd\n");
     shell_exec($cmd);
     sleep(1);

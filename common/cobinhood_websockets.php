@@ -21,9 +21,8 @@ $options =  getopt('', array(
    'file:',
    'cmd:',
    'products:',
-   'bookdepth:',
+   'bookdepth:'
  ));
-
 
 if(!isset($options['cmd'])) {
   print_dbg("No websocket method provided",true);
@@ -37,9 +36,10 @@ $products = explode(',', $options['products']);
 
 switch($options['cmd']) {
   case 'getOrderBook':
-      print "Subscribing Cobinhood Orderbook WS feed\n";
-      getOrderBook($products);
-      break;
+      while(true) {
+        print "Subscribing Cobinhood Orderbook WS feed\n";
+        getOrderBook($products);
+      }
 }
 
 function getOrderBook($products)
@@ -82,38 +82,30 @@ function getOrderBook($products)
                       }
                       break;
             case 'u':
-              print "update received\n";
             //  var_dump($msg['d']);
               foreach (['bids', 'asks'] as $side) {
                 foreach ($msg['d'][$side] as $new_offer) {
-                  print("Nb of offer to update: ".count($msg['d'][$side])."\n");
                   //remove offer
                   if ($new_offer[1] <= 0) {
-                    print "remove $side\n";
                     foreach ($orderbook[$symbol][$side] as $key => $offer) {
                       if ($offer[0] != $new_offer[0])
                         continue;
-                      print "found it!\n";
                       //count
                       $orderbook[$symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
                       //volume
                       $orderbook[$symbol][$side][$key][2] += floatval($offer[1]) + floatval($new_offer[2]);
-                      print "new $side\n";
                       if($orderbook[$symbol][$side][$key][1] == 0)
                         unset($orderbook[$symbol][$side][$key]);
                       break;
                     }
                     $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
                   } else {
-                    print "add $side\n";
                     foreach ($orderbook[$symbol][$side] as $key => $offer) {
                       if ($side == 'bids' && $new_offer[0] > $offer[0] ||
                           $side == 'asks' && $new_offer[0] < $offer[0] ) {
-                        print "new_offer[0] <> offer[0]\n";
                         array_splice($orderbook[$symbol][$side], $key, 0, [0 => $new_offer]);
                         break;
                       } elseif ($new_offer[0] == $offer[0]) {
-                        print "offer[0] = new_offer[0]\n";
                         $orderbook[$symbol][$side][$key][0] = $new_offer[0];
                         $orderbook[$symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
                         $orderbook[$symbol][$side][$key][2] = floatval($offer[2]) + floatval($new_offer[2]);
@@ -141,7 +133,8 @@ function getOrderBook($products)
       }
       catch(Exception $e)
       {
-        print_dbg('Cobinhood websocket  error:' . $e->getMessage());
+        print_dbg('Cobinhood websocket error:' . $e->getMessage());
+        print_dbg(var_dump($e));
       }
     }
 }
