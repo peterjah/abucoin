@@ -76,8 +76,10 @@ while(true) {
       }
     } else {
       foreach ([$market1, $market2] as $market) {
-        if (isset($market->api->orderbook_file))
-          unlink($market->api->orderbook_file);
+        $orderbook_file = $market->api->orderbook_file;
+        //Should be useless
+        if (isset($orderbook_file))
+          unlink($orderbook_file);
       }
       exit();
     }
