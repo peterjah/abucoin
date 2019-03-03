@@ -133,6 +133,7 @@ function getOrderBook($products)
               break;
           }
           //var_dump($orderbook);
+          $orderbook['last_update'] = microtime(true);
           file_put_contents($file, json_encode($orderbook));
           flock($fp, LOCK_UN);
           fclose($fp);

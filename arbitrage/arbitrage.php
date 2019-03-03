@@ -107,8 +107,9 @@ while(true) {
     print "~~~~cumulated gain: $profit $base~~~~~\n\n";
   }
   print "~~~~{$market2->api->name}:{$market2->api->balances['BTC']}BTC  {$market1->api->name}:{$market1->api->balances['BTC']}BTC~~~~\n\n";
-  print "~~~~Cash roll: $btc_cash_roll BTC, GAIN=".($btc_cash_roll-$btc_start_cash)."BTC~~~~\n\n";
-
+  print "~~~~Cash roll: $btc_cash_roll BTC ~~~~\n\n";
+  print "~~~~Websocket: {$market1->api->name}:" . (isset($market1->api->orderbook_file) ? 'yes' : 'no')."~~~~\n";
+  print "~~~~Websocket: {$market2->api->name}:" . (isset($market2->api->orderbook_file) ? 'yes' : 'no')."~~~~\n\n";
   print "~~~~Api call stats: {$market2->api->name}: {$market2->api->api_calls_rate}/min , {$market1->api->name}: {$market1->api->api_calls_rate}/min~~~~\n\n";
 
   if($market1->api instanceof PaymiumApi || $market2->api instanceof PaymiumApi) {

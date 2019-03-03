@@ -37,7 +37,7 @@ $products = explode(',', str_replace('-', '/', $options['products']));
 
 switch($options['cmd']) {
   case 'getOrderBook':
-      print "Subscribing Cobinhood Orderbook WS feed\n";
+      print "Subscribing Kraken Orderbook WS feed\n";
       getOrderBook($products);
       break;
 }
@@ -152,6 +152,7 @@ function getOrderBook($products)
 
           }
           //var_dump($orderbook);
+          $orderbook['last_update'] = microtime(true);
           file_put_contents($file, json_encode($orderbook));
           flock($fp, LOCK_UN);
           fclose($fp);

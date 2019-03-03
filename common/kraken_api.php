@@ -478,8 +478,16 @@ class KrakenApi
        $fp = fopen($file, "r");
        flock($fp, LOCK_SH, $wouldblock);
        $orderbook = json_decode(file_get_contents($file), true);
+       $update_timeout = 30;
+       if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
+         print_dbg("{$this->name} orderbook not uptaded since $update_timeout sec. Switching to rest API");
+         unlink($file);
+         $this->orderbook_file = null;
+         throw new KrakenAPIException("failed to get order book.");
+       }
        $book = $orderbook[$symbol];
      } else {
+       $this->orderbook_file = null;
        $id = $product->symbol_exchange;
        $i=0;
        while (true) {
@@ -488,7 +496,7 @@ class KrakenApi
            break;
            } catch (Exception $e) {
              if($i > 8)
-             throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
+             throw new KrakenAPIException("failed to get order book [{$e->getMessage()}]");
              $i++;
              print "{$this->name}: failed to get order book. retry $i...\n";
              usleep(50000);
