@@ -78,9 +78,10 @@ function getOrderBook($products)
           }
           $msg = json_decode($message , true);
 
-          preg_match('/order-book.(.*-.*).1E-/', $msg['h'][0], $matches);
-          $symbol = @$matches[1];
-          $app_symbol = $streams[$symbol]['app_symbol'];
+          if (preg_match('/order-book.(.*-.*).1E-/', $msg['h'][0], $matches)) {
+            $symbol = @$matches[1];
+            $app_symbol = $streams[$symbol]['app_symbol'];
+          }
           switch ($msg['h'][2]) {
             case 's': foreach (['bids', 'asks'] as $side) {
                         $orderbook[$app_symbol][$side] = array_values($msg['d'][$side]);

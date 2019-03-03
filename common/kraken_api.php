@@ -487,6 +487,10 @@ class KrakenApi
          $this->orderbook_file = null;
          throw new KrakenAPIException("failed to get order book.");
        }
+       if (!isset($orderbook[$symbol])) {
+         print_dbg("{$this->name}: Unknown websocket stream $symbol");
+         throw new KrakenAPIException("Unknown websocket stream $symbol");
+       }
        $book = $orderbook[$symbol];
      } else {
        $this->orderbook_file = null;

@@ -386,6 +386,10 @@ class CobinhoodApi
           $this->orderbook_file = null;
           throw new CobinhoodAPIException("failed to get order book.");
         }
+        if (!isset($orderbook[$symbol])) {
+          print_dbg("{$this->name}: Unknown websocket stream $symbol");
+          throw new CobinhoodAPIException("Unknown websocket stream $symbol");
+        }
         $book = $orderbook[$symbol];
       } else {
         $this->orderbook_file = null;
