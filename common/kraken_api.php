@@ -508,7 +508,7 @@ class KrakenApi
          }
        if(count($book['error']))
          throw new KrakenAPIException($book['error'][0]);
-       $book = $book['result'][$id];
+       $book = $book['result'][$product->symbol_exchange];
      }
 
      foreach( ['asks', 'bids'] as $side)
