@@ -9,7 +9,7 @@ $handle = fopen("gains", "r");
 $gains = [];
 $nTx = [];
 $prices['EUR'] = 1;
-foreach (['BTC','ETH','USDT'] as $base) {
+foreach (['BTC','ETH','USD','USDT','EUR'] as $base) {
   $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$base}&tsyms=EUR"), true);
   $prices[$base] = $price['EUR'];
   $nTx[$base] = 0;
