@@ -18,6 +18,7 @@ class CobinhoodApi
     public $balances;
     public $orderbook_file;
     public $orderbook_depth;
+    public $using_websockets;
 
     protected $side_translate = ['sell' => 'ask', 'buy' => 'bid'];
 
@@ -374,16 +375,16 @@ class CobinhoodApi
     public function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
     {
       $file = $this->orderbook_file;
-      $use_rest = true;
+      $this->using_websockets = false;
       if (file_exists($file)) {
         $fp = fopen($file, "r");
         flock($fp, LOCK_SH, $wouldblock);
         $orderbook = json_decode(file_get_contents($file), true);
         $update_timeout = 30;
-        $use_rest = false;
+        $this->using_websockets = true;
         if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
           print_dbg("{$this->name} orderbook not uptaded since $update_timeout sec. Switching to rest API");
-          $use_rest = true;
+          $this->using_websockets = false;
         }
         if (!isset($orderbook[$product->symbol])) {
           print_dbg("{$this->name}: Unknown websocket stream $product->symbol");
@@ -391,7 +392,7 @@ class CobinhoodApi
         }
         $book = $orderbook[$product->symbol];
       }
-      if ($use_rest){
+      if ($this->using_websockets === false) {
         $symbol = self::crypto2Cobinhood($product->alt) ."-". self::crypto2Cobinhood($product->base);
         $limit = ['limit' => $this->orderbook_depth];
         $i=0;
