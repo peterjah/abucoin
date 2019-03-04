@@ -201,7 +201,7 @@ class CobinhoodApi
         $id = $ret['result']['order']['id'];
         $filled_size = $filled_base = 0;
         $i=0;
-        while ((!isset($status) || $status['status'] == 'open') && $i < 10) {
+        while ((!isset($status) || $status['status'] == 'open') && $i < 20) {
           $status = $this->getOrderStatus($product, $id);
           print_dbg("open order check: {$status['status']}");
           if(!isset($status)) {
@@ -373,25 +373,25 @@ class CobinhoodApi
 
     public function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
     {
-      $symbol = self::crypto2Cobinhood($product->alt) ."-". self::crypto2Cobinhood($product->base);
       $file = $this->orderbook_file;
+      $use_rest = true;
       if (file_exists($file)) {
         $fp = fopen($file, "r");
         flock($fp, LOCK_SH, $wouldblock);
         $orderbook = json_decode(file_get_contents($file), true);
-        $update_timeout = 60;
+        $update_timeout = 30;
+        $use_rest = false;
         if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
           print_dbg("{$this->name} orderbook not uptaded since $update_timeout sec. Switching to rest API");
-          unlink($file);
-          $this->orderbook_file = null;
-          throw new CobinhoodAPIException("failed to get order book.");
+          $use_rest = true;
         }
-        if (!isset($orderbook[$symbol])) {
-          print_dbg("{$this->name}: Unknown websocket stream $symbol");
-          throw new CobinhoodAPIException("Unknown websocket stream $symbol");
+        if (!isset($orderbook[$product->symbol])) {
+          print_dbg("{$this->name}: Unknown websocket stream $product->symbol");
+          throw new CobinhoodAPIException("Unknown websocket stream $product->symbol");
         }
-        $book = $orderbook[$symbol];
-      } else {
+        $book = $orderbook[$product->symbol];
+      }
+      if ($use_rest){
         $this->orderbook_file = null;
         $limit = ['limit' => $this->orderbook_depth];
         $i=0;

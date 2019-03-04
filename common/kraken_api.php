@@ -473,26 +473,25 @@ class KrakenApi
 
    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
    {
-
      $file = $this->orderbook_file;
+     $use_rest = true;
      if (file_exists($file)) {
-       $symbol = $this->translate2marketName($product->alt) ."-". $this->translate2marketName($product->base);
        $fp = fopen($file, "r");
        flock($fp, LOCK_SH, $wouldblock);
        $orderbook = json_decode(file_get_contents($file), true);
        $update_timeout = 30;
+       $use_rest = false;
        if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
          print_dbg("{$this->name} orderbook not uptaded since $update_timeout sec. Switching to rest API");
-         unlink($file);
-         $this->orderbook_file = null;
-         throw new KrakenAPIException("failed to get order book.");
+         $use_rest = true;
        }
-       if (!isset($orderbook[$symbol])) {
-         print_dbg("{$this->name}: Unknown websocket stream $symbol");
-         throw new KrakenAPIException("Unknown websocket stream $symbol");
+       if (!isset($orderbook[$product->symbol])) {
+         print_dbg("{$this->name}: Unknown websocket stream $product->symbol");
+         throw new KrakenAPIException("Unknown websocket stream $product->symbol");
        }
-       $book = $orderbook[$symbol];
-     } else {
+       $book = $orderbook[$product->symbol];
+     }
+     if ($use_rest){
        $this->orderbook_file = null;
        $id = $product->symbol_exchange;
        $i=0;
