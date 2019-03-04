@@ -492,12 +492,10 @@ class KrakenApi
        $book = $orderbook[$product->symbol];
      }
      if ($use_rest){
-       $this->orderbook_file = null;
-       $id = $product->symbol_exchange;
        $i=0;
        while (true) {
          try {
-             $book = $this->jsonRequest('Depth',['pair' => $id, 'count' => $this->orderbook_depth]);
+             $book = $this->jsonRequest('Depth',['pair' => $product->symbol_exchange, 'count' => $this->orderbook_depth]);
            break;
            } catch (Exception $e) {
              if($i > 8)

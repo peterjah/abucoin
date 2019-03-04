@@ -392,7 +392,7 @@ class CobinhoodApi
         $book = $orderbook[$product->symbol];
       }
       if ($use_rest){
-        $this->orderbook_file = null;
+        $symbol = self::crypto2Cobinhood($product->alt) ."-". self::crypto2Cobinhood($product->base);
         $limit = ['limit' => $this->orderbook_depth];
         $i=0;
         while (true) {
