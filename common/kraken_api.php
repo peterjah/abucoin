@@ -480,6 +480,8 @@ class KrakenApi
        $fp = fopen($file, "r");
        flock($fp, LOCK_SH, $wouldblock);
        $orderbook = json_decode(file_get_contents($file), true);
+       flock($fp, LOCK_UN);
+       fclose($fp);
        $update_timeout = 30;
        $this->using_websockets = true;
        if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
