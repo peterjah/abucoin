@@ -66,8 +66,7 @@ function getOrderBook($products)
       try
       {
         $message = $client->receive();
-        $fp = fopen($file, "c+");
-        flock($fp, LOCK_EX, $wouldblock);
+
 
         $orderbook = [];
         $orderbook = json_decode(file_get_contents($file), true);
@@ -76,64 +75,72 @@ function getOrderBook($products)
               $client->send(json_encode(["action"=>"ping"]));
               $date->add(new DateInterval('PT' . 5 . 'S'));
           }
-          $msg = json_decode($message , true);
-
-          if (preg_match('/order-book.(.*-.*).1E-/', $msg['h'][0], $matches)) {
-            $symbol = @$matches[1];
-            $app_symbol = $streams[$symbol]['app_symbol'];
-          }
-          switch ($msg['h'][2]) {
-            case 's': foreach (['bids', 'asks'] as $side) {
-                        $orderbook[$app_symbol][$side] = array_values($msg['d'][$side]);
-                      }
-                      break;
-            case 'u':
-            //  var_dump($msg['d']);
-              foreach (['bids', 'asks'] as $side) {
-                foreach ($msg['d'][$side] as $new_offer) {
-                  //remove offer
-                  if ($new_offer[1] <= 0) {
-                    foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                      if ($offer[0] != $new_offer[0])
-                        continue;
-                      //count
-                      $orderbook[$app_symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
-                      //volume
-                      $orderbook[$app_symbol][$side][$key][2] += floatval($offer[1]) + floatval($new_offer[2]);
-                      if($orderbook[$app_symbol][$side][$key][1] == 0)
-                        unset($orderbook[$app_symbol][$side][$key]);
-                      break;
-                    }
-                    $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
-                  } else {
-                    foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                      if ($side == 'bids' && $new_offer[0] > $offer[0] ||
-                          $side == 'asks' && $new_offer[0] < $offer[0] ) {
-                        array_splice($orderbook[$app_symbol][$side], $key, 0, [0 => $new_offer]);
-                        break;
-                      } elseif ($new_offer[0] == $offer[0]) {
-                        $orderbook[$app_symbol][$side][$key][0] = $new_offer[0];
-                        $orderbook[$app_symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
-                        $orderbook[$app_symbol][$side][$key][2] = floatval($offer[2]) + floatval($new_offer[2]);
-                        break;
+          while (true) {
+            $fp = fopen($file, "c+");
+            if ($fp !== false && flock($fp, LOCK_EX, $wouldblock)) {
+              $msg = json_decode($message , true);
+              if (preg_match('/order-book.(.*-.*).1E-/', $msg['h'][0], $matches)) {
+                $symbol = @$matches[1];
+                $app_symbol = $streams[$symbol]['app_symbol'];
+              }
+              switch ($msg['h'][2]) {
+                case 's': foreach (['bids', 'asks'] as $side) {
+                            $orderbook[$app_symbol][$side] = array_values($msg['d'][$side]);
+                          }
+                          break;
+                case 'u':
+                //  var_dump($msg['d']);
+                  foreach (['bids', 'asks'] as $side) {
+                    foreach ($msg['d'][$side] as $new_offer) {
+                      //remove offer
+                      if ($new_offer[1] <= 0) {
+                        foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
+                          if ($offer[0] != $new_offer[0])
+                            continue;
+                          //count
+                          $orderbook[$app_symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
+                          //volume
+                          $orderbook[$app_symbol][$side][$key][2] += floatval($offer[1]) + floatval($new_offer[2]);
+                          if($orderbook[$app_symbol][$side][$key][1] == 0)
+                            unset($orderbook[$app_symbol][$side][$key]);
+                          break;
+                        }
+                        $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
                       } else {
-                        continue;
+                        foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
+                          if ($side == 'bids' && $new_offer[0] > $offer[0] ||
+                              $side == 'asks' && $new_offer[0] < $offer[0] ) {
+                            array_splice($orderbook[$app_symbol][$side], $key, 0, [0 => $new_offer]);
+                            break;
+                          } elseif ($new_offer[0] == $offer[0]) {
+                            $orderbook[$app_symbol][$side][$key][0] = $new_offer[0];
+                            $orderbook[$app_symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
+                            $orderbook[$app_symbol][$side][$key][2] = floatval($offer[2]) + floatval($new_offer[2]);
+                            break;
+                          } else {
+                            continue;
+                          }
+                        }
                       }
                     }
                   }
-                }
+                  // print "new $side book:\n";
+                  // var_dump($orderbook[$symbol]['asks']);
+                  break;
+                case 'pong': break;
+                default: var_dump($msg);
+                  break;
               }
-              // print "new $side book:\n";
-              // var_dump($orderbook[$symbol]['asks']);
+              //var_dump($orderbook);
+              $orderbook['last_update'] = microtime(true);
+              file_put_contents($file, json_encode($orderbook));
+              flock($fp, LOCK_UN);
               break;
-            case 'pong': break;
-            default: var_dump($msg);
-              break;
+            } else {
+              print_dbg("Unable to lock file $file", true);
+              usleep(10);
+            }
           }
-          //var_dump($orderbook);
-          $orderbook['last_update'] = microtime(true);
-          file_put_contents($file, json_encode($orderbook));
-          flock($fp, LOCK_UN);
           fclose($fp);
         }
       }
