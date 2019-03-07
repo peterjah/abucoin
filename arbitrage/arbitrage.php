@@ -38,7 +38,7 @@ foreach ([$market1, $market2] as $market) {
 
 $btc_start_cash = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
 
-$nLoops = 0;
+$last_update = time();
 while(true) {
   foreach( $symbol_list as $symbol) {
     if (!$sig_stop) {
@@ -74,7 +74,7 @@ while(true) {
           $market2->getBalance();
         }catch (Exception $e){}
       }
-    } else {
+    } else { //Quit !
       foreach ([$market1, $market2] as $market) {
         $orderbook_file = $market->api->orderbook_file;
         //Should be useless
@@ -85,7 +85,7 @@ while(true) {
     }
   }
 
-  if( $nLoops >= 10) {
+  if( time() - $last_update > 10/*sec*/) {
     try {
       foreach([$market1, $market2] as $market) {
         $market->getBalance();
@@ -98,10 +98,8 @@ while(true) {
         }
       }
     } catch (Exception $e){}
-    $nLoops=0;
+    $last_update = time();
   }
-  else
-    $nLoops++;
 
   $btc_cash_roll = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
   print "~~~~ ".date("Y-m-d H:i:s")." ~~~~~\n\n";
@@ -110,8 +108,8 @@ while(true) {
   }
   print "~~~~{$market2->api->name}:{$market2->api->balances['BTC']}BTC  {$market1->api->name}:{$market1->api->balances['BTC']}BTC~~~~\n\n";
   print "~~~~Cash roll: $btc_cash_roll BTC ~~~~\n\n";
-  print "~~~~Websocket: {$market1->api->name}:" . ($market1->api->using_websockets ? 'yes' : 'no')."~~~~\n";
-  print "~~~~Websocket: {$market2->api->name}:" . ($market2->api->orderbook_file ? 'yes' : 'no')."~~~~\n\n";
+  print "~~~~Websocket: {$market1->api->name}:" . (@$market1->api->using_websockets ? 'yes' : 'no')."~~~~\n";
+  print "~~~~Websocket: {$market2->api->name}:" . (@$market2->api->using_websockets ? 'yes' : 'no')."~~~~\n\n";
   print "~~~~Api call stats: {$market2->api->name}: {$market2->api->api_calls_rate}/min , {$market1->api->name}: {$market1->api->api_calls_rate}/min~~~~\n\n";
 
   if($market1->api instanceof PaymiumApi || $market2->api instanceof PaymiumApi) {
