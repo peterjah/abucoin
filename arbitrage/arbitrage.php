@@ -44,6 +44,7 @@ $btc_start_cash = $market1->api->balances['BTC'] + $market2->api->balances['BTC'
 
 $last_update = time();
 while(true) {
+  $loop_begin = microtime(true);
   foreach( $symbol_list as $symbol) {
     if (!$sig_stop) {
       print "Testing $symbol trade\n";
@@ -87,6 +88,11 @@ while(true) {
       }
       exit();
     }
+  }
+  //avoid useless cpu usage
+  $loop_time = microtime(true) - $loop_begin;
+  if( $loop_time < 0.05/*sec*/) {
+    usleep(50000);//50ms
   }
 
   if( time() - $last_update > 10/*sec*/) {
