@@ -72,12 +72,14 @@ function getOrderBook($products)
               $date->add(new DateInterval('PT' . 5 . 'S'));
           }
           while (true) {
-            $fp = fopen($file, "r");
-            if ($fp !== false && flock($fp, LOCK_SH, $wouldblock)) {
+            $msg = json_decode($message , true);
+            if ($msg['h'][2] == 'pong') {
+              break;
+            }
+            $fp = fopen($file, "c+");
+            if ($fp !== false && flock($fp, LOCK_EX, $wouldblock)) {
               $orderbook = json_decode(file_get_contents($file), true);
-              flock($fp, LOCK_UN);
-              fclose($fp);
-              $msg = json_decode($message , true);
+
               if (preg_match('/order-book.(.*-.*).1E-/', $msg['h'][0], $matches)) {
                 $symbol = @$matches[1];
                 $app_symbol = $streams[$symbol]['app_symbol'];
@@ -126,20 +128,21 @@ function getOrderBook($products)
                   // print "new $side book:\n";
                   // var_dump($orderbook[$symbol]['asks']);
                   break;
-                case 'pong': break;
                 default: var_dump($msg);
                   break;
               }
               //var_dump($orderbook);
               $orderbook['last_update'] = microtime(true);
-              file_put_contents($file, json_encode($orderbook), LOCK_EX);
+              file_put_contents($file, json_encode($orderbook));
+              flock($fp, LOCK_UN);
+              fclose($fp);
               break;
             } else {
+              @fclose($fp);
               print_dbg("Unable to lock file $file", true);
               usleep(10);
             }
           }
-          fclose($fp);
         }
       }
       catch(Exception $e)

@@ -78,12 +78,13 @@ function getOrderBook($products)
               $date->add(new DateInterval('PT' . 5 . 'S'));
           }
           while (true) {
-            $fp = fopen($file, "r");
-            if ($fp !== false && flock($fp, LOCK_SH, $wouldblock)) {
+            $msg = json_decode($message , true);
+            if (isset($msg['event']) && ($msg['event'] == 'pong' || $msg['event'] == 'heartbeat')) {
+              break;
+            }
+            $fp = fopen($file, "c+");
+            if ($fp !== false && flock($fp, LOCK_EX, $wouldblock)) {
               $orderbook = json_decode(file_get_contents($file), true);
-              flock($fp, LOCK_UN);
-              fclose($fp);
-              $msg = json_decode($message , true);
               //var_dump($msg);
               if (isset($msg['event'])) {
                 switch ($msg['event']) {
@@ -97,8 +98,6 @@ function getOrderBook($products)
                       $app_symbol = $streams[$msg['pair']]['app_symbol'];
                       $channel_ids[$msg['channelID']] = $app_symbol;
                       break;
-                  case 'pong':
-                  case 'heartbeat': break;
                   default: var_dump($msg);
                     break;
                 }
@@ -150,14 +149,17 @@ function getOrderBook($products)
               }
               //var_dump($orderbook);
               $orderbook['last_update'] = microtime(true);
-              file_put_contents($file, json_encode($orderbook), LOCK_EX);
+              file_put_contents($file, json_encode($orderbook));
+              flock($fp, LOCK_UN);
+              fclose($fp);
               break;
             } else {
+              @fclose($fp);
               print_dbg("Unable to lock file $file", true);
               usleep(10);
             }
           }
-          fclose($fp);
+
         }
       }
       catch(Exception $e)

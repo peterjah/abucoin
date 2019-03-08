@@ -75,13 +75,16 @@ function getOrderBook($products)
       {
         $message = $client->receive();
         if ($message) {
+          $msg = json_decode($message , true);
+          if ($msg['data']['e'] == 'ping') {
+            //send pong
+            break;
+          }
           while (true) {
-            $fp = fopen($file, "r");
-            if ($fp !== false && flock($fp, LOCK_SH, $wouldblock)) {
+            $fp = fopen($file, "c+");
+            if ($fp !== false && flock($fp, LOCK_EX, $wouldblock)) {
               $orderbook = json_decode(file_get_contents($file), true);
-              flock($fp, LOCK_UN);
-              fclose($fp);
-              $msg = json_decode($message , true);
+
               var_dump($msg);
               if (isset($msg['data'])) {
                 switch ($msg['data']['e']) {
@@ -130,8 +133,7 @@ function getOrderBook($products)
                       }
                       break;
                   case 'ping':
-                    //send pong
-                      break;
+
                   default: var_dump($msg);
                     break;
                 }
@@ -139,14 +141,17 @@ function getOrderBook($products)
 
               //var_dump($orderbook);
               $orderbook['last_update'] = microtime(true);
-              file_put_contents($file, json_encode($orderbook), LOCK_EX);
+              file_put_contents($file, json_encode($orderbook));
+              flock($fp, LOCK_UN);
+              fclose($fp);
               break;
             } else {
+              @fclose($fp);
               print_dbg("Unable to lock file $file", true);
               usleep(10);
             }
           }
-          fclose($fp);
+
         }
       }
       catch(Exception $e)
