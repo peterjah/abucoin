@@ -1,11 +1,12 @@
 <?php
 require_once('../common/tools.php');
 
+@define('GAINS_FILE', 'gains.json');
+
 $options =  getopt('', array(
-   'exchange1:',
+   'exchange:',
  ));
 
-$handle = fopen("gains", "r");
 $gains = [];
 $nTx = [];
 $prices['EUR'] = 1;
@@ -16,43 +17,47 @@ foreach (['BTC','ETH','USD','USDT','EUR'] as $base) {
 }
 $prices['USD'] = $prices['USDT'];
 
-if ($handle) {
-    while (($line = fgets($handle)) !== false) {
-        preg_match('/(\d+-\d+-\d+ \d+:\d+:\d+): ?(Id=.*)? (.*) ([A-Z]+) (-?\d+.?\d*(E[-+]?[0-9]+)?)%( \((.*)%\))?.*/',$line,  $matches);
-        $real_percent_gains = isset($matches[8]) ? number_format($matches[8], 2) : 0;
-        $base = $matches[4];
-        if (isset($matches[2])) {
-          $exchanges = strtolower(substr($matches[2], 3, 4));
-          $exchange[0] = substr($exchanges, 0, 2);
-          $exchange[1] = substr($exchanges, 2, 2);
-        }
-        else {
-          $exchanges = '';
-        }
-        $gains_base = $matches[3];
-        print "{$matches[1]}: {$exchanges} ".sprintf("%.3e",$gains_base)." {$base} =".number_format($gains_base*$prices[$base], 3)."EUR ".number_format($matches[5], 2)."% ($real_percent_gains%)\n";
-        if (isset($options['exchange1']) ) {
-          $exchange1 = strtolower(substr($options['exchange1'], 0, 2));
-          if(strpos($exchanges, $exchange1) !== false) {
-            @$gains[$exchange1][$base] += floatval($gains_base);
-            @$mean_percent_gains[$exchange1][$base] += $real_percent_gains;
-            $nTx[$base]++;
-          }
-        }
-        else {
-         @$gains[$base] += floatval($gains_base);
-         @$mean_percent_gains[$base] += $real_percent_gains;
-         $nTx[$base]++;
-        }
+$fp = fopen(GAINS_FILE, "r");
+flock($fp, LOCK_SH, $wouldblock);
+$data = json_decode(file_get_contents(GAINS_FILE), true);
+flock($fp, LOCK_UN);
+fclose($fp);
+
+foreach ($data['arbitrages'] as $arbitrage) {
+  $alt = $arbitrage['alt'];
+  $base = $arbitrage['base'];
+  $gains_base = $arbitrage['final_gains']['base'];
+  $real_percent_gains = $arbitrage['final_gains']['percent'];
+  $expected_percent_gains = $arbitrage['final_gains']['percent'];
+  $buy_market = strtolower($arbitrage['buy_market']);
+  $sell_market = strtolower($arbitrage['sell_market']);
+  $buy_price_diff = ($arbitrage['stats']['buy_price_diff'] >=0 ? '+':'-') . number_format($arbitrage['stats']['buy_price_diff'], 2);
+  $sell_price_diff = ($arbitrage['stats']['sell_price_diff'] >=0 ? '+':'-') . number_format($arbitrage['stats']['sell_price_diff'], 2);
+
+  print "{$arbitrage['date']}: buy $buy_market ($buy_price_diff%)-> sell $sell_market ($sell_price_diff%) ".sprintf("%.3e",$gains_base).
+        " {$base} =".number_format($gains_base*$prices[$base], 3)."EUR ".
+        number_format($expected_percent_gains, 2)."% (".number_format($real_percent_gains, 2)."%)\n";
+  if (isset($options['exchange']) ) {
+    $exchange = strtolower(substr($options['exchange'], 0, 4));
+      if(strpos($exchanges, $exchange) !== false) {
+      @$gains[$exchange][$base] += floatval($gains_base);
+      @$mean_percent_gains[$exchange][$base] += $real_percent_gains;
+      $nTx[$base]++;
     }
-    fclose($handle);
+  }
+  else {
+   @$gains[$base] += floatval($gains_base);
+   @$mean_percent_gains[$base] += $real_percent_gains;
+   $nTx[$base]++;
+  }
 }
+
 print "\n";
 $total_gains_eur = 0;
-if (isset($options['exchange1']) && !empty($gains[$exchange1])) {
-  print "~~~~~~~~~~~~~~~~ {$options['exchange1']} ~~~~~~~~~~~~~~~~~~~\n";
-  $gains = $gains[$exchange1];
-  $mean_percent_gains = $mean_percent_gains[$exchange1];
+if (isset($options['exchange']) && !empty($gains[$exchange])) {
+  print "~~~~~~~~~~~~~~~~ {$options['exchange']} ~~~~~~~~~~~~~~~~~~~\n";
+  $gains = $gains[$exchange];
+  $mean_percent_gains = $mean_percent_gains[$exchange];
 }
 
 if (isset($gains)) {

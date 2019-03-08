@@ -16,6 +16,10 @@ pcntl_signal(SIGINT,  "sig_handler");
 pcntl_signal(SIGTERM, "sig_handler");
 $sig_stop = false;
 
+@define('GAINS_FILE', 'gains.json');
+if(!file_exists(GAINS_FILE))
+  touch(GAINS_FILE);
+
 @define('BUY_TRESHOLD', 0.000001);
 @define('CRITICAL_BUY_TRESHOLD_BASE', -0.000001);
 
@@ -196,9 +200,27 @@ function testSwap($symbol, $buy_market, $sell_market)
           $trade_size = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
           $final_gains = computeGains($status['buy']['price'], $buy_fees, $status['sell']['price'], $sell_fees, $trade_size);
           $profit += $final_gains['base'];
-          print("log tx\n");
-          $trade_str = date("Y-m-d H:i:s") . ": Id={$arbId} {$final_gains['base']} $base {$expected_gains['percent']}% ({$final_gains['percent']}%)\n";
-          file_put_contents('gains', $trade_str, FILE_APPEND);
+
+          $stats = ['buy_price_diff' => ($status['sell']['price'] * 100 / $sell_price) - 100,
+                    'sell_price_diff' => ($status['buy']['price'] * 100 / $buy_price) - 100
+                    ];
+          $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
+                         'alt' => $alt,
+                         'base' => $base,
+                         'id' => $arbId,
+                         'expected_gains' => $expected_gains,
+                         'final_gains' => $final_gains,
+                         'sell_market' => $sell_market->api->name,
+                         'buy_market' => $buy_market->api->name,
+                         'stats' => $stats
+                       ];
+          $fp = fopen(GAINS_FILE, "r");
+          flock($fp, LOCK_SH, $wouldblock);
+          $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
+          flock($fp, LOCK_UN);
+          fclose($fp);
+          $gains_logs['arbitrages'][] = $arbitrage_logs;
+          file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
 
           //Just in case
           $buy_market->api->balances[$alt] += $status['buy']['filled_size'];
