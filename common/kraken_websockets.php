@@ -31,6 +31,7 @@ if(!isset($options['file'])) {
   print_dbg("No output file provided",true);
 }
 $file = $options['file'];
+touch($file);
 
 $products = explode(',', $options['products']);
 
@@ -76,13 +77,12 @@ function getOrderBook($products)
               $client->send(json_encode(["event"=>"ping"]));
               $date->add(new DateInterval('PT' . 5 . 'S'));
           }
-          $fp = fopen($file, "c+");
           while (true) {
-            if ($fp !== false && flock($fp, LOCK_EX, $wouldblock)) {
-              print "file locked\n";
-              $orderbook = [];
+            $fp = fopen($file, "r");
+            if ($fp !== false && flock($fp, LOCK_SH, $wouldblock)) {
               $orderbook = json_decode(file_get_contents($file), true);
-
+              flock($fp, LOCK_UN);
+              fclose($fp);
               $msg = json_decode($message , true);
               //var_dump($msg);
               if (isset($msg['event'])) {
@@ -150,8 +150,7 @@ function getOrderBook($products)
               }
               //var_dump($orderbook);
               $orderbook['last_update'] = microtime(true);
-              file_put_contents($file, json_encode($orderbook));
-              flock($fp, LOCK_UN);
+              file_put_contents($file, json_encode($orderbook), LOCK_EX);
               break;
             } else {
               print_dbg("Unable to lock file $file", true);

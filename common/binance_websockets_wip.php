@@ -31,7 +31,7 @@ if(!isset($options['file'])) {
   print_dbg("No output file provided",true);
 }
 $file = $options['file'];
-
+touch($file);
 $products = explode(',', $options['products']);
 
 switch($options['cmd']) {
@@ -55,14 +55,14 @@ function getOrderBook($products)
       $streams[$symbol]['app_symbol'] = $product;
       $subscribe_str .= strtolower($symbol) . '@depth';
 
-      $fp = fopen($file, "c+");
-      flock($fp, LOCK_EX, $wouldblock);
+      $fp = fopen($file, "r");
+      flock($fp, LOCK_SH, $wouldblock);
       $orderbook = json_decode(file_get_contents($file), true);
-      $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => 1000]);
-      $orderbook[$product] = $snapshot;
-      file_put_contents($file, json_encode($orderbook));
       flock($fp, LOCK_UN);
       fclose($fp);
+      $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => 1000]);
+      $orderbook[$product] = $snapshot;
+      file_put_contents($file, json_encode($orderbook), LOCK_EX);
     }
     $client = new Client(WSS_URL . $subscribe_str, ['timeout' => 60]);
 
@@ -76,10 +76,11 @@ function getOrderBook($products)
         $message = $client->receive();
         if ($message) {
           while (true) {
-            $fp = fopen($file, "c+");
-            if ($fp !== false && flock($fp, LOCK_EX, $wouldblock)) {
+            $fp = fopen($file, "r");
+            if ($fp !== false && flock($fp, LOCK_SH, $wouldblock)) {
               $orderbook = json_decode(file_get_contents($file), true);
-
+              flock($fp, LOCK_UN);
+              fclose($fp);
               $msg = json_decode($message , true);
               var_dump($msg);
               if (isset($msg['data'])) {
@@ -138,8 +139,7 @@ function getOrderBook($products)
 
               //var_dump($orderbook);
               $orderbook['last_update'] = microtime(true);
-              file_put_contents($file, json_encode($orderbook));
-              flock($fp, LOCK_UN);
+              file_put_contents($file, json_encode($orderbook), LOCK_EX);
               break;
             } else {
               print_dbg("Unable to lock file $file", true);
