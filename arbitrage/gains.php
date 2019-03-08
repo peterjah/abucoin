@@ -28,7 +28,7 @@ foreach ($data['arbitrages'] as $arbitrage) {
   $base = $arbitrage['base'];
   $gains_base = $arbitrage['final_gains']['base'];
   $real_percent_gains = $arbitrage['final_gains']['percent'];
-  $expected_percent_gains = $arbitrage['final_gains']['percent'];
+  $expected_percent_gains = $arbitrage['expected_gains']['percent'];
   $buy_market = strtolower($arbitrage['buy_market']);
   $sell_market = strtolower($arbitrage['sell_market']);
   $buy_price_diff = ($arbitrage['stats']['buy_price_diff'] >=0 ? '+':'-') . number_format($arbitrage['stats']['buy_price_diff'], 2);

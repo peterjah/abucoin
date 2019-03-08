@@ -201,8 +201,8 @@ function testSwap($symbol, $buy_market, $sell_market)
           $final_gains = computeGains($status['buy']['price'], $buy_fees, $status['sell']['price'], $sell_fees, $trade_size);
           $profit += $final_gains['base'];
 
-          $stats = ['buy_price_diff' => ($status['sell']['price'] * 100 / $sell_price) - 100,
-                    'sell_price_diff' => ($status['buy']['price'] * 100 / $buy_price) - 100
+          $stats = ['buy_price_diff' => ($status['buy']['price'] * 100 / $buy_price) - 100,
+                    'sell_price_diff' => ($status['sell']['price'] * 100 / $sell_price) - 100
                     ];
           $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
                          'alt' => $alt,
