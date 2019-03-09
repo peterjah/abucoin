@@ -134,7 +134,7 @@ function getOrderBook($products)
                       break;
                     } elseif ($new_offer[0] == $offer[0]) {
                       $orderbook[$symbol][$side][$key][0] = $new_offer[0];
-                      $orderbook[$symbol][$side][$key][1] = floatval($offer[1]) + floatval($new_offer[1]);
+                      $orderbook[$symbol][$side][$key][1] = $new_offer[1];
                       break;
                     }
                   }
