@@ -43,8 +43,8 @@ foreach ([$market1, $market2] as $market) {
 $btc_start_cash = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
 
 $last_update = time();
+$loop_begin = microtime(true);
 while(true) {
-  $loop_begin = microtime(true);
   foreach( $symbol_list as $symbol) {
     if (!$sig_stop) {
       print "Testing $symbol trade\n";
@@ -89,27 +89,6 @@ while(true) {
       exit();
     }
   }
-  //avoid useless cpu usage
-  $loop_time = microtime(true) - $loop_begin;
-  if( $loop_time < 0.05/*sec*/) {
-    usleep(50000);//50ms
-  }
-
-  if( time() - $last_update > 10/*sec*/) {
-    try {
-      foreach([$market1, $market2] as $market) {
-        $market->getBalance();
-        //refresh product infos
-        if($market->api instanceof CobinhoodApi)
-          $market->updateProductList();
-        while($market->api->ping() === false) {
-          print "Failed to ping {$market->api->name} api. Sleeping...\n";
-          sleep(30);
-        }
-      }
-    } catch (Exception $e){}
-    $last_update = time();
-  }
 
   $btc_cash_roll = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
   print "~~~~ ".date("Y-m-d H:i:s")." ~~~~~\n\n";
@@ -124,6 +103,28 @@ while(true) {
 
   if($market1->api instanceof PaymiumApi || $market2->api instanceof PaymiumApi) {
     sleep(3600);
+  }
+  //avoid useless cpu usage
+  $loop_time = microtime(true) - $loop_begin;
+  if( $loop_time < 0.05/*sec*/) {
+    usleep(50000);//50ms
+  }
+  $loop_begin = microtime(true);
+
+  if( time() - $last_update > 10/*sec*/) {
+    try {
+      foreach([$market1, $market2] as $market) {
+        while($market->api->ping() === false) {
+          print "Failed to ping {$market->api->name} api. Sleeping...\n";
+          sleep(30);
+        }
+        $market->getBalance();
+        //refresh product infos
+        if($market->api instanceof CobinhoodApi)
+          $market->updateProductList();
+      }
+    } catch (Exception $e){}
+    $last_update = time();
   }
 }
 
