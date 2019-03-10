@@ -9,12 +9,13 @@ require_once('../common/tools.php');
 
 //Todo: use a database !
 
-@define('FILE',"trades");
+@define('TRADES_FILE',"trades");
+@define('GAINS_FILE', 'gains.json');
 
 if (@$argv[1] == '-solve' && isset($argv[2])) {
-  $ret = str_replace($argv[2], 'solved', file_get_contents(FILE), $count);
+  $ret = str_replace($argv[2], 'solved', file_get_contents(TRADES_FILE), $count);
   if($count > 0) {
-    file_put_contents(FILE, $ret);
+    file_put_contents(TRADES_FILE, $ret);
     print "Tx $argv[2] marked as solved\n";
   }
   else {
@@ -26,7 +27,7 @@ if (@$argv[1] == '-auto-solve')
   $autoSolve=true;
 
 while(1) {
-  $handle = fopen(FILE, "r");
+  $handle = fopen(TRADES_FILE, "r");
   $ledger = [];
   if ($handle) {
     while (($line = fgets($handle)) !== false) {
@@ -182,16 +183,36 @@ function do_solve($markets, $symbol, $side, $traded)
       }
       if (@$status['filled_size'] > 0) {
         foreach($traded['ids'] as $id ) {
-          file_put_contents(FILE, str_replace($id, 'solved', file_get_contents(FILE)));
+          file_put_contents(TRADES_FILE, str_replace($id, 'solved', file_get_contents(TRADES_FILE)), LOCK_EX);
         }
+        $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
+                       'alt' => $product->alt,
+                       'base' => $product->base,
+                       'id' => 'solved',
+                       'expected_gains' => $expected_gains,
+                     ];
+
         if ($action == 'buy') {
           $gains = computeGains( $status['price'], $product->fees, $traded['price'], $traded['mean_fees'], $status['filled_size']);
+          $stats = ['buy_price_diff' => ($status['price'] * 100 / $price) - 100];
+          $arbitrage_logs['buy_market'] = $api->name;
         } else {
           $gains = computeGains( $traded['price'], $traded['mean_fees'], $status['price'], $product->fees, $status['filled_size']);
+          $stats = ['sell_price_diff' => ($status['price'] * 100 / $price) - 100];
+          $arbitrage_logs['sell_market'] = $api->name;
         }
+        $arbitrage_logs['final_gains'] = $gains;
+        $arbitrage_logs['stats'] = $stats;
         print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, mean_price:{$traded['price']}, mean_fees:{$traded['mean_fees']}, price:{$status['price']} $product->base");
-        $trade_str = date("Y-m-d H:i:s").": Id=solved {$gains['base']} $product->base {$expected_gains['percent']}% ({$gains['percent']}%)\n";
-        file_put_contents('gains',$trade_str,FILE_APPEND);
+
+        $fp = fopen(GAINS_FILE, "r");
+        flock($fp, LOCK_SH, $wouldblock);
+        $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        $gains_logs['arbitrages'][] = $arbitrage_logs;
+        file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
+
         $market->api->getBalance();
         break;
       }
