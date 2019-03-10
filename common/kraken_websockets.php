@@ -79,7 +79,7 @@ function getOrderBook($products)
               $date->add(new DateInterval('PT' . 5 . 'S'));
           }
           $msg = json_decode($message , true);
-          //var_dump($msg);
+
           if (isset($msg['event'])) {
             switch ($msg['event']) {
               case 'systemStatus':
@@ -118,9 +118,10 @@ function getOrderBook($products)
               }
               foreach ($data[$kside] as $new_offer) {
                 //remove offer
-                if ($new_offer[1] == '0') {
+                $new_price = floatval($new_offer[0]);
+                if (floatval($new_offer[1]) == 0) {
                   foreach ($orderbook[$symbol][$side] as $key => $offer) {
-                    if ($offer[0] != $new_offer[0])
+                    if (floatval($offer[0]) != $new_price)
                       continue;
                     unset($orderbook[$symbol][$side][$key]);
                     break;
@@ -128,11 +129,11 @@ function getOrderBook($products)
                   $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
                 } else {
                   foreach ($orderbook[$symbol][$side] as $key => $offer) {
-                    if ($side == 'bids' && $new_offer[0] > $offer[0] ||
-                        $side == 'asks' && $new_offer[0] < $offer[0] ) {
+                    if ($side == 'bids' && $new_price > floatval($offer[0]) ||
+                        $side == 'asks' && $new_price < floatval($offer[0]) ) {
                       array_splice($orderbook[$symbol][$side], $key, 0, [0 => $new_offer]);
                       break;
-                    } elseif ($new_offer[0] == $offer[0]) {
+                    } elseif ($new_price == floatval($offer[0])) {
                       $orderbook[$symbol][$side][$key][0] = $new_offer[0];
                       $orderbook[$symbol][$side][$key][1] = $new_offer[1];
                       break;

@@ -477,22 +477,9 @@ class KrakenApi
      $file = $this->orderbook_file;
      $this->using_websockets = false;
      if (file_exists($file)) {
-       $fp = fopen($file, "r");
-       flock($fp, LOCK_SH, $wouldblock);
-       $orderbook = json_decode(file_get_contents($file), true);
-       flock($fp, LOCK_UN);
-       fclose($fp);
-       $update_timeout = 30;
-       $this->using_websockets = true;
-       if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
-         print_dbg("{$this->name} orderbook not uptaded since $update_timeout sec. Switching to rest API");
-         $this->using_websockets = false;
-       }
-       if (!isset($orderbook[$product->symbol])) {
-         print_dbg("{$this->name}: Unknown websocket stream $product->symbol");
-         throw new KrakenAPIException("Unknown websocket stream $product->symbol");
-       }
-       $book = $orderbook[$product->symbol];
+       $book = getWsOrderbook($file, $product);
+       if ($book !== false)
+         $this->using_websockets = true;
      }
      if ($this->using_websockets === false) {
        $i=0;

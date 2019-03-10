@@ -16,6 +16,9 @@ class BinanceApi
     public $name;
     protected $products;
     public $balances;
+    public $orderbook_file;
+    public $using_websockets;
+    public $orderbook_depth;
 
     protected $default_curl_opt = [
       CURLOPT_RETURNTRANSFER => true,
@@ -45,6 +48,8 @@ class BinanceApi
         $this->api_calls = 0;
         $this->api_calls_rate = 0;
         $this->time = time();
+
+        $this->orderbook_depth = 100;
     }
 
     public function jsonRequest($method = null, $path, array $params = [])
@@ -183,23 +188,32 @@ class BinanceApi
 
     function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
     {
-      $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
-      $max_orders = 50;
-      $i=0;
-      while (true) {
-        try {
-          $book = $this->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => $max_orders]);
-          break;
-        } catch (Exception $e) {
-          if($i > 8)
-            throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
-          $i++;
-          print "{$this->name}: failed to get order book. retry $i...\n";
-          usleep(50000);
+      $file = $this->orderbook_file;
+      $this->using_websockets = false;
+      if (file_exists($file)) {
+        $book = getWsOrderbook($file, $product);
+        if ($book !== false)
+          $this->using_websockets = true;
+      }
+      if ($this->using_websockets === false) {
+        $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
+        $i=0;
+        while (true) {
+          try {
+            $book = $this->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => $this->orderbook_depth]);
+            break;
+          } catch (Exception $e) {
+            if($i > 8)
+              throw new BinanceAPIException("failed to get order book [{$e->getMessage()}]");
+            $i++;
+            print "{$this->name}: failed to get order book. retry $i...\n";
+            usleep(50000);
+        }
+        if(!isset($book['asks'][0][0], $book['bids'][0][0]))
+          return null;
         }
       }
-      if(!isset($book['asks'][0][0], $book['bids'][0][0]))
-        return null;
+
       foreach( ['asks', 'bids'] as $side)
       {
         $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
@@ -207,7 +221,7 @@ class BinanceApi
         $i=1;
         while( ( ($best[$side]['size'] * $best[$side]['price'] < $depth_base)
               || ($best[$side]['size'] < $depth_alt) )
-              && $i<$max_orders)
+              && $i < $this->orderbook_depth)
         {
           if (!isset($book[$side][$i][0], $book[$side][$i][1]))
             break;

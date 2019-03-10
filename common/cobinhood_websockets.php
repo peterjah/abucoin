@@ -86,9 +86,10 @@ function getOrderBook($products)
               foreach (['bids', 'asks'] as $side) {
                 foreach ($msg['d'][$side] as $new_offer) {
                   //remove offer
+                  $new_price = floatval($new_offer[0]);
                   if ($new_offer[1] <= 0) {
                     foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                      if ($offer[0] != $new_offer[0])
+                      if (floatval($offer[0]) != $new_price)
                         continue;
                       //count
                       $orderbook[$app_symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
@@ -101,11 +102,11 @@ function getOrderBook($products)
                     $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
                   } else {
                     foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                      if ($side == 'bids' && $new_offer[0] > $offer[0] ||
-                          $side == 'asks' && $new_offer[0] < $offer[0] ) {
+                      if ($side == 'bids' && $new_price > floatval($offer[0]) ||
+                          $side == 'asks' && $new_price < floatval($offer[0]) ) {
                         array_splice($orderbook[$app_symbol][$side], $key, 0, [0 => $new_offer]);
                         break;
-                      } elseif ($new_offer[0] == $offer[0]) {
+                      } elseif ($new_price == floatval($offer[0])) {
                         $orderbook[$app_symbol][$side][$key][0] = $new_offer[0];
                         $orderbook[$app_symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
                         $orderbook[$app_symbol][$side][$key][2] = floatval($offer[2]) + floatval($new_offer[2]);

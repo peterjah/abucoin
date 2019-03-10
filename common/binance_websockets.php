@@ -36,9 +36,12 @@ $products = explode(',', $options['products']);
 
 switch($options['cmd']) {
   case 'getOrderBook':
+      while(true) {
       print "Subscribing Binance Orderbook WS feed\n";
       getOrderBook($products);
-      break;
+      sleep(1);
+    }
+
 }
 
 function getOrderBook($products)
@@ -47,89 +50,95 @@ function getOrderBook($products)
     global $file;
     global $options;
 
+    $orderbook = [];
     $streams = [];
     $subscribe_str = '/stream?streams=';
+    $app_symbols = [];
     foreach ($products as $product) {
       $alts = explode ('-', $product);
       $symbol = BinanceApi::translate2marketName($alts[0]) . BinanceApi::translate2marketName($alts[1]);
+      $app_symbols[$symbol] = $product;
       $streams[$symbol]['app_symbol'] = $product;
-      $subscribe_str .= strtolower($symbol) . '@depth';
-
-      $fp = fopen($file, "r");
-      flock($fp, LOCK_SH, $wouldblock);
-      $orderbook = json_decode(file_get_contents($file), true);
-      flock($fp, LOCK_UN);
-      fclose($fp);
+      $subscribe_str .= strtolower($symbol) . '@depth/';
       $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => 1000]);
       $orderbook[$product] = $snapshot;
-      file_put_contents($file, json_encode($orderbook), LOCK_EX);
+      $orderbook[$product]['isSnapshot'] = true;
     }
+    file_put_contents($file, json_encode($orderbook), LOCK_EX);
     $client = new Client(WSS_URL . $subscribe_str, ['timeout' => 60]);
 
     $date = DateTime::createFromFormat('U.u', microtime(TRUE));
     $date->add(new DateInterval('PT' . 5 . 'S'));
 
     $channel_ids = [];
-    $orderbook = [];
+    $sync = true;
     while (true) {
       try
       {
         $message = $client->receive();
         if ($message) {
           $msg = json_decode($message , true);
-          var_dump($msg);
+          //var_dump($msg);
           if (isset($msg['data'])) {
             switch ($msg['data']['e']) {
               case 'depthUpdate':
-                  print "lastUpdateId: {$orderbook[$symbol]['lastUpdateId']}\n";
-                  $symbol = $channel_ids[$msg['data']['s']];
-                  if ( $msg['data']['u'] <= $orderbook[$symbol]['lastUpdateId'])
+                  $app_symbol = $app_symbols[$msg['data']['s']];
+                  $lastUpdateId = $orderbook[$app_symbol]['lastUpdateId'];
+                  if ( $msg['data']['u'] <= $lastUpdateId)
                     break;
-                  $orderbook[$symbol]['lastUpdateId'] = $msg['data']['u'];
+                  $u_1 = $lastUpdateId + 1;
+                  if ($msg['data']['U'] <= $u_1 && $msg['data']['u'] >= $u_1) {
+                    $orderbook[$app_symbol]['isSnapshot'] = false;
+                  }
+                  if (!$orderbook[$app_symbol]['isSnapshot'] && $msg['data']['U'] != $u_1) {
+                    $sync = false;
+                    break;
+                  }
+                  $orderbook[$app_symbol]['lastUpdateId'] = $msg['data']['u'];
 
-                  //var_dump($msg);
-                  foreach ($msg as $idx => $data) {
-                    if ($idx == 0) {
-                      continue;
-                    } elseif (isset($data['a'])) {
-                      $side = 'asks';
-                      $kside = 'a';
-                    } elseif (isset($data['b'])) {
-                      $side = 'bids';
-                      $kside = 'b';
-                    }
-                    foreach ($data[$kside] as $new_offer) {
+                  foreach (['bids', 'asks'] as $side) {
+                    $side_letter = substr($side,0,1);
+                    if (isset($msg['data'][$side_letter])) {
+                      foreach ($msg['data'][$side_letter] as $new_offer) {
                       //remove offer
-                      if ($new_offer[1] == '0') {
-                        foreach ($orderbook[$symbol][$side] as $key => $offer) {
-                          if ($offer[0] != $new_offer[0])
+                      $new_price = floatval($new_offer[0]);
+                      if (floatval($new_offer[1]) == 0) {
+                        foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
+                          if (floatval($offer[0]) != $new_price)
                             continue;
-                          unset($orderbook[$symbol][$side][$key]);
+                          unset($orderbook[$app_symbol][$side][$key]);
                           break;
                         }
-                        $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
+                        $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
                       } else {
-                        foreach ($orderbook[$symbol][$side] as $key => $offer) {
-                          if ($side == 'bids' && $new_offer[0] > $offer[0] ||
-                              $side == 'asks' && $new_offer[0] < $offer[0] ) {
-                            array_splice($orderbook[$symbol][$side], $key, 0, [0 => $new_offer]);
+                        foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
+                          if ($side == 'bids' && $new_price > floatval($offer[0]) ||
+                              $side == 'asks' && $new_price < floatval($offer[0]) ) {
+                            array_splice($orderbook[$app_symbol][$side], $key, 0, [0 => $new_offer]);
                             break;
-                          } elseif ($new_offer[0] == $offer[0]) {
-                            $orderbook[$symbol][$side][$key][0] = $new_offer[0];
-                            $orderbook[$symbol][$side][$key][1] = floatval($offer[1]) + floatval($new_offer[1]);
+                          } elseif ($new_price == floatval($offer[0])) {
+                            $orderbook[$app_symbol][$side][$key][0] = $new_offer[0];
+                            $orderbook[$app_symbol][$side][$key][1] = $new_offer[1];
                             break;
                           }
                         }
                       }
                     }
                   }
+                }
                   break;
               case 'ping':
                 //send pong
+                $msg['data']['e'] = 'pong';
+                $client->send(json_encode($msg));
                 break;
               default: var_dump($msg);
                 break;
             }
+          }
+          if(!$sync) {
+            print_dbg("$app_symbol orderbook out of sync u={$msg['data']['u']} lastUpdateId + 1= $u_1",true);
+            break;
           }
           //var_dump($orderbook);
           $orderbook['last_update'] = microtime(true);
