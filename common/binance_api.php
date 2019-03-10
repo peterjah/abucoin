@@ -270,6 +270,7 @@ class BinanceApi
         $id = $status['orderId'];
         $filled_size = 0;
         $filled_base = 0;
+        $order_canceled = false;
 
         if($status['status'] == 'FILLED')
         {
@@ -285,16 +286,39 @@ class BinanceApi
         }
         else
         {
-          sleep(3);
-          $this->cancelOrder($product, $id);
-          $status = $this->getOrderStatus($product, $id);
+          //give server some time to handle order
+          usleep(500000);//0.5 sec
+          $status = [];
+          $timeout = 3;//sec
+          $begin = microtime(true);
+          while ( (@$status['status'] != 'closed') && ((microtime(true) - $begin) < $timeout)) {
+            $status = $this->getOrderStatus($product, $id);
+          }
           print_dbg("Check {$this->name} order $id status: {$status['status']} $side $alt filled:{$status['filled']} ");
+
+          if(empty($status['status']) || $status['status'] == 'open') {
+            $order_canceled = $this->cancelOrder($product, $id);
+            $begin = microtime(true);
+            while (empty($status['status']) && (microtime(true) - $begin) < $timeout) {
+              $status = $this->getOrderStatus($product, $id);
+            }
+          }
+
+          print_dbg("Final check status: {$status['status']} $side $alt filled:{$status['filled']} ");
           var_dump($status);
           $filled_size = $status['filled'];
           $filled_base = $status['filled_base'];
+          $price = $status['price'];
         }
-        if ($filled_size > 0)
+        if ($filled_size > 0) {
           $this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
+        }
+        elseif ($order_canceled) {
+          return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
+        }
+        else {
+          throw new Exception("Unable to locate order in history");
+        }
         return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $filled_base, 'price' => $price];
       }
       else
@@ -312,7 +336,7 @@ class BinanceApi
 
     function getOrderStatus($product, $orderId)
     {
-      print "get order status of $orderId \n";
+      print_dbg("get order status of $orderId");
       $i=0;
       $alt = self::crypto2binance($product->alt);
       $base = self::crypto2binance($product->base);
@@ -325,7 +349,6 @@ class BinanceApi
         }catch (Exception $e){ $i++; usleep(500000); print ("{$this->name}: Failed to get status retrying...$i\n");}
       }
 
-      var_dump($order);
       if(isset($order))
       {
         if ($order['status'] == 'FILLED')
@@ -348,7 +371,7 @@ class BinanceApi
       $alt = self::crypto2binance($product->alt);
       $base = self::crypto2binance($product->base);
       $symbol = "{$alt}{$base}";
-      print_dbg("canceling $symbol order $orderId");
+      print_dbg("canceling $symbol order $orderId", true);
 
       $i=0;
       while($i<10)

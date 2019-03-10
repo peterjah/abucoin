@@ -288,57 +288,62 @@ class KrakenApi
       $alt = $product->alt;
       $base = $product->base;
 
-      $type = 'market';
       $pair = $product->symbol_exchange;
-      // safety check
-      if ($side == 'buy') {
-        $bal = $this->balances[$base];
-        $size = min($size , $bal/$price);
-      }
-      else {
-        $altBal = $this->balances[$alt];
-        $size = min($size , $altBal);
-      }
 
       $order = ['pair' => $pair,
                 'type' => $side,
                 'ordertype' => $type,
                 'volume' => strval(truncate($size,$product->size_decimals)),
                 'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
-               ];
+              ];
       if($type == 'limit')
       {
-        $price = $side == 'buy' ? ceiling($price, $product->lot_size_step) : truncate($price, $product->price_decimals);
-        $price_str = rtrim(rtrim(sprintf("%.{$price_decimals}F", $price), '0'), ".");
-        $order['price'] = $price_str;
+        print "price:\n";
+        var_dump($price);
+        $order['price'] = strval(truncate($price,$product->price_decimals));
       }
       var_dump($order);
       $ret = $this->jsonRequest('AddOrder', $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
-       if(count($ret['error']))
-         throw new KrakenAPIException($ret['error'][0]);
-       else {
-         $id = $ret['result']['txid'][0];
-         $i=0;
-         $status = [];
-         while (empty($status['status']) && $i < 10) {
-           usleep(200000);
+      if(count($ret['error']))
+       throw new KrakenAPIException($ret['error'][0]);
+      else {
+       //give server some time to handle order
+       usleep(500000);//0.5 sec
+       $id = $ret['result']['txid'][0];
+       $status = [];
+       $order_canceled = false;
+       $timeout = 3;//sec
+       $begin = microtime(true);
+       while ((@$status['status'] != 'closed') && (microtime(true) - $begin) < $timeout) {
+         $status = $this->getOrderStatus(null, $id);
+         print_dbg("open order check: {$status['status']}");
+         if(!isset($status)) {
            $status = $this->getOrdersHistory(['id' => $id]);
-           $i++;
-         }
-         if($status['status'] == 'open') {
-           $this->cancelOrder(null, $id);
-           $status = $this->getOrdersHistory(['id' => $id]);
-         }
-         print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
-         if($status['filled'] > 0) {
-           $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
-         } else {
-          throw new KrakenAPIException("{$this->name}: Unable to $side");
+           var_dump($status);
+           print_dbg("closed order check: {$status['status']}");
          }
        }
+       if(empty($status['status']) || $status['status'] == 'open') {
+         $order_canceled = $this->cancelOrder(null, $id);
+         $begin = microtime(true);
+         while (empty($status['status']) && (microtime(true) - $begin) < $timeout) {
+           $status = $this->getOrdersHistory(['id' => $id]);
+         }
+       }
+       print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
+       var_dump($status);
+
+       if($status['filled'] > 0) {
+         $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
+       } elseif ($order_canceled) {
+         return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
+       } else {
+         throw new Exception("Unable to locate order in history");
+       }
        return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
+      }
     }
 
     static function minimumAltTrade($crypto)
@@ -376,33 +381,26 @@ class KrakenApi
 
     function getOrderStatus($alt = null, $order_id)
     {
-      $open_orders = $this->jsonRequest('OpenOrders');
-      if (isset($open_orders['result']))
-        $open_orders = $open_orders['result']['open'];
+      $i=0;
+      for ($i=0; $i<5; $i++) {
+        try{
+          $open_orders = $this->jsonRequest('OpenOrders')['result']['open'];
+          break;
+        }catch (Exception $e){usleep(500000); print ("{$this->name}: Failed to get status retrying...$i\n");}
+      }
 
-      if(count($open_orders))
-      {
-          var_dump($open_orders);
-        foreach ($open_orders as $id => $open_order)
-          if($id == $order_id)
-          {
-              $status = 'open';
-              $filled = $open_order['vol_exec'];
-              $filled_base = $open_order['cost'];
-             break;
+      if(count($open_orders)) {
+        foreach ($open_orders as $id => $open_order) {
+          if($id == $order_id) {
+            var_dump($open_order);
+            return  $status = [ 'id' => $id,
+                                'status' => 'open',
+                                'filled' => $open_order['vol_exec'],
+                                'filled_base' => $open_order['cost']
+                              ];
           }
+        }
       }
-      if( !isset($status) )
-      {
-        $status = 'closed';
-        $filled = null;
-        $filled_base = null;
-      }
-      return  $status = [ 'id' => $order_id,
-                          'status' => $status,
-                          'filled' => $filled,
-                          'filled_base' => $filled_base
-                        ];
    }
 
    function ping()
@@ -411,6 +409,7 @@ class KrakenApi
      return count($ping['error']) ? false : true;
    }
 
+   //mean api_call_time= 0.34057093024254
    function getOrdersHistory($filter = null)
    {
      $params = [];

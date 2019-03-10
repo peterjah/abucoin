@@ -110,6 +110,9 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
   print "start with= {$first_market->api->name} \n";
   print "balances: $base_bal $base; $alt_bal $alt \n";
 
+  $buy_price = truncate($buy_price, $buy_product->price_decimals);
+  $sell_price = truncate($sell_price, $sell_product->price_decimals);
+
   print "BUY $trade_size $alt on {$buy_api->name} at $buy_price $base = ".($buy_price*$trade_size)."$base\n";
   print "SELL $trade_size $alt on {$sell_api->name} at $sell_price $base = ".($sell_price*$trade_size)."$base\n";
 
@@ -131,6 +134,8 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
        if($i == 5 || $err == 'ERROR: Insufficient Funds.' || $err == 'Market is closed.' || $err == 'EOrder:Insufficient Funds.')
          throw new \Exception("unable to $first_action. [$err]");
        if ($err == 'Rest API trading is not enabled.')
+         throw new \Exception($err);
+       if ($err == "Unable to locate order in history")
          throw new \Exception($err);
        usleep(500000);
        $i++;
@@ -173,15 +178,15 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
              $alt_bal = $second_market->api->balances[$alt];
              $trade_size = truncate($alt_bal* (1 - $sell_product->fees/100), $sell_product->size_decimals);
            }
-
          }
-         // if( $err != 'no response from api' && $err != 'EAPI:Invalid nonce' )
-         // {
-         //   print_dbg("unable to $second_action $alt (second action) [$err] on {$second_market->api->name}: tradeSize=$trade_size at $price. try $i");
-         // }
+         if ($err == "Unable to locate order in history") {
+           print_dbg("$err. giving up...");
+           throw new \Exception($err);
+         }
          if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size' ||
              $err == 'Filter failure: MIN_NOTIONAL' || $err == 'balance_locked' || $err == 'try_again_later')
          {
+           print_dbg("$err. giving up...");
            $trade_size = 0;
            break;
          }
@@ -312,7 +317,7 @@ function getWsOrderbook($file, $product) {
   fclose($fp);
   $update_timeout = 3;
   if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
-    print_dbg("$file orderbook not uptaded since $update_timeout sec. Switching to rest API");
+    //print_dbg("$file orderbook not uptaded since $update_timeout sec. Switching to rest API");
     return false;
   }
   if (!isset($orderbook[$product->symbol])) {

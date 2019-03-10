@@ -109,7 +109,6 @@ while(true) {
   $min_loop_time = 0.1;//sec
   if( $loop_time < $min_loop_time) {
     usleep(($min_loop_time-$loop_time)*1000000);
-    print "sleep ".(($min_loop_time-$loop_time)*1000000).'\n';
   }
   $loop_begin = microtime(true);
 
