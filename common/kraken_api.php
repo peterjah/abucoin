@@ -488,7 +488,7 @@ class KrakenApi
            break;
            } catch (Exception $e) {
              if($i > 8)
-             throw new KrakenAPIException("failed to get order book [{$e->getMessage()}]");
+               throw new KrakenAPIException("failed to get order book [{$e->getMessage()}]");
              $i++;
              print "{$this->name}: failed to get order book. retry $i...\n";
              usleep(50000);

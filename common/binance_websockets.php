@@ -51,22 +51,21 @@ function getOrderBook($products)
   global $options;
 
   $orderbook = [];
-  $streams = [];
   $subscribe_str = '/stream?streams=';
   $app_symbols = [];
   foreach ($products as $product) {
     $alts = explode ('-', $product);
     $symbol = BinanceApi::translate2marketName($alts[0]) . BinanceApi::translate2marketName($alts[1]);
     $app_symbols[$symbol] = $product;
-    $streams[$symbol]['app_symbol'] = $product;
     $subscribe_str .= strtolower($symbol) . '@depth/';
+  }
+  $client = new Client(WSS_URL . $subscribe_str, ['timeout' => 60]);
+  foreach ($app_symbols as $symbol => $app_symbol) {
     $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => 1000]);
-    $orderbook[$product] = $snapshot;
-    $orderbook[$product]['isSnapshot'] = true;
+    $orderbook[$app_symbol] = $snapshot;
+    $orderbook[$app_symbol]['isSnapshot'] = true;
   }
   file_put_contents($file, json_encode($orderbook), LOCK_EX);
-  $client = new Client(WSS_URL . $subscribe_str, ['timeout' => 60]);
-
   $date = DateTime::createFromFormat('U.u', microtime(TRUE));
   $date->add(new DateInterval('PT' . 5 . 'S'));
 
@@ -129,6 +128,7 @@ function getOrderBook($products)
               break;
             case 'ping':
               //send pong
+              print_dbg('Ping. Send pong',true);
               $msg['data']['e'] = 'pong';
               $client->send(json_encode($msg));
               break;
@@ -138,11 +138,6 @@ function getOrderBook($products)
         }
         if(!$sync) {
           print_dbg("{$msg['data']['s']} $app_symbol orderbook out of sync U={$msg['data']['U']} lastUpdateId + 1= $u_1",true);
-          $subscribe_str .= strtolower($symbol) . '@depth/';
-          $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => 1000]);
-          $orderbook[$app_symbol] = $snapshot;
-          $orderbook[$app_symbol]['isSnapshot'] = true;
-          $client->send(json_encode($subscribe_str));
         }
         //var_dump($orderbook);
         $orderbook['last_update'] = microtime(true);
@@ -151,8 +146,8 @@ function getOrderBook($products)
     }
     catch(Exception $e)
     {
-      print_dbg('Binance websocket error:' . $e->getMessage());
-      print_dbg(var_dump($e));
+      print_dbg('Binance websocket error:' . $e->getMessage(),true);
+      //print_dbg(var_dump($e),true);
       break;
     }
   }
