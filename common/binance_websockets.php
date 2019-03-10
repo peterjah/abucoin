@@ -138,7 +138,11 @@ function getOrderBook($products)
         }
         if(!$sync) {
           print_dbg("{$msg['data']['s']} $app_symbol orderbook out of sync U={$msg['data']['U']} lastUpdateId + 1= $u_1",true);
-          break;
+          $subscribe_str .= strtolower($symbol) . '@depth/';
+          $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => 1000]);
+          $orderbook[$app_symbol] = $snapshot;
+          $orderbook[$app_symbol]['isSnapshot'] = true;
+          $client->send(json_encode($subscribe_str));
         }
         //var_dump($orderbook);
         $orderbook['last_update'] = microtime(true);
@@ -149,6 +153,7 @@ function getOrderBook($products)
     {
       print_dbg('Binance websocket error:' . $e->getMessage());
       print_dbg(var_dump($e));
+      break;
     }
   }
 }

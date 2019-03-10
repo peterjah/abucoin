@@ -283,6 +283,7 @@ class BinanceApi
             $pond_price += $fills['price'] * $fills['qty'];
           }
           $price = $pond_price / $filled_size;
+          print_dbg("Directly filled: $filled_size $alt @ $price");
         }
         else
         {
