@@ -29,10 +29,10 @@ foreach ($data['arbitrages'] as $arbitrage) {
   $gains_base = $arbitrage['final_gains']['base'];
   $real_percent_gains = $arbitrage['final_gains']['percent'];
   $expected_percent_gains = $arbitrage['expected_gains']['percent'];
-  $buy_market = strtolower($arbitrage['buy_market']);
-  $sell_market = strtolower($arbitrage['sell_market']);
-  $buy_price_diff = ($arbitrage['stats']['buy_price_diff'] >=0 ? '+':'-') . number_format($arbitrage['stats']['buy_price_diff'], 2);
-  $sell_price_diff = ($arbitrage['stats']['sell_price_diff'] >=0 ? '+':'-') . number_format($arbitrage['stats']['sell_price_diff'], 2);
+  $buy_market = strtolower(@$arbitrage['buy_market']);
+  $sell_market = strtolower(@$arbitrage['sell_market']);
+  $buy_price_diff = (@$arbitrage['stats']['buy_price_diff'] > 0 ? '+':'') . number_format(@$arbitrage['stats']['buy_price_diff'], 2);
+  $sell_price_diff = (@$arbitrage['stats']['sell_price_diff'] > 0 ? '+':'') . number_format(@$arbitrage['stats']['sell_price_diff'], 2);
 
   print "{$arbitrage['date']}: buy $buy_market ($buy_price_diff%)-> sell $sell_market ($sell_price_diff%) ".sprintf("%.3e",$gains_base).
         " {$base} =".number_format($gains_base*$prices[$base], 3)."EUR ".
