@@ -34,8 +34,12 @@ foreach ($data['arbitrages'] as $arbitrage) {
   $buy_price_diff = (@$arbitrage['stats']['buy_price_diff'] > 0 ? '+':'') . number_format(@$arbitrage['stats']['buy_price_diff'], 2);
   $sell_price_diff = (@$arbitrage['stats']['sell_price_diff'] > 0 ? '+':'') . number_format(@$arbitrage['stats']['sell_price_diff'], 2);
 
-  print "{$arbitrage['date']}: buy $buy_market ($buy_price_diff%)-> sell $sell_market ($sell_price_diff%) ".sprintf("%.3e",$gains_base).
-        " {$base} =".number_format($gains_base*$prices[$base], 3)."EUR ".
+  $op_str = "{$arbitrage['date']}: ";
+  if($arbitrage['id'] == 'solved')
+    $op_str .= 'solved: ' . (isset($arbitrage['buy_market']) ? "buy on {$arbitrage['buy_market']}" : "sell on {$arbitrage['sell_market']}");
+  else
+    $op_str .= "buy $buy_market ($buy_price_diff%)-> sell $sell_market ($sell_price_diff%)";
+  print "$op_str ".sprintf("%.3e",$gains_base) . " {$base} =".number_format($gains_base*$prices[$base], 3)."EUR ".
         number_format($expected_percent_gains, 2)."% (".number_format($real_percent_gains, 2)."%)\n";
   if (isset($options['exchange']) ) {
     $exchange = strtolower(substr($options['exchange'], 0, 4));

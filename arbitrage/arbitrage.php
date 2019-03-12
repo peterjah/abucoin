@@ -106,7 +106,7 @@ while(true) {
   }
   //avoid useless cpu usage
   $loop_time = microtime(true) - $loop_begin;
-  $min_loop_time = 0.1;//sec
+  $min_loop_time = 1;//sec
   if( $loop_time < $min_loop_time) {
     usleep(($min_loop_time-$loop_time)*1000000);
   }

@@ -209,9 +209,9 @@ class BinanceApi
             print "{$this->name}: failed to get order book. retry $i...\n";
             usleep(50000);
         }
-        if(!isset($book['asks'][0][0], $book['bids'][0][0]))
-          return null;
-        }
+      }
+      if(!isset($book['asks'], $book['bids']))
+        throw new BinanceAPIException("failed to get order book");
       }
 
       foreach( ['asks', 'bids'] as $side)
@@ -283,7 +283,7 @@ class BinanceApi
             $pond_price += $fills['price'] * $fills['qty'];
           }
           $price = $pond_price / $filled_size;
-          print_dbg("Directly filled: $filled_size $alt @ $price");
+          print_dbg("Directly filled: $filled_size $alt @ $price", true);
         }
         else
         {

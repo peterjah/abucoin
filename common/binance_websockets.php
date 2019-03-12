@@ -31,15 +31,14 @@ if(!isset($options['file'])) {
   print_dbg("No output file provided",true);
 }
 $file = $options['file'];
-touch($file);
 $products = explode(',', $options['products']);
 
 switch($options['cmd']) {
   case 'getOrderBook':
       while(true) {
+      touch($file);
       print_dbg ("Subscribing Binance Orderbook WS feed", true);
       getOrderBook($products);
-      sleep(1);
     }
 
 }
@@ -137,7 +136,10 @@ function getOrderBook($products)
           }
         }
         if(!$sync) {
-          print_dbg("{$msg['data']['s']} $app_symbol orderbook out of sync U={$msg['data']['U']} lastUpdateId + 1= $u_1",true);
+          print_dbg("{$msg['data']['s']} $app_symbol orderbook out of sync u={$msg['data']['u']} U={$msg['data']['U']} lastUpdateId + 1= $u_1",true);
+          unlink($file);
+          //var_dump($msg);
+          break;
         }
         //var_dump($orderbook);
         $orderbook['last_update'] = microtime(true);
