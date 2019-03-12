@@ -212,31 +212,32 @@ function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
       $buy_market->getBalance();
       $sell_market->getBalance();
       $arbId = substr($sell_market->api->name, 0, 2) . substr($buy_market->api->name, 0, 2) . '_' . number_format(microtime(true) * 100, 0, '.', '');
-      print "do arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."%";
-      $status = do_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size, $arbId);
-      $trade_size = 0;
-      var_dump($status);
-      if (@$status['buy']['filled_size'] > 0 && @$status['sell']['filled_size'] > 0) {
+      print "do arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."% \n";
+      print_dbg("SELL $trade_size $alt on {$sell_market->api->name} at $sell_price", true);
+      print_dbg("BUY $trade_size $alt on {$buy_market->api->name} at $buy_price", true);
+      $status = async_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size, $arbId);
+      if ($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
 
         if ($status['buy']['filled_size'] != $status['sell']['filled_size'])
           print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
 
         $trade_size = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
         $final_gains = computeGains($status['buy']['price'], $buy_fees, $status['sell']['price'], $sell_fees, $trade_size);
+        $profit += $final_gains['base'];
 
         $stats = ['buy_price_diff' => ($status['buy']['price'] * 100 / $buy_price) - 100,
                   'sell_price_diff' => ($status['sell']['price'] * 100 / $sell_price) - 100
                   ];
         $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
-                       'alt' => $alt,
-                       'base' => $base,
-                       'id' => $arbId,
-                       'expected_gains' => $expected_gains,
-                       'final_gains' => $final_gains,
-                       'sell_market' => $sell_market->api->name,
-                       'buy_market' => $buy_market->api->name,
-                       'stats' => $stats
-                     ];
+                        'alt' => $alt,
+                        'base' => $base,
+                        'id' => $arbId,
+                        'expected_gains' => $expected_gains,
+                        'final_gains' => $final_gains,
+                        'sell_market' => $sell_market->api->name,
+                        'buy_market' => $buy_market->api->name,
+                        'stats' => $stats
+                      ];
         $fp = fopen(GAINS_FILE, "r");
         flock($fp, LOCK_SH, $wouldblock);
         $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
@@ -244,12 +245,13 @@ function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
         fclose($fp);
         $gains_logs['arbitrages'][] = $arbitrage_logs;
         file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
+
+        //Just in case
+        $buy_market->api->balances[$alt] += $status['buy']['filled_size'];
+        $buy_market->api->balances[$base] -= $trade_size * $status['sell']['price'];
+        $sell_market->api->balances[$base] += $trade_size * $status['buy']['price'];
+        $sell_market->api->balances[$alt] -= $status['sell']['filled_size'];
       }
-      //Just in case
-      $buy_market->api->balances[$alt] += @$status['buy']['filled_size'];
-      $buy_market->api->balances[$base] -= @$status['sell']['filled_size'] * @$status['sell']['price'];
-      $sell_market->api->balances[$base] += @$status['buy']['filled_size'] * @$status['buy']['price'];
-      $sell_market->api->balances[$alt] -= @$status['sell']['filled_size'];
     }
   }
   return $arbitrage_logs;

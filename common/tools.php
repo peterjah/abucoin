@@ -206,6 +206,97 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
   return $ret;
 }
 
+function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $size, $arbId)
+{
+  $sell_api = $sell_market->api;
+  $buy_api = $buy_market->api;
+  $buy_product = $buy_market->products[$symbol];
+  $alt = $buy_product->alt;
+  $base = $buy_product->base;
+  $alt_bal = $sell_api->balances[$alt];
+  $base_bal = $buy_api->balances[$base];
+
+  $pid = pcntl_fork();
+  if ($pid == -1) {
+      throw new \Exception("unable to fork process");
+  } else if ($pid) {
+     // we are the parent
+     print "I am the father pid = $pid\n";
+     $sell_status = place_order($sell_market, 'limit', $symbol, 'sell', $sell_price, $size, $arbId);
+     print "SOLD {$sell_status['filled_size']} $alt on {$sell_api->name} at {$sell_status['price']}\n";
+  } else {
+     // we are the child
+     print "I am the child pid = $pid\n";
+     $buy_status = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
+     print "BOUGHT {$buy_status['filled_size']} $alt on {$buy_api->name} at {$buy_status['price']}\n";
+     exit();
+  }
+  pcntl_waitpid($pid, $status);
+  var_dump($status);
+  //get child status:
+  $grep = shell_exec("tail -n20 trades | grep \"{$arbId} " . ucfirst($buy_api->name) .'"' );
+  if (empty($grep)) {
+    $buy_status = ['filled_size' => 0, 'price' => 0];
+  } else {
+    preg_match('/^(.*): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) ([.-E0-]+) ([A-Z]+) at ([.-E0-]+) ([A-Z]+)$/',$grep, $matches);
+    var_dump($matches);
+    $buy_status = ['filled_size' => $matches[6], 'price' => $matches[8]];
+  }
+
+  return ['buy' => $buy_status, 'sell' => $sell_status];
+}
+
+function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
+{
+  $product = $market->products[$symbol];
+  $alt = $product->alt;
+  $base = $product->base;
+  $i=0;
+  while(true) {
+    try {
+      return $market->api->place_order($product, $type, $side, $price, $size, $arbId);
+      break;
+    }
+    catch(Exception $e) {
+       $err = $e->getMessage();
+       print_dbg("unable to $side retrying. $i ..: {$err}\n", true);
+       if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance' || $err == 'ERROR: Insufficient Funds.' ||
+          $err == 'Account has insufficient balance for requested action.' || $err == 'Order rejected')
+       {
+         $market->getBalance();
+         print_dbg("Insufficient funds to $side $size $alt @ $price , base_bal:{$market->api->balances[$base]} alt_bal:{$market->api->balances[$alt]}", true);
+         if($side == 'buy')
+         {
+           $base_bal = $market->api->balances[$base];
+           //price may be not relevant anymore. moreover we want a market order
+           $book = $product->refreshBook(0, $size);
+           $size = min(truncate($base_bal / ($book['asks']['price'] * (1 + $product->fees/100)) , $product->size_decimals), $size);
+           $buy_price = $book['asks']['order_price'];
+           print_dbg("new tradesize: $size, new price $buy_price base_bal: $base_bal", true);
+         } else {
+           $alt_bal = $market->api->balances[$alt];
+           $size = truncate($alt_bal* (1 - $product->fees/100), $product->size_decimals);
+         }
+       }
+
+       if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size' ||
+           $err == 'Filter failure: MIN_NOTIONAL' || $err == 'balance_locked' || $err == 'try_again_later')
+       {
+         print_dbg("$err. giving up...");
+         break;
+       }
+       if ($err == 'Rest API trading is not enabled.' || $err == "Unable to locate order in history")
+         throw new \Exception($err);
+       if($i == 8){
+         break;
+       }
+       $i++;
+       usleep(500000);
+    }
+  }
+  throw new \Exception($err);
+}
+
 function ceiling($number, $significance = 1)
 {
     return ( is_numeric($number) && is_numeric($significance) ) ? (ceil($number/$significance)*$significance) : false;
