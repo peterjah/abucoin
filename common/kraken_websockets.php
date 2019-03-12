@@ -3,6 +3,8 @@ use WebSocket\Client;
 require_once('../common/tools.php');
 @define('WSS_URL','wss://ws.kraken.com');
 
+proc_nice(-10);
+
 declare(ticks = 1);
 function sig_handler($sig) {
   global $file;
