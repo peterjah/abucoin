@@ -185,10 +185,10 @@ function do_solve($markets, $symbol, $side, $traded)
         foreach($traded['ids'] as $id ) {
           $fp = fopen(TRADES_FILE, "r");
           flock($fp, LOCK_SH, $wouldblock);
-          $data = file_get_contents(TRADES_FILE));
+          $data = file_get_contents(TRADES_FILE);
           flock($fp, LOCK_UN);
           fclose($fp);
-          file_put_contents(TRADES_FILE, str_replace($id, 'solved', $data, LOCK_EX);
+          file_put_contents(TRADES_FILE, str_replace($id, 'solved', $data), LOCK_EX);
         }
         $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
                        'alt' => $product->alt,
