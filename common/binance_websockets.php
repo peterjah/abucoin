@@ -62,7 +62,7 @@ function getOrderBook($products)
   }
   $client = new Client(WSS_URL . $subscribe_str, ['timeout' => 60]);
   foreach ($app_symbols as $symbol => $app_symbol) {
-    $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => 1000]);
+    $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => $options['bookdepth']]);
     $orderbook[$app_symbol] = $snapshot;
     $orderbook[$app_symbol]['isSnapshot'] = true;
   }

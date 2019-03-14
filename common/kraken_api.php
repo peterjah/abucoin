@@ -46,7 +46,7 @@ class KrakenApi
       $this->api_calls_rate = 0;
       $this->time = time();
 
-      $this->orderbook_depth = 100;
+      $this->orderbook_depth = 25;
     }
 
     function __destruct()
