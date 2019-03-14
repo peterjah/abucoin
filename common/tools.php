@@ -288,8 +288,11 @@ function check_tradesize($symbol, $sell_market, $sell_price, $buy_market, $buy_p
 
 function subscribeWsOrderBook($market, $products_list, $suffix)
 {
+  $disable_websocket = false;
+  if ($market->api instanceof BinanceApi)
+    $disable_websocket = true;
   $websocket_script = "../common/".strtolower($market->api->name)."_websockets.php";
-  if (file_exists($websocket_script)) {
+  if (!$disable_websocket && file_exists($websocket_script)) {
     print ("Subscribing {$market->api->name} Orderbook WS feed\n");
     $market->api->orderbook_file  = "{$market->api->name}_orderbook_{$suffix}.json";
     $products_str = '';
