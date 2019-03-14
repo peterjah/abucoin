@@ -48,9 +48,27 @@ while(true) {
   foreach( $symbol_list as $symbol) {
     if (!$sig_stop) {
       print "Testing $symbol trade\n";
-      $base = $market1->products[$symbol]->base;
+      $product1 = $market1->products[$symbol];
+      $product2 = $market1->products[$symbol];
+      $alt = $product1->alt;
+      $base = $product1->base;
       try {
-        @$profits[$base] += testSwap($symbol, $market1, $market2);
+        $min_order_size_base = max($product1->min_order_size_base, $product2->min_order_size_base);
+        $min_order_size_alt = max($product1->min_order_size, $product2->min_order_size);
+
+
+        if ($market2->api->balances[$alt] > $min_order_size_alt && $market1->api->balances[$base] > $min_order_size_base) {
+          $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
+          $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
+          $gains = testSwap($symbol, $market1/*buy*/, $book1, $market2/*sell*/, $book2);
+        }
+        if (isset($gains)) {
+          print "second book refresh\n";
+          @$profits[$base] += $gains;
+          $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
+          $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
+        }
+
       }
       catch (Exception $e)
       {
@@ -63,12 +81,13 @@ while(true) {
         }catch (Exception $e){}
       }
       try {
-        @$profits[$base] += testSwap($symbol, $market2, $market1);
+        if ($market1->api->balances[$alt] > $min_order_size_alt && $market2->api->balances[$base] > $min_order_size_base) {
+          @$profits[$base] += testSwap($symbol, $market2/*buy*/, $book2, $market1/*sell*/, $book1);
+        }
+
       }
       catch (Exception $e) {
-        print $e;
-        //refresh balances
-        sleep(3);
+        print "{$e->getMessage()}\n";
         if($e->getMessage() == 'Rest API trading is not enabled.')
         {
           sleep(3600);//exchange maintenance ?
@@ -129,9 +148,9 @@ while(true) {
   }
 }
 
-function testSwap($symbol, $buy_market, $sell_market)
+function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
 {
-  $profit = 0;
+  $profit = null;
   $final_gains['base'] = 1; //dummy init
   $buy_product = $buy_market->products[$symbol];
   $sell_product = $sell_market->products[$symbol];
@@ -144,16 +163,6 @@ function testSwap($symbol, $buy_market, $sell_market)
     $get_base_market = $buy_market->api->balances[$base] > $sell_market->api->balances[$base];
     $get_base_market_critical = $base_cash_roll > 0.001 ? $sell_market->api->balances[$base] < $base_cash_roll * 0.1 /*10% of cashroll*/: false;
     $critical_treshold = CRITICAL_BUY_TRESHOLD_BASE;
-
-    $min_order_size_base = max($buy_product->min_order_size_base, $sell_product->min_order_size_base);
-    $min_order_size_alt = max($buy_product->min_order_size, $sell_product->min_order_size);
-
-    if( $sell_market->api->balances[$alt] < $min_order_size_alt
-        || $buy_market->api->balances[$base] < $min_order_size_base)
-      break;
-
-    $buy_book = $buy_product->refreshBook($min_order_size_base, $min_order_size_alt);
-    $sell_book = $sell_product->refreshBook($min_order_size_base, $min_order_size_alt);
 
     $sell_price = $sell_book['bids']['price'];
     $sell_order_price = $sell_book['bids']['order_price'];
@@ -195,6 +204,7 @@ function testSwap($symbol, $buy_market, $sell_market)
       }
 
       if ($do_swap) {
+        $profit = 0;
         $buy_market->getBalance();
         $sell_market->getBalance();
         $arbId = substr($sell_market->api->name, 0, 2) . substr($buy_market->api->name, 0, 2) . '_' . number_format(microtime(true) * 100, 0, '.', '');
@@ -208,7 +218,7 @@ function testSwap($symbol, $buy_market, $sell_market)
 
           $trade_size = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
           $final_gains = computeGains($status['buy']['price'], $buy_fees, $status['sell']['price'], $sell_fees, $trade_size);
-          $profit += $final_gains['base'];
+          $profit = $final_gains['base'];
 
           $stats = ['buy_price_diff' => ($status['buy']['price'] * 100 / $buy_price) - 100,
                     'sell_price_diff' => ($status['sell']['price'] * 100 / $sell_price) - 100
