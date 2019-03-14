@@ -320,7 +320,6 @@ class BinanceApi
         else {
           throw new Exception("Unable to locate order in history");
         }
-        return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $filled_base, 'price' => $price];
       }
       else
         throw new BinanceAPIException("place order failed: {$status['msg']}");

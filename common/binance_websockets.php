@@ -65,10 +65,9 @@ function getOrderBook($products)
     $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => $options['bookdepth']]);
     $orderbook[$app_symbol] = $snapshot;
     $orderbook[$app_symbol]['isSnapshot'] = true;
+
   }
   file_put_contents($file, json_encode($orderbook), LOCK_EX);
-  $date = DateTime::createFromFormat('U.u', microtime(TRUE));
-  $date->add(new DateInterval('PT' . 5 . 'S'));
 
   $channel_ids = [];
   $sync = true;
