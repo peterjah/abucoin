@@ -49,26 +49,28 @@ while(true) {
     if (!$sig_stop) {
       print "Testing $symbol trade\n";
       $product1 = $market1->products[$symbol];
-      $product2 = $market1->products[$symbol];
+      $product2 = $market2->products[$symbol];
       $alt = $product1->alt;
       $base = $product1->base;
+      $min_order_size_base = max($product1->min_order_size_base, $product2->min_order_size_base);
+      $min_order_size_alt = max($product1->min_order_size, $product2->min_order_size);
       try {
-        $min_order_size_base = max($product1->min_order_size_base, $product2->min_order_size_base);
-        $min_order_size_alt = max($product1->min_order_size, $product2->min_order_size);
-
-
-        if ($market2->api->balances[$alt] > $min_order_size_alt && $market1->api->balances[$base] > $min_order_size_base) {
-          $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
-          $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
-          $gains = testSwap($symbol, $market1/*buy*/, $book1, $market2/*sell*/, $book2);
+        while (true) {
+          if ($market2->api->balances[$alt] > $min_order_size_alt && $market1->api->balances[$base] > $min_order_size_base) {
+            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
+            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
+            $status = testSwap($symbol, $market1/*buy*/, $book1, $market2/*sell*/, $book2);
+          }
+          if(empty($status)) {
+            break;
+          }
+          else {
+            print "second book refresh\n";
+            @$profits[$base] += $status['final_gains']['base'];
+            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
+            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
+          }
         }
-        if (isset($gains)) {
-          print "second book refresh\n";
-          @$profits[$base] += $gains;
-          $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
-          $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
-        }
-
       }
       catch (Exception $e)
       {
@@ -81,10 +83,17 @@ while(true) {
         }catch (Exception $e){}
       }
       try {
-        if ($market1->api->balances[$alt] > $min_order_size_alt && $market2->api->balances[$base] > $min_order_size_base) {
-          @$profits[$base] += testSwap($symbol, $market2/*buy*/, $book2, $market1/*sell*/, $book1);
+        while (true) {
+          if ($market1->api->balances[$alt] > $min_order_size_alt && $market2->api->balances[$base] > $min_order_size_base) {
+            $status = testSwap($symbol, $market2/*buy*/, $book2, $market1/*sell*/, $book1);
+          }
+          if(empty($status)) {
+            break;
+          }
+          else {
+            @$profits[$base] += $status['final_gains']['base'];
+          }
         }
-
       }
       catch (Exception $e) {
         print "{$e->getMessage()}\n";
@@ -150,104 +159,83 @@ while(true) {
 
 function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
 {
-  $profit = null;
-  $final_gains['base'] = 1; //dummy init
+  $arbitrage_logs = [];
   $buy_product = $buy_market->products[$symbol];
   $sell_product = $sell_market->products[$symbol];
   $alt = $buy_product->alt;
   $base = $sell_product->base;
-  while($final_gains['base'] > 0) {
+  $base_cash_roll = $buy_market->api->balances[$base] + $sell_market->api->balances[$base];
+  $get_base_market = $buy_market->api->balances[$base] > $sell_market->api->balances[$base];
 
-    $final_gains['base'] = 0;
-    $base_cash_roll = $buy_market->api->balances[$base] + $sell_market->api->balances[$base];
-    $get_base_market = $buy_market->api->balances[$base] > $sell_market->api->balances[$base];
-    $get_base_market_critical = $base_cash_roll > 0.001 ? $sell_market->api->balances[$base] < $base_cash_roll * 0.1 /*10% of cashroll*/: false;
-    $critical_treshold = CRITICAL_BUY_TRESHOLD_BASE;
+  $sell_price = $sell_book['bids']['price'];
+  $sell_order_price = $sell_book['bids']['order_price'];
+  $buy_price = $buy_book['asks']['price'];
+  $buy_order_price = $buy_book['asks']['order_price'];
+  $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);
 
-    $sell_price = $sell_book['bids']['price'];
-    $sell_order_price = $sell_book['bids']['order_price'];
-    $buy_price = $buy_book['asks']['price'];
-    $buy_order_price = $buy_book['asks']['order_price'];
-    $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);
+  $buy_fees = $buy_product->fees;
+  $sell_fees = $sell_product->fees;
 
-    $buy_fees = $buy_product->fees;
-    $sell_fees = $sell_product->fees;
-
-    $trade_size = check_tradesize($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size);
-    if ($trade_size > 0) {
-      $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $trade_size);
-      //swap conditions
-      $do_swap = false;
-      if ($base == 'BTC') {
-        //compute critical treshold
-        //avoid swap to big when gain is <0
-        // if ($get_base_market_critical) {
-        //   $half_cash = $base_cash_roll / 2;
-        //   if ($expected_gains['base'] < 0) {
-        //     $trade_size = min($trade_size, $half_cash / $sell_price);
-        //     $trade_size = check_tradesize($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size);
-        //     $multiplier = ($trade_size * $sell_price) / $half_cash;
-        //     $critical_treshold = CRITICAL_BUY_TRESHOLD_BASE * (1 + 5 * $multiplier);
-        //   }
-        // }
-        if ($expected_gains['base'] > BUY_TRESHOLD ||
-           //($get_base_market_critical && ($expected_gains['base'] >= $critical_treshold)) ||
-           ($get_base_market && ($expected_gains['base'] >= 0)) ) {
-             $do_swap = true;
-           }
-      } else if ($expected_gains['base'] > 0) {
-        if($buy_market->api instanceof PaymiumApi) {
-          if ($expected_gains['base'] > 1/*€*/)
-            $do_swap = true;
-        } else
+  $trade_size = check_tradesize($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size);
+  if ($trade_size > 0) {
+    $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $trade_size);
+    //swap conditions
+    $do_swap = false;
+    if ($base == 'BTC') {
+      if ($expected_gains['base'] > BUY_TRESHOLD ||
+         ($get_base_market && ($expected_gains['base'] >= 0)) ) {
+           $do_swap = true;
+         }
+    } else if ($expected_gains['base'] > 0) {
+      if($buy_market->api instanceof PaymiumApi) {
+        if ($expected_gains['base'] > 1/*€*/)
           $do_swap = true;
+      } else
+        $do_swap = true;
+    }
+
+    if ($do_swap) {
+      $buy_market->getBalance();
+      $sell_market->getBalance();
+      $arbId = substr($sell_market->api->name, 0, 2) . substr($buy_market->api->name, 0, 2) . '_' . number_format(microtime(true) * 100, 0, '.', '');
+      print "do arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."%";
+      $status = do_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size, $arbId);
+      $trade_size = 0;
+      if ($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
+
+        if ($status['buy']['filled_size'] != $status['sell']['filled_size'])
+          print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
+
+        $trade_size = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
+        $final_gains = computeGains($status['buy']['price'], $buy_fees, $status['sell']['price'], $sell_fees, $trade_size);
+
+        $stats = ['buy_price_diff' => ($status['buy']['price'] * 100 / $buy_price) - 100,
+                  'sell_price_diff' => ($status['sell']['price'] * 100 / $sell_price) - 100
+                  ];
+        $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
+                       'alt' => $alt,
+                       'base' => $base,
+                       'id' => $arbId,
+                       'expected_gains' => $expected_gains,
+                       'final_gains' => $final_gains,
+                       'sell_market' => $sell_market->api->name,
+                       'buy_market' => $buy_market->api->name,
+                       'stats' => $stats
+                     ];
+        $fp = fopen(GAINS_FILE, "r");
+        flock($fp, LOCK_SH, $wouldblock);
+        $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        $gains_logs['arbitrages'][] = $arbitrage_logs;
+        file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
       }
-
-      if ($do_swap) {
-        $profit = 0;
-        $buy_market->getBalance();
-        $sell_market->getBalance();
-        $arbId = substr($sell_market->api->name, 0, 2) . substr($buy_market->api->name, 0, 2) . '_' . number_format(microtime(true) * 100, 0, '.', '');
-        print "do arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."%";
-        $status = do_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size, $arbId);
-        $trade_size = 0;
-        if ($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
-
-          if ($status['buy']['filled_size'] != $status['sell']['filled_size'])
-            print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
-
-          $trade_size = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
-          $final_gains = computeGains($status['buy']['price'], $buy_fees, $status['sell']['price'], $sell_fees, $trade_size);
-          $profit = $final_gains['base'];
-
-          $stats = ['buy_price_diff' => ($status['buy']['price'] * 100 / $buy_price) - 100,
-                    'sell_price_diff' => ($status['sell']['price'] * 100 / $sell_price) - 100
-                    ];
-          $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
-                         'alt' => $alt,
-                         'base' => $base,
-                         'id' => $arbId,
-                         'expected_gains' => $expected_gains,
-                         'final_gains' => $final_gains,
-                         'sell_market' => $sell_market->api->name,
-                         'buy_market' => $buy_market->api->name,
-                         'stats' => $stats
-                       ];
-          $fp = fopen(GAINS_FILE, "r");
-          flock($fp, LOCK_SH, $wouldblock);
-          $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
-          flock($fp, LOCK_UN);
-          fclose($fp);
-          $gains_logs['arbitrages'][] = $arbitrage_logs;
-          file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
-        }
-        //Just in case
-        $buy_market->api->balances[$alt] += $status['buy']['filled_size'];
-        $buy_market->api->balances[$base] -= $status['sell']['filled_size'] * $status['sell']['price'];
-        $sell_market->api->balances[$base] += $status['buy']['filled_size'] * $status['buy']['price'];
-        $sell_market->api->balances[$alt] -= $status['sell']['filled_size'];
-      }
+      //Just in case
+      $buy_market->api->balances[$alt] += $status['buy']['filled_size'];
+      $buy_market->api->balances[$base] -= $status['sell']['filled_size'] * $status['sell']['price'];
+      $sell_market->api->balances[$base] += $status['buy']['filled_size'] * $status['buy']['price'];
+      $sell_market->api->balances[$alt] -= $status['sell']['filled_size'];
     }
   }
-  return $profit;
+  return $arbitrage_logs;
 }
