@@ -313,6 +313,7 @@ class BinanceApi
         }
         if ($filled_size > 0) {
           $this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
+          return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $price*$filled_size, 'price' => $price];
         }
         elseif ($order_canceled) {
           return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
