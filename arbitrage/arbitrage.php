@@ -54,12 +54,12 @@ while(true) {
       $base = $product1->base;
       $min_order_size_base = max($product1->min_order_size_base, $product2->min_order_size_base);
       $min_order_size_alt = max($product1->min_order_size, $product2->min_order_size);
+      $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
+      $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
       try {
         while (true) {
           $status = [];
           if ($market2->api->balances[$alt] > $min_order_size_alt && $market1->api->balances[$base] > $min_order_size_base) {
-            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
-            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
             $status = testSwap($symbol, $market1/*buy*/, $book1, $market2/*sell*/, $book2);
           }
           if(empty($status)) {
