@@ -208,11 +208,11 @@ class BinanceApi
             $i++;
             print "{$this->name}: failed to get order book. retry $i...\n";
             usleep(50000);
+          }
         }
       }
       if(!isset($book['asks'], $book['bids']))
-        throw new BinanceAPIException("failed to get order book");
-      }
+        throw new BinanceAPIException("failed to get order book with ".$this->using_websockets ? 'websocket' : 'rest api');
 
       foreach( ['asks', 'bids'] as $side)
       {

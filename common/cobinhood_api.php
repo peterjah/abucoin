@@ -387,19 +387,21 @@ class CobinhoodApi
         $i=0;
         while (true) {
           try {
-              $book = $this->jsonRequest('GET', "/market/orderbooks/{$symbol}", $limit)['result']['orderbook'];
-              break;
-            } catch (Exception $e) {
-              if($i > 8)
-                throw new CobinhoodAPIException("failed to get order book [{$e->getMessage()}]");
-              $i++;
-              print "{$this->name}: failed to get order book. retry $i...\n";
-              usleep(50000);
-            }
+            $book = $this->jsonRequest('GET', "/market/orderbooks/{$symbol}", $limit)['result']['orderbook'];
+            break;
+          } catch (Exception $e) {
+            if($i > 8)
+              throw new CobinhoodAPIException("failed to get order book [{$e->getMessage()}]");
+            $i++;
+            print "{$this->name}: failed to get order book. retry $i...\n";
+            usleep(50000);
           }
-        if(!isset($book['asks'][0][0], $book['bids'][0][0]))
-          return null;
+        }
       }
+
+      if(!isset($book['asks'], $book['bids']))
+        throw new CobinhoodAPIException("failed to get order book with ".$this->using_websockets ? 'websocket' : 'rest api');
+
       foreach( ['asks', 'bids'] as $side)
       {
         $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);

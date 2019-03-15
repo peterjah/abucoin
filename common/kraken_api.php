@@ -498,6 +498,9 @@ class KrakenApi
          throw new KrakenAPIException($book['error'][0]);
        $book = $book['result'][$product->symbol_exchange];
      }
+     if(!isset($book['asks'], $book['bids'])) {
+       throw new KrakenAPIException("failed to get order book with ".$this->using_websockets ? 'websocket' : 'rest api');
+     }
 
      foreach( ['asks', 'bids'] as $side)
      {
