@@ -75,12 +75,12 @@ while(true) {
       }
       catch (Exception $e)
       {
-        print $e;
-        //refresh balances
-        sleep(3);
+        print_dbg($e->getMessage(), true);
         try {
           $market1->getBalance();
           $market2->getBalance();
+          $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
+          $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
         }catch (Exception $e){}
       }
       try {
@@ -94,11 +94,13 @@ while(true) {
           }
           else {
             @$profits[$base] += $status['final_gains']['base'];
+            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
+            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
           }
         }
       }
       catch (Exception $e) {
-        print "{$e->getMessage()}\n";
+        print_dbg($e->getMessage(), true);
         if($e->getMessage() == 'Rest API trading is not enabled.')
         {
           sleep(3600);//exchange maintenance ?
