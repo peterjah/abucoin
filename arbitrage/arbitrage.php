@@ -62,7 +62,7 @@ while(true) {
           if ($market2->api->balances[$alt] > $min_order_size_alt && $market1->api->balances[$base] > $min_order_size_base) {
             $status = testSwap($symbol, $market1/*buy*/, $book1, $market2/*sell*/, $book2);
           }
-          if(empty($status)) {
+          if(empty($status) || $status['final_gains']['base'] <= 0) {
             break;
           }
           else {
@@ -89,7 +89,7 @@ while(true) {
           if ($market1->api->balances[$alt] > $min_order_size_alt && $market2->api->balances[$base] > $min_order_size_base) {
             $status = testSwap($symbol, $market2/*buy*/, $book2, $market1/*sell*/, $book1);
           }
-          if(empty($status)) {
+          if(empty($status) || $status['final_gains']['base'] <= 0) {
             break;
           }
           else {
