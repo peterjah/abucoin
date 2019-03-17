@@ -132,7 +132,9 @@ function getOrderBook($products)
               $msg['data']['e'] = 'pong';
               $client->send(json_encode($msg));
               break;
-            default: var_dump($msg);
+            default:
+              print_dbg("$file unknown event received \"{$msg['data']['e']}\"", true);
+              var_dump($msg);
               break;
           }
         }

@@ -484,19 +484,19 @@ class KrakenApi
        $i=0;
        while (true) {
          try {
-             $book = $this->jsonRequest('Depth',['pair' => $product->symbol_exchange, 'count' => $this->orderbook_depth]);
+           $book = $this->jsonRequest('Depth',['pair' => $product->symbol_exchange, 'count' => $this->orderbook_depth]);
+           if(count($book['error']))
+             throw new KrakenAPIException($book['error'][0]);
+           $book = $book['result'][$product->symbol_exchange];
            break;
-           } catch (Exception $e) {
-             if($i > 8)
-               throw new KrakenAPIException("failed to get order book [{$e->getMessage()}]");
-             $i++;
-             print "{$this->name}: failed to get order book. retry $i...\n";
-             usleep(50000);
-           }
+         } catch (Exception $e) {
+           if($i > 8)
+             throw new KrakenAPIException("failed to get order book [{$e->getMessage()}]");
+           $i++;
+           print "{$this->name}: failed to get order book. retry $i...\n";
+           usleep(50000);
          }
-       if(count($book['error']))
-         throw new KrakenAPIException($book['error'][0]);
-       $book = $book['result'][$product->symbol_exchange];
+       }
      }
      if(!isset($book['asks'], $book['bids'])) {
        throw new KrakenAPIException("failed to get order book with ".$this->using_websockets ? 'websocket' : 'rest api');

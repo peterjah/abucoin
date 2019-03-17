@@ -124,7 +124,9 @@ function getOrderBook($products)
               // print "new $side book:\n";
               // var_dump($orderbook[$symbol]['asks']);
               break;
-            default: var_dump($msg);
+            default:
+              print_dbg("$file unknown event received \"{$msg['h'][2]}\"", true);
+              var_dump($msg);
               break;
           }
           //var_dump($orderbook);

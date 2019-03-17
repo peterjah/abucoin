@@ -96,7 +96,9 @@ function getOrderBook($products)
                   break;
               case 'pong':
               case 'heartbeat': break;
-              default: var_dump($msg);
+              default:
+                print_dbg("$file unknown event received \"{$msg['event']}\"", true);
+                var_dump($msg);
                 break;
             }
           }
