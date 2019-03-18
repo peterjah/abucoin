@@ -3,8 +3,6 @@ use WebSocket\Client;
 require_once('../common/tools.php');
 @define('WSS_URL','wss://ws.kraken.com');
 
-proc_nice(-10);
-
 declare(ticks = 1);
 function sig_handler($sig) {
   global $file;
@@ -81,6 +79,11 @@ function getOrderBook($products)
               $date->add(new DateInterval('PT' . 5 . 'S'));
           }
           $msg = json_decode($message , true);
+          if ($msg == null) {
+            print_dbg("$file failed to decode json: \"{$message}\"", true);
+            var_dump($message);
+            break;
+          }
 
           if (isset($msg['event'])) {
             switch ($msg['event']) {
@@ -146,6 +149,10 @@ function getOrderBook($products)
                 }
               }
             }
+          } else {
+            print_dbg("$file msg received", true);
+            var_dump($msg);
+            break;
           }
           //var_dump($orderbook);
           $orderbook['last_update'] = microtime(true);
