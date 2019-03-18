@@ -146,6 +146,7 @@ function getOrderBook($products)
                       break;
                     }
                   }
+                  $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
                 }
               }
             }
