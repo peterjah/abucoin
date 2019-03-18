@@ -3,8 +3,6 @@ use WebSocket\Client;
 require_once('../common/tools.php');
 @define('WSS_URL','wss://ws.cobinhood.com/v2/ws');
 
-proc_nice(-10);
-
 declare(ticks = 1);
 function sig_handler($sig) {
   global $file;

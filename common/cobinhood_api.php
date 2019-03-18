@@ -400,7 +400,7 @@ class CobinhoodApi
       }
 
       if(!isset($book['asks'], $book['bids']))
-        throw new CobinhoodAPIException("failed to get order book with ".$this->using_websockets ? 'websocket' : 'rest api');
+        throw new CobinhoodAPIException("failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
 
       foreach( ['asks', 'bids'] as $side)
       {
