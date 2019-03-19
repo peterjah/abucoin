@@ -39,6 +39,7 @@ switch($options['cmd']) {
       touch($file);
       print_dbg ("Subscribing Binance Orderbook WS feed", true);
       getOrderBook($products);
+      unlink($file);
     }
 
 }

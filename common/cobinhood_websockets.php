@@ -31,15 +31,15 @@ if(!isset($options['file'])) {
   print_dbg("No output file provided",true);
 }
 $file = $options['file'];
-touch($file);
 $products = explode(',', $options['products']);
 
 switch($options['cmd']) {
   case 'getOrderBook':
       while(true) {
+        touch($file);
         print "Subscribing Cobinhood Orderbook WS feed\n";
         getOrderBook($products);
-        sleep(1);
+        unlink($file);
       }
 }
 
