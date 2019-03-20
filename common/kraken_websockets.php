@@ -147,6 +147,10 @@ function getOrderBook($products)
                       $orderbook[$symbol][$side][$key][1] = $new_offer[1];
                       break;
                     }
+                    if ($key == count($orderbook[$symbol][$side]) -1 ) {
+                      $orderbook[$symbol][$side][$key+1][0] = $new_offer[0];
+                      $orderbook[$symbol][$side][$key+1][1] = $new_offer[1];
+                    }
                   }
                   $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
                 }
