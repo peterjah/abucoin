@@ -105,10 +105,12 @@ function getOrderBook($products)
                 break;
             }
           }
-          elseif (isset($msg[1]['as']) && isset($msg[1]['bs'])) {
+          elseif (isset($msg[1]['as']) || isset($msg[1]['bs'])) {
             $symbol = $channel_ids[$msg[0]];
-            $orderbook[$symbol]['asks'] = $msg[1]['as'];
-            $orderbook[$symbol]['bids'] = $msg[1]['bs'];
+            if (count($msg[1]['as']))
+              $orderbook[$symbol]['asks'] = $msg[1]['as'];
+            if (count($msg[1]['bs']))
+              $orderbook[$symbol]['bids'] = $msg[1]['bs'];
           }
           elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
             $symbol = $channel_ids[$msg[0]];
