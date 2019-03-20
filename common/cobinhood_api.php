@@ -391,7 +391,7 @@ class CobinhoodApi
             break;
           } catch (Exception $e) {
             if($i > 8)
-              throw new CobinhoodAPIException("failed to get order book [{$e->getMessage()}]");
+              throw new CobinhoodAPIException("{$this->name}: failed to get order book [{$e->getMessage()}]");
             $i++;
             print "{$this->name}: failed to get order book. retry $i...\n";
             usleep(50000);
@@ -400,7 +400,7 @@ class CobinhoodApi
       }
 
       if(!isset($book['asks'], $book['bids']))
-        throw new CobinhoodAPIException("failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
+        throw new CobinhoodAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
 
       foreach( ['asks', 'bids'] as $side)
       {
