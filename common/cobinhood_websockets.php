@@ -99,7 +99,6 @@ function getOrderBook($products)
                         unset($orderbook[$app_symbol][$side][$key]);
                       break;
                     }
-                    $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
                   } else {
                     foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
                       if ($side == 'bids' && $new_price > floatval($offer[0]) ||
@@ -111,14 +110,19 @@ function getOrderBook($products)
                         $orderbook[$app_symbol][$side][$key][1] = intval($offer[1]) + intval($new_offer[1]);
                         $orderbook[$app_symbol][$side][$key][2] = floatval($offer[2]) + floatval($new_offer[2]);
                         break;
-                      } else {
-                        continue;
+                      }
+                      if ($key == count($orderbook[$app_symbol][$side]) -1 ) {
+                        $orderbook[$app_symbol][$side][$key+1][0] = $new_offer[0];
+                        $orderbook[$app_symbol][$side][$key+1][1] = $new_offer[1];
+                        $orderbook[$app_symbol][$side][$key+1][2] = $new_offer[2];
                       }
                     }
                   }
+                  $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
                 }
               }
-            case 'pong': break;
+            case 'subscribed':
+            case 'pong':
               // print "new $side book:\n";
               // var_dump($orderbook[$symbol]['asks']);
               break;

@@ -119,6 +119,10 @@ function getOrderBook($products)
                           $orderbook[$app_symbol][$side][$key][1] = $new_offer[1];
                           break;
                         }
+                        if ($key == count($orderbook[$app_symbol][$side]) -1 ) {
+                          $orderbook[$app_symbol][$side][$key+1][0] = $new_offer[0];
+                          $orderbook[$app_symbol][$side][$key+1][1] = $new_offer[1];
+                        }
                       }
                     }
                   }
