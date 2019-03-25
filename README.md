@@ -24,5 +24,4 @@ php arbitrage/balances.php7
 
 
 todo:
-Implement websocket for orderbooks by spliting orderbook fetching in a separate script which will be run as independant thread.
-Use a database to store transactions (SQLite ?)
+Use a database to store transactions 
