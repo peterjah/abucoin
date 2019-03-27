@@ -73,7 +73,11 @@ while(true) {
       }
       catch (Exception $e)
       {
-        print_dbg($e->getMessage(), true);
+        $err = $e->getMessage();
+        print $err;
+        if (!strpos($err, 'failed to get order book')) {
+          print_dbg($err, true);
+        }
         try {
           $market1->getBalance();
           $market2->getBalance();
@@ -97,6 +101,7 @@ while(true) {
       }
       catch (Exception $e) {
         $err = $e->getMessage();
+        print $err;
         if (!strpos($err, 'failed to get order book')) {
           print_dbg($err, true);
         }
