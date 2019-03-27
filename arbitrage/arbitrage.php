@@ -55,11 +55,11 @@ while(true) {
       $min_order_size_base = max($product1->min_order_size_base, $product2->min_order_size_base);
       $min_order_size_alt = max($product1->min_order_size, $product2->min_order_size);
       try {
-        $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
-        $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
         while (true) {
           $status = [];
           if ($market2->api->balances[$alt] > $min_order_size_alt && $market1->api->balances[$base] > $min_order_size_base) {
+            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
+            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
             $status = testSwap($symbol, $market1/*buy*/, $book1, $market2/*sell*/, $book2);
           }
           if(empty($status) || $status['final_gains']['base'] <= 0) {
@@ -68,8 +68,6 @@ while(true) {
           else {
             print "second book refresh\n";
             @$profits[$base] += $status['final_gains']['base'];
-            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
-            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
           }
         }
       }
@@ -79,14 +77,14 @@ while(true) {
         try {
           $market1->getBalance();
           $market2->getBalance();
-          $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
-          $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
         }catch (Exception $e){}
       }
       try {
         while (true) {
           $status = [];
           if ($market1->api->balances[$alt] > $min_order_size_alt && $market2->api->balances[$base] > $min_order_size_base) {
+            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
+            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
             $status = testSwap($symbol, $market2/*buy*/, $book2, $market1/*sell*/, $book1);
           }
           if(empty($status) || $status['final_gains']['base'] <= 0) {
@@ -94,13 +92,14 @@ while(true) {
           }
           else {
             @$profits[$base] += $status['final_gains']['base'];
-            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
-            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
           }
         }
       }
       catch (Exception $e) {
-        print_dbg($e->getMessage(), true);
+        $err = $e->getMessage();
+        if (!strpos($err, 'failed to get order book')) {
+          print_dbg($err, true);
+        }
         if($e->getMessage() == 'Rest API trading is not enabled.')
         {
           sleep(3600);//exchange maintenance ?

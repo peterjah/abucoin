@@ -15,6 +15,9 @@ class CryptopiaApi
     protected $products;
     public $balances;
     protected $time;
+    public $orderbook_file;
+    public $orderbook_depth;
+    public $using_websockets;
 
     public function __construct()
     {
@@ -93,7 +96,10 @@ class CryptopiaApi
           return $response->Data;
         else {
           print "Cryptopia Api error: $response->Error \n";
-          return ['error' => $response->Error];
+          if($response->Error == 'API calls quota exceeded! maximum 100 calls per Minute') {
+            sleep(15);
+          }
+          throw new CryptopiaAPIException($response->Error);
         }
       }
       else {
@@ -106,11 +112,7 @@ class CryptopiaApi
             usleep(50000);
           }
           else
-            //print("Cryptopia api error: request: $path. unable to decode \"$server_output\"");
-
-          //jeson_decode may fail to decode:
-          //"﻿{"Success":false,"Error":"Nonce has already been used for this request."}"
-          throw new CryptopiaAPIException('no response from api');
+            throw new CryptopiaAPIException('no response from api');
         }
       }
     }
@@ -433,8 +435,9 @@ class CryptopiaApi
        }
      }
      //var_dump($book);
-     if(!isset($book->Sell, $book->Buy))
-       return null;
+     if(!isset($book->Sell[0], $book->Buy[0]))
+        throw new CryptopiaAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
+
      foreach( ['asks', 'bids'] as $side) {
        $offer = $side == 'asks' ? $book->Sell : $book->Buy;
        $best[$side]['price'] = $best[$side]['order_price'] = floatval($offer[0]->Price);
