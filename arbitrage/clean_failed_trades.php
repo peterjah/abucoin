@@ -109,7 +109,7 @@ foreach($ledger as $symbol => $trades) {
   $balance = 0;
   if(count($trades)) {
     print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
-    $traded = getFailedTrades($markets, $symbol, $trades);
+    $traded = getFailedTrades(@$markets, $symbol, $trades);
     foreach (['buy','sell'] as $side ) {
       if (($size = @$traded[$side]['size']) > 0) {
         @$balance += $side == 'buy' ? $size : -1 * $size;
@@ -123,7 +123,6 @@ foreach($ledger as $symbol => $trades) {
         }
       }
     }
-    print("balance: $balance\n");
   }
 }
 
@@ -248,7 +247,7 @@ function getFailedTrades($markets, $symbol, $ops)
         $fees = 0.2;
 
       $ret[$side]['price'] = ($ret[$side]['price'] * $ret[$side]['size'] + $op['price'] * $op['size']) / ( $ret[$side]['size'] + $op['size'] );
-      $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + $fees * $op['size']) / ($ret[$side]['size'] + $op['size']);
+      $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + @$fees * $op['size']) / ($ret[$side]['size'] + $op['size']);
       $ret[$side]['size'] += $op['size'];
       $ret[$side]['ids'][] = $id;
       print($op['line']);
