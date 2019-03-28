@@ -115,7 +115,11 @@ foreach($ledger as $symbol => $trades) {
         @$balance += $side == 'buy' ? $size : -1 * $size;
         print "$side: size= {$size} price= {$traded[$side]['price']} mean_fee= {$traded[$side]['mean_fees']}\n";
         if (@$autoSolve) {
-          do_solve($markets, $symbol, $side, $traded[$side]);
+          try {
+            do_solve($markets, $symbol, $side, $traded[$side]);
+          } catch (Exception $e) {
+            print_dbg("failed to solve: {$e->getMessage()}", true);
+          }
         }
       }
     }

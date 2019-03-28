@@ -436,7 +436,7 @@ class CryptopiaApi
      }
      //var_dump($book);
      if(!isset($book->Sell[0], $book->Buy[0]))
-        throw new CryptopiaAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
+        throw new CryptopiaAPIException("{$this->name}: failed to get order book $id with " . ($this->using_websockets ? 'websocket' : 'rest api'));
 
      foreach( ['asks', 'bids'] as $side) {
        $offer = $side == 'asks' ? $book->Sell : $book->Buy;

@@ -74,7 +74,7 @@ while(true) {
       catch (Exception $e)
       {
         $err = $e->getMessage();
-        print $err;
+        print "$err\n";
         if (!strpos($err, 'failed to get order book')) {
           print_dbg($err, true);
         }
@@ -101,7 +101,7 @@ while(true) {
       }
       catch (Exception $e) {
         $err = $e->getMessage();
-        print $err;
+        print "$err\n";
         if (!strpos($err, 'failed to get order book')) {
           print_dbg($err, true);
         }
