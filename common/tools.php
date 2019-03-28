@@ -203,7 +203,6 @@ function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_pric
   }
 
   $ret[$second_action] = $second_status;
-  $ret[$second_action]['filled_size'] = $trade_size;
   return $ret;
 }
 

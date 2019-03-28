@@ -157,8 +157,7 @@ while(true) {
         }
         $market->getBalance();
         //refresh product infos
-        if($market->api instanceof CobinhoodApi)
-          $market->updateProductList();
+        $market->updateProductList();
       }
     } catch (Exception $e){}
     $last_update = time();
