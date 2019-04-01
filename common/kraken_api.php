@@ -296,11 +296,20 @@ class KrakenApi
                 'volume' => strval(truncate($size,$product->size_decimals)),
                 'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
               ];
-      if($type == 'limit')
-      {
+      if($type == 'limit') {
         print "price:\n";
         var_dump($price);
         $order['price'] = strval(truncate($price,$product->price_decimals));
+      } else {
+        $book = $this->getOrderBook($product, $product->min_order_size_base, $size);
+        $offer = $side == 'buy' ? $book['asks'] : $book['bids'];
+        $price_diff = 100*(abs($offer['order_price'] - $price) / $price);
+        print_dbg("market offer: {$offer['order_price']} orig price: $price ; diff: $price_diff");
+        if($price_diff > 0.3/*%*/) {
+          print_dbg("{$this->name}: market order failed: real order price is too different from the expected price", true);
+          throw new KrakenAPIException('market order failed: real order price is too different from the expected price');
+        }
+        $price = $offer['price'];
       }
       var_dump($order);
       $ret = $this->jsonRequest('AddOrder', $order);
