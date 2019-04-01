@@ -151,7 +151,7 @@ function do_solve($markets, $symbol, $side, $traded)
     try {
       $book = $product->refreshBook(0, $size);
     } catch (Exception $e) {
-      print_dbg("$e->getMessage()", true);
+      print_dbg("{$e->getMessage()}: continue..", true);
       continue;
     }
     if ($side == 'buy') {
@@ -245,10 +245,8 @@ function getFailedTrades($markets, $symbol, $ops)
       if(isset($markets[$op['exchange']])){
         $market = $markets[$op['exchange']];
         $product = @$market->products[$symbol];
-        $fees = $product->fees;
+        $fees = @$product->fees;
       }
-      elseif ($op['exchange'] == 'cryptopia')
-        $fees = 0.2;
 
       $ret[$side]['price'] = ($ret[$side]['price'] * $ret[$side]['size'] + $op['price'] * $op['size']) / ( $ret[$side]['size'] + $op['size'] );
       $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + @$fees * $op['size']) / ($ret[$side]['size'] + $op['size']);
