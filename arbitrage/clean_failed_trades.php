@@ -148,8 +148,12 @@ function do_solve($markets, $symbol, $side, $traded)
 
     if($size < $product->min_order_size )
       continue;
-
-    $book = $product->refreshBook(0, $size);
+    try {
+      $book = $product->refreshBook(0, $size);
+    } catch (Exception $e) {
+      print_dbg("$e->getMessage()", true);
+      continue;
+    }
     if ($side == 'buy') {
       $price = $book['bids']['price'];
       $order_price = $book['bids']['order_price'];
