@@ -38,7 +38,7 @@ foreach ($data['arbitrages'] as $arbitrage) {
   if($arbitrage['id'] == 'solved')
     $op_str .= 'solved: ' . (isset($arbitrage['buy_market']) ? "buy on {$arbitrage['buy_market']}" : "sell on {$arbitrage['sell_market']}");
   else
-    $op_str .= "buy $buy_market ($buy_price_diff%)-> sell $sell_market ($sell_price_diff%)";
+    $op_str .= "buy $alt $buy_market ($buy_price_diff%)-> sell $sell_market ($sell_price_diff%)";
   print "$op_str ".sprintf("%.3e",$gains_base) . " {$base} =".number_format($gains_base*$prices[$base], 3)."EUR ".
         number_format($expected_percent_gains, 2)."% (".number_format($real_percent_gains, 2)."%)\n";
   if (isset($options['exchange']) ) {
