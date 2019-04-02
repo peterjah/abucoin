@@ -309,7 +309,6 @@ class KrakenApi
           print_dbg("{$this->name}: market order failed: real order price is too different from the expected price", true);
           throw new KrakenAPIException('market order failed: real order price is too different from the expected price');
         }
-        $price = $offer['price'];
       }
       var_dump($order);
       $ret = $this->jsonRequest('AddOrder', $order);

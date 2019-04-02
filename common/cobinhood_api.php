@@ -186,6 +186,15 @@ class CobinhoodApi
       if($type == 'limit')
       {
         $order['price'] = strval($price);
+      } else {
+        $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
+        $offer = $side == 'buy' ? $book['asks'] : $book['bids'];
+        $price_diff = 100*(abs($offer['order_price'] - $price) / $price);
+        print_dbg("{$this->name}: market offer: {$offer['order_price']} orig price: $price ; diff: $price_diff");
+        if($price_diff > 0.3/*%*/) {
+          print_dbg("{$this->name}: market order failed: real order price is too different from the expected price", true);
+          throw new CobinhoodAPIException('market order failed: real order price is too different from the expected price');
+        }
       }
 
       var_dump($order);
@@ -372,11 +381,11 @@ class CobinhoodApi
       return self::crypto2Cobinhood($crypto);
     }
 
-    public function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
+    public function getOrderBook($product, $depth_base = 0, $depth_alt = 0, $use_websockets = true)
     {
       $file = $this->orderbook_file;
       $this->using_websockets = false;
-      if (file_exists($file)) {
+      if (file_exists($file) && $use_websockets) {
         $book = getWsOrderbook($file, $product);
         if ($book !== false)
           $this->using_websockets = true;
