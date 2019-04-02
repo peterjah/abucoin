@@ -271,10 +271,15 @@ class CryptopiaApi
 
       if($type == 'market') {
         $book = $this->getOrderBook($product, $product->min_order_size_base, $size);
-        $offer = $side == 'buy' ? $book['asks'] : $book['bids'];
-        $price_diff = 100*(abs($offer['order_price'] - $price) / $price);
-        print_dbg("{$this->name}: market offer: {$offer['order_price']} price diff: $price_diff");
-        if($price_diff > 0.3/*%*/) {
+        if ($side == 'buy') {
+          $new_price = $book['asks']['order_price'];
+          $price_diff = ($new_price / $price) - 1;
+        } else {
+          $new_price = $book['bids']['order_price'];
+          $price_diff = 1 - ($new_price / $price);
+        }
+        print_dbg("{$this->name}: market offer: $new_price price diff: $price_diff");
+        if($price_diff > 0.003) {
           throw new CryptopiaAPIException('market order failed: real order price is too different from the expected price');
         }
         $price = $offer['price'];
