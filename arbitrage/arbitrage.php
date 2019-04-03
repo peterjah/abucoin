@@ -30,9 +30,16 @@ $profits = [];
 
 $symbol_list = getCommonProducts($market1, $market2);
 
+$use_websocket = true;
+if($market1->api instanceof PaymiumApi || $market2->api instanceof PaymiumApi) {
+  $use_websocket = false;
+}
+
 foreach ([$market1, $market2] as $market) {
   while (true) { try {
-      subscribeWsOrderBook($market, $symbol_list, getmypid());
+      if ($use_websocket) {
+        subscribeWsOrderBook($market, $symbol_list, getmypid());
+      }
       print "retrieve {$market->api->name} balances\n";
       $market->getBalance();
       break;
