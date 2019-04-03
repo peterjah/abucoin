@@ -365,7 +365,7 @@ class KrakenApi
     {
       $table = ['REP'=>0.3,
                 'BTC'=>0.002,
-                'BCH'=>0.000002,
+                'BCH'=>0.002,
                 'DASH'=>0.03,
                 'DOGE'=>3000,
                 'EOS'=>3,
@@ -381,7 +381,7 @@ class KrakenApi
                 'GNO'=>0.03,
                 'ADA'=>1,
                 'QTUM'=>0.1,
-                'BSV'=>0.000002,
+                'BSV'=>0.002,
                 'XTZ'=>1,
                 'USDT'=>0,
                 'USD'=>0,
