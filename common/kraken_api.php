@@ -319,15 +319,17 @@ class KrakenApi
       $ret = $this->jsonRequest('AddOrder', $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
-      if(count($ret['error']))
-       throw new KrakenAPIException($ret['error'][0]);
+      if(count($ret['error'])) {
+        print_dbg("{$this->name}: place order failed: {$ret['error'][0]}", true);
+        throw new KrakenAPIException($ret['error'][0]);
+      }
       else {
        //give server some time to handle order
        usleep(500000);//0.5 sec
        $id = $ret['result']['txid'][0];
        $status = [];
        $order_canceled = false;
-       $timeout = 3;//sec
+       $timeout = 10;//sec
        $begin = microtime(true);
        while ((@$status['status'] != 'closed') && (microtime(true) - $begin) < $timeout) {
          $status = $this->getOrderStatus(null, $id);
