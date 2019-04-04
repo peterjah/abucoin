@@ -53,14 +53,16 @@ while(1) {
                                             'price' =>$price,
                                             'id' => $trade_id,
                                             'exchange' => $exchange,
-                                            'line' => $line
+                                            'line' => trim($line),
+                                            'alt' => $alt,
+                                            'base' => $base
                                             ];
           }
           elseif (isset($ledger[$symbol]["{$OpId}_2"]) && $ledger[$symbol]["{$OpId}_2"]['size'] == $size) {
             unset($ledger[$symbol]["{$OpId}_2"]);
           }
           else {
-            if($ledger[$symbol][$OpId]['size'] != $size) {
+            if ($ledger[$symbol][$OpId]['size'] != $size) {
               //print "$symbol Different size trade: {$ledger[$symbol][$OpId]['side']} {$ledger[$symbol][$OpId]['size']} != $side $size\n";
               if($ledger[$symbol][$OpId]['size'] < $size) {
                  $ledger[$symbol][$OpId]['side'] = $side;
@@ -70,7 +72,7 @@ while(1) {
               $ledger[$symbol][$OpId]['size'] = abs($ledger[$symbol][$OpId]['size'] - $size);
 
               $new_line = "$date: arbitrage: $OpId {$ledger[$symbol][$OpId]['exchange']}: trade $trade_id: {$ledger[$symbol][$OpId]['side']} "
-                           ."{$ledger[$symbol][$OpId]['size']} $alt at {$ledger[$symbol][$OpId]['price']}\n";
+                           ."{$ledger[$symbol][$OpId]['size']} $alt at {$ledger[$symbol][$OpId]['price']}";
               $ledger[$symbol][$OpId]['line'] = $new_line;
             }
             else
@@ -109,7 +111,10 @@ foreach($ledger as $symbol => $trades) {
   $balance = 0;
   if(count($trades)) {
     print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
-    $traded = getFailedTrades(@$markets, $symbol, $trades);
+    $traded = processFailedTrades(@$markets, $symbol, $trades);
+    if (!empty($traded) && @$autoSolve) {
+      firstPassSolve($traded);
+    }
     foreach (['buy','sell'] as $side ) {
       if (($size = @$traded[$side]['size']) > 0) {
         @$balance += $side == 'buy' ? $size : -1 * $size;
@@ -189,14 +194,7 @@ function do_solve($markets, $symbol, $side, $traded)
         }
       }
       if (@$status['filled_size'] > 0) {
-        foreach($traded['ids'] as $id ) {
-          $fp = fopen(TRADES_FILE, "r");
-          flock($fp, LOCK_SH, $wouldblock);
-          $data = file_get_contents(TRADES_FILE);
-          flock($fp, LOCK_UN);
-          fclose($fp);
-          file_put_contents(TRADES_FILE, str_replace($id, 'solved', $data), LOCK_EX);
-        }
+        markSolved(array_keys($buy['ids']));
         $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
                        'alt' => $product->alt,
                        'base' => $product->base,
@@ -217,13 +215,7 @@ function do_solve($markets, $symbol, $side, $traded)
         $arbitrage_logs['stats'] = $stats;
         print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, mean_price:{$traded['price']}, mean_fees:{$traded['mean_fees']}, price:{$status['price']} $product->base");
 
-        $fp = fopen(GAINS_FILE, "r");
-        flock($fp, LOCK_SH, $wouldblock);
-        $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
-        flock($fp, LOCK_UN);
-        fclose($fp);
-        $gains_logs['arbitrages'][] = $arbitrage_logs;
-        file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
+        save_gain($arbitrage_log);
 
         $market->api->getBalance();
         break;
@@ -232,7 +224,7 @@ function do_solve($markets, $symbol, $side, $traded)
   }
 }
 
-function getFailedTrades($markets, $symbol, $ops)
+function processFailedTrades($markets, $symbol, $ops)
 {
   $ret = [];
   foreach (['buy', 'sell'] as $side) {
@@ -251,9 +243,86 @@ function getFailedTrades($markets, $symbol, $ops)
       $ret[$side]['price'] = ($ret[$side]['price'] * $ret[$side]['size'] + $op['price'] * $op['size']) / ( $ret[$side]['size'] + $op['size'] );
       $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + @$fees * $op['size']) / ($ret[$side]['size'] + $op['size']);
       $ret[$side]['size'] += $op['size'];
-      $ret[$side]['ids'][] = $id;
-      print($op['line']);
+      $ret[$side]['ids'][$id] = $op;
+      print("{$op['line']}\n");
     }
   }
   return $ret;
+}
+
+function firstPassSolve($traded)
+{
+  $buy = $traded['buy'];
+  $sell = $traded['sell'];
+  if ($buy['size'] > 0 && $sell['size'] > 0 && $buy['price'] < $sell['price']) {
+    if($buy['size'] > $sell['size']) {
+      $size = $sell['size'];
+      $res_size = $buy['size'] - $sell['size'];
+      $res_side = 'buy';
+      $res_price = $buy['price'];
+    } else {
+      $size = $buy['size'];
+      $res_size = $sell['size'] - $buy['size'];
+      $res_side = 'sell';
+      $res_price = $sell['price'];
+    }
+    firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded);
+  }
+}
+
+function firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded)
+{
+  $buy = $traded['buy'];
+  $sell = $traded['sell'];
+  $gains = computeGains( $buy['price'], $buy['mean_fees'], $sell['price'], $sell['mean_fees'], $size);
+  if($gains['base'] > 0) {
+    //solve all trade
+    markSolved(array_keys($buy['ids']));
+    markSolved(array_keys($sell['ids']));
+    //generate new buy
+    $op = array_values($buy['ids']);
+    $alt = $op[0]['alt'];
+    $base = $op[0]['base'];
+    save_trade($alt, $base, $res_side, $res_size, $res_price);
+    $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
+                   'alt' => $alt,
+                   'base' => $base,
+                   'id' => 'solved',
+                   'expected_gains' => $gains,
+                   'final_gains' => $gains,
+                 ];
+    print_dbg("first pass solved: size:$size $alt, gain:{$gains['base']} $base");
+    save_gain($arbitrage_log);
+  }
+}
+
+function markSolved($ids)
+{
+  foreach($ids as $id ) {
+    print "mark $id solved\n";
+    $fp = fopen(TRADES_FILE, "r");
+    flock($fp, LOCK_SH, $wouldblock);
+    $data = file_get_contents(TRADES_FILE);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    file_put_contents(TRADES_FILE, str_replace($id, 'solved', $data), LOCK_EX);
+  }
+}
+
+function save_trade($alt, $base, $side, $size, $price)
+{
+  $timestamp = intval(microtime(true)*1000);
+  $trade_str = date("Y-m-d H:i:s").": arbitrage: toSolve_" . $timestamp ." cleaner: trade cleanerTx: $side $size $alt at $price $base\n";
+  file_put_contents(TRADES_FILE, $trade_str,FILE_APPEND);
+}
+
+function save_gain($arbitrage_log)
+{
+  $fp = fopen(GAINS_FILE, "r");
+  flock($fp, LOCK_SH, $wouldblock);
+  $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
+  flock($fp, LOCK_UN);
+  fclose($fp);
+  $gains_logs['arbitrages'][] = $arbitrage_log;
+  file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
 }
