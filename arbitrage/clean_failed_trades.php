@@ -27,66 +27,23 @@ if (@$argv[1] == '-auto-solve')
   $autoSolve=true;
 
 while(1) {
-  $handle = fopen(TRADES_FILE, "r");
-  $ledger = [];
-  if ($handle) {
-    while (($line = fgets($handle)) !== false) {
-      preg_match('/^(.*): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) ([.-E0-]+) ([A-Z]+) at ([.-E0-]+) ([A-Z]+)$/',$line, $matches);
 
-      if(count($matches) == 10) {
-        $date = $matches[1];
-        $OpId = $matches[2];
-        $exchange = strtolower($matches[3]);
-        $trade_id = $matches[4];
-        $side = $matches[5];
-        $size = floatval($matches[6]);
-        $alt = $matches[7];
-        $price = $matches[8];
-        $base = $matches[9];
-        $symbol = "{$alt}-{$base}";
 
-        if($OpId != 'solved') {
-          if( !isset($ledger[$symbol][$OpId]) ) {
-            $ledger[$symbol][$OpId] = ['date' => $date,
-                                            'side' =>$side,
-                                            'size' =>$size,
-                                            'price' =>$price,
-                                            'id' => $trade_id,
-                                            'exchange' => $exchange,
-                                            'line' => trim($line),
-                                            'alt' => $alt,
-                                            'base' => $base
-                                            ];
-          }
-          elseif (isset($ledger[$symbol]["{$OpId}_2"]) && $ledger[$symbol]["{$OpId}_2"]['size'] == $size) {
-            unset($ledger[$symbol]["{$OpId}_2"]);
-          }
-          else {
-            if ($ledger[$symbol][$OpId]['size'] != $size) {
-              //print "$symbol Different size trade: {$ledger[$symbol][$OpId]['side']} {$ledger[$symbol][$OpId]['size']} != $side $size\n";
-              if($ledger[$symbol][$OpId]['size'] < $size) {
-                 $ledger[$symbol][$OpId]['side'] = $side;
-                 $ledger[$symbol][$OpId]['exchange'] = $exchange;
-                 $ledger[$symbol][$OpId]['price'] = $price;
-              }
-              $ledger[$symbol][$OpId]['size'] = abs($ledger[$symbol][$OpId]['size'] - $size);
-
-              $new_line = "$date: arbitrage: $OpId {$ledger[$symbol][$OpId]['exchange']}: trade $trade_id: {$ledger[$symbol][$OpId]['side']} "
-                           ."{$ledger[$symbol][$OpId]['size']} $alt at {$ledger[$symbol][$OpId]['price']}";
-              $ledger[$symbol][$OpId]['line'] = $new_line;
-            }
-            else
-              unset($ledger[$symbol][$OpId]);
-          }
-        }
-      } else {
-        print "following line doesnt match the regex:\n";
-        print "$line\n";
+if(@$autoSolve) {
+  $ledger = parseTradeFile();
+  print "$$$$$$$$$$$$$$$$$$ First pass $$$$$$$$$$$$$$$$$$\n";
+  foreach($ledger as $symbol => $trades) {
+    $mean_sell_price = $sell_size = 0;
+    $mean_buy_price = $buy_size = 0;
+    $balance = 0;
+    if(count($trades)) {
+      print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
+      $traded = processFailedTrades(@$markets, $symbol, $trades);
+      if (!empty($traded)) {
+        firstPassSolve($traded);
       }
     }
-    fclose($handle);
   }
-if(@$autoSolve) {
   //init api
   $markets = [];
   foreach( ['binance','kraken','cobinhood','paymium', 'cryptopia'] as $name) {
@@ -105,6 +62,8 @@ if(@$autoSolve) {
   }
 }
 
+print "$$$$$$$$$$$$$$$$$$ Second pass $$$$$$$$$$$$$$$$$$\n";
+$ledger = parseTradeFile();
 foreach($ledger as $symbol => $trades) {
   $mean_sell_price = $sell_size = 0;
   $mean_buy_price = $buy_size = 0;
@@ -112,9 +71,6 @@ foreach($ledger as $symbol => $trades) {
   if(count($trades)) {
     print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
     $traded = processFailedTrades(@$markets, $symbol, $trades);
-    if (!empty($traded) && @$autoSolve) {
-      firstPassSolve($traded);
-    }
     foreach (['buy','sell'] as $side ) {
       if (($size = @$traded[$side]['size']) > 0) {
         @$balance += $side == 'buy' ? $size : -1 * $size;
@@ -325,4 +281,68 @@ function save_gain($arbitrage_log)
   fclose($fp);
   $gains_logs['arbitrages'][] = $arbitrage_log;
   file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
+}
+
+function parseTradeFile()
+{
+  $handle = fopen(TRADES_FILE, "r");
+  $ledger = [];
+  if ($handle) {
+    while (($line = fgets($handle)) !== false) {
+      preg_match('/^(.*): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) ([.-E0-]+) ([A-Z]+) at ([.-E0-]+) ([A-Z]+)$/',$line, $matches);
+
+      if(count($matches) == 10) {
+        $date = $matches[1];
+        $OpId = $matches[2];
+        $exchange = strtolower($matches[3]);
+        $trade_id = $matches[4];
+        $side = $matches[5];
+        $size = floatval($matches[6]);
+        $alt = $matches[7];
+        $price = $matches[8];
+        $base = $matches[9];
+        $symbol = "{$alt}-{$base}";
+
+        if($OpId != 'solved') {
+          if( !isset($ledger[$symbol][$OpId]) ) {
+            $ledger[$symbol][$OpId] = ['date' => $date,
+                                            'side' =>$side,
+                                            'size' =>$size,
+                                            'price' =>$price,
+                                            'id' => $trade_id,
+                                            'exchange' => $exchange,
+                                            'line' => trim($line),
+                                            'alt' => $alt,
+                                            'base' => $base
+                                            ];
+          }
+          elseif (isset($ledger[$symbol]["{$OpId}_2"]) && $ledger[$symbol]["{$OpId}_2"]['size'] == $size) {
+            unset($ledger[$symbol]["{$OpId}_2"]);
+          }
+          else {
+            if ($ledger[$symbol][$OpId]['size'] != $size) {
+              //print "$symbol Different size trade: {$ledger[$symbol][$OpId]['side']} {$ledger[$symbol][$OpId]['size']} != $side $size\n";
+              if($ledger[$symbol][$OpId]['size'] < $size) {
+                 $ledger[$symbol][$OpId]['side'] = $side;
+                 $ledger[$symbol][$OpId]['exchange'] = $exchange;
+                 $ledger[$symbol][$OpId]['price'] = $price;
+              }
+              $ledger[$symbol][$OpId]['size'] = abs($ledger[$symbol][$OpId]['size'] - $size);
+
+              $new_line = "$date: arbitrage: $OpId {$ledger[$symbol][$OpId]['exchange']}: trade $trade_id: {$ledger[$symbol][$OpId]['side']} "
+                           ."{$ledger[$symbol][$OpId]['size']} $alt at {$ledger[$symbol][$OpId]['price']}";
+              $ledger[$symbol][$OpId]['line'] = $new_line;
+            }
+            else
+              unset($ledger[$symbol][$OpId]);
+          }
+        }
+      } else {
+        print "following line doesnt match the regex:\n";
+        print "$line\n";
+      }
+    }
+    fclose($handle);
+  }
+  return $ledger;
 }
