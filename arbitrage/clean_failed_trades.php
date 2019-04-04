@@ -150,7 +150,7 @@ function do_solve($markets, $symbol, $side, $traded)
         }
       }
       if (@$status['filled_size'] > 0) {
-        markSolved(array_keys($buy['ids']));
+        markSolved(array_keys($traded['ids']));
         $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
                        'alt' => $product->alt,
                        'base' => $product->base,
