@@ -151,7 +151,7 @@ function do_solve($markets, $symbol, $side, $traded)
       }
       if (@$status['filled_size'] > 0) {
         markSolved(array_keys($traded['ids']));
-        $arbitrage_logs = [ 'date' => date("Y-m-d H:i:s"),
+        $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
                        'alt' => $product->alt,
                        'base' => $product->base,
                        'id' => 'solved',
@@ -161,14 +161,14 @@ function do_solve($markets, $symbol, $side, $traded)
         if ($action == 'buy') {
           $gains = computeGains( $status['price'], $product->fees, $traded['price'], $traded['mean_fees'], $status['filled_size']);
           $stats = ['buy_price_diff' => ($status['price'] * 100 / $price) - 100];
-          $arbitrage_logs['buy_market'] = $api->name;
+          $arbitrage_log['buy_market'] = $api->name;
         } else {
           $gains = computeGains( $traded['price'], $traded['mean_fees'], $status['price'], $product->fees, $status['filled_size']);
           $stats = ['sell_price_diff' => ($status['price'] * 100 / $price) - 100];
-          $arbitrage_logs['sell_market'] = $api->name;
+          $arbitrage_log['sell_market'] = $api->name;
         }
-        $arbitrage_logs['final_gains'] = $gains;
-        $arbitrage_logs['stats'] = $stats;
+        $arbitrage_log['final_gains'] = $gains;
+        $arbitrage_log['stats'] = $stats;
         print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, mean_price:{$traded['price']}, mean_fees:{$traded['mean_fees']}, price:{$status['price']} $product->base");
 
         save_gain($arbitrage_log);
