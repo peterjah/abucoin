@@ -19,6 +19,7 @@ class CobinhoodApi
     public $orderbook_file;
     public $orderbook_depth;
     public $using_websockets;
+    public $max_price_diff;
 
     protected $side_translate = ['sell' => 'ask', 'buy' => 'bid'];
 
@@ -35,7 +36,7 @@ class CobinhoodApi
       CURLOPT_TIMEOUT        => 5
     ];
 
-    public function __construct()
+    public function __construct($max_price_diff = null)
     {
         $keys = json_decode(file_get_contents("../common/private.keys"));
         if (!isset($keys->cobinhood))
@@ -52,6 +53,11 @@ class CobinhoodApi
         $this->api_calls = 0;
         $this->api_calls_rate = 0;
         $this->time = time();
+
+        if (isset($max_price_diff))
+          $this->max_price_diff = $max_price_diff;
+        else
+          $this->max_price_diff = 0.01;//1%
 
         $this->orderbook_depth = 100;
 
@@ -196,7 +202,7 @@ class CobinhoodApi
           $price_diff = 1 - ($new_price / $price);
         }
         print_dbg("{$this->name}: market offer: $new_price orig price: $price ; diff: $price_diff");
-        if($price_diff > 0.003) {
+        if($price_diff > $this->max_price_diff) {
           print_dbg("{$this->name}: market order failed: real order price is too different from the expected price", true);
           throw new CobinhoodAPIException('market order failed: real order price is too different from the expected price');
         }

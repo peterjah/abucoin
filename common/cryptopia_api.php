@@ -18,8 +18,9 @@ class CryptopiaApi
     public $orderbook_file;
     public $orderbook_depth;
     public $using_websockets;
+    public $max_price_diff;
 
-    public function __construct()
+    public function __construct($max_price_diff = null)
     {
       $keys = json_decode(file_get_contents("../common/private.keys"));
       if (!isset($keys->cryptopia))
@@ -35,6 +36,11 @@ class CryptopiaApi
       //App specifics
       $this->products = [];
       $this->balances = [];
+
+      if (isset($max_price_diff))
+        $this->max_price_diff = $max_price_diff;
+      else
+        $this->max_price_diff = 0.01;//1%
     }
 
     function __destruct()
@@ -279,7 +285,7 @@ class CryptopiaApi
           $price_diff = 1 - ($new_price / $price);
         }
         print_dbg("{$this->name}: market offer: $new_price price diff: $price_diff");
-        if($price_diff > 0.003) {
+        if($price_diff > $this->max_price_diff) {
           throw new CryptopiaAPIException('market order failed: real order price is too different from the expected price');
         }
         $price = $offer['price'];

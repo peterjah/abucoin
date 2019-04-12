@@ -19,6 +19,7 @@ class BinanceApi
     public $orderbook_file;
     public $using_websockets;
     public $orderbook_depth;
+    public $max_price_diff;
 
     protected $default_curl_opt = [
       CURLOPT_RETURNTRANSFER => true,
@@ -30,7 +31,7 @@ class BinanceApi
       CURLOPT_TIMEOUT        => 5
     ];
 
-    public function __construct()
+    public function __construct($max_price_diff = null)
     {
         $keys = json_decode(file_get_contents("../common/private.keys"));
         if (!isset($keys->binance))
@@ -42,6 +43,10 @@ class BinanceApi
         $this->name = 'Binance';
 
         $this->PriorityLevel = 1;
+        if (isset($max_price_diff))
+          $this->max_price_diff = $max_price_diff;
+        else
+          $this->max_price_diff = 0.01;//1%
         //App specifics
         $this->products = [];
         $this->balances = [];

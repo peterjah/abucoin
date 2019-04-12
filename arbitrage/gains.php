@@ -36,8 +36,8 @@ foreach ($data['arbitrages'] as $arbitrage) {
 
   $op_str = "{$arbitrage['date']}: ";
   if($arbitrage['id'] == 'solved') {
-    $op_str .= 'solved: ' . (isset($arbitrage['buy_market']) ? "buy on {$arbitrage['buy_market']}" :
-                            (isset($arbitrage['sell_market']) ? "sell on {$arbitrage['sell_market']}" : "sovled "));
+    $op_str .= 'solved: ' . (isset($arbitrage['buy_market']) ? "buy $alt on {$arbitrage['buy_market']}" :
+                            (isset($arbitrage['sell_market']) ? "sell $alt on {$arbitrage['sell_market']}" : "solved "));
   } else {
     $op_str .= "buy $alt $buy_market ($buy_price_diff%)-> sell $sell_market ($sell_price_diff%)";
   }

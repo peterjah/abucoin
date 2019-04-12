@@ -69,7 +69,7 @@ class Market
                       'paymium' => 'PaymiumApi'
                       ];
     if( isset($market_table[$market_name]))
-      $this->api =  new $market_table[$market_name]();
+      $this->api =  new $market_table[$market_name](0.01);
     else throw new \Exception("Unknown market \"$market_name\"");
 
     $this->products = $this->api->getProductList();
