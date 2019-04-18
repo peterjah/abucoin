@@ -399,7 +399,12 @@ class CryptopiaApi
     function getProductList()
     {
       $list = [];
-      $products = $this->jsonRequest('GET', 'GetTradePairs');
+      $products = [];
+      while (empty($products)) {
+        $products = $this->jsonRequest('GET', 'GetTradePairs');
+        if (empty($products))
+          sleep(1);
+      }
       //var_dump($products);
       foreach($products as $product) {
         if ($product->Status == 'OK') {
