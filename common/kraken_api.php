@@ -337,7 +337,7 @@ class KrakenApi
        $order_canceled = false;
        $timeout = 10;//sec
        $begin = microtime(true);
-       while ((@$status['status'] != 'closed') && (microtime(true) - $begin) < $timeout) {
+       while ((@$status['status'] != 'closed') || (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
          $status = $this->getOrderStatus(null, $id);
          print_dbg("open order check: {$status['status']}");
          if(!isset($status)) {
