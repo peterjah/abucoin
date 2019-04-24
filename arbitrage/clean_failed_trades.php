@@ -235,7 +235,7 @@ function firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded)
     //solve all trade
     markSolved(array_keys($buy['ids']));
     markSolved(array_keys($sell['ids']));
-    //generate new buy
+    //generate new trade to solve
     $op = array_values($buy['ids']);
     $alt = $op[0]['alt'];
     $base = $op[0]['base'];
@@ -247,6 +247,10 @@ function firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded)
                    'expected_gains' => $gains,
                    'final_gains' => $gains,
                  ];
+    if($res_side == 'buy')
+      $arbitrage_log['buy_market'] = 'Trade Cleaner';
+    else
+      $arbitrage_log['sell_market'] = 'Trade Cleaner';
     print_dbg("first pass solved: size:$size $alt, gain:{$gains['base']} $base");
     save_gain($arbitrage_log);
   }
