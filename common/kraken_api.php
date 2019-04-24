@@ -142,6 +142,7 @@ class KrakenApi
                 'CAD' => "ZCAD",
                 'JPY' => "ZJPY",
                 'GBP' => "ZGBP",
+                'ATOM' => "ATOM",
                 ];
       if($reverse)
         $table = array_flip($table);
@@ -391,6 +392,7 @@ class KrakenApi
                 'USDT'=>0,
                 'USD'=>0,
                 'EUR'=>0,
+                'ATOM'=>1,
               ];
 
     if(array_key_exists($crypto,$table))
