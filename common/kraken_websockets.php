@@ -156,13 +156,13 @@ function getOrderBook($products)
                 }
               }
             }
+            $orderbook['last_update'] = microtime(true);
           } else {
             print_dbg("$file msg received", true);
             var_dump($msg);
             break;
           }
           //var_dump($orderbook);
-          $orderbook['last_update'] = microtime(true);
           file_put_contents($file, json_encode($orderbook), LOCK_EX);
         }
       }
