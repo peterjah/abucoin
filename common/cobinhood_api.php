@@ -372,6 +372,7 @@ class CobinhoodApi
     static function crypto2Cobinhood($crypto, $reverse = false)
     {
       $table = ['BSV' => 'BCHSV',
+                'IOTA' => 'MIOTA',
                 ];
       if($reverse)
         $table = array_flip($table);
