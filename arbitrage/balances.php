@@ -15,7 +15,7 @@ function sortBalance($a, $b)
 }
 
 $markets = [];
-foreach(['cryptopia','kraken', 'cobinhood', 'binance', 'paymium'] as $api) {
+foreach(['kraken', 'cobinhood', 'binance', 'paymium'] as $api) {
   $i=0;
   while ($i < 5) {
     try {
