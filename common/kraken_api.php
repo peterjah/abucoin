@@ -143,6 +143,15 @@ class KrakenApi
                 'JPY' => "ZJPY",
                 'GBP' => "ZGBP",
                 'ATOM' => "ATOM",
+                'BAT' => 'BAT',
+                'WAVES' => 'WAVES',
+                'SC' => 'SC',
+                'OMG' => 'OMG',
+                'NANO' => 'NANO',
+                'LINK' => 'LINK',
+                'PAXG' => 'PAXG',
+                'ICX' => 'ICX',
+                'DAI' => 'DAI',
                 ];
       if($reverse)
         $table = array_flip($table);
@@ -371,7 +380,7 @@ class KrakenApi
     {
       $table = ['REP'=>0.3,
                 'BTC'=>0.002,
-                'BCH'=>0.002,
+                'BCH'=>0.000002,
                 'DASH'=>0.03,
                 'DOGE'=>3000,
                 'EOS'=>3,
@@ -393,6 +402,15 @@ class KrakenApi
                 'USD'=>0,
                 'EUR'=>0,
                 'ATOM'=>1,
+                'BAT'=> 50,
+                'LINK'=>10,
+                'DAI'=>10,
+                'ICX'=>50,
+                'NANO'=>10,
+                'OMG'=>10,
+                'SC'=>5000,
+                'WAVES'=>10,
+                'PAXG'=>0.01,
               ];
 
     if(array_key_exists($crypto,$table))
