@@ -57,11 +57,12 @@ function getOrderBook($products)
     $alts = explode ('-', $product);
     $symbol = BinanceApi::translate2marketName($alts[0]) . BinanceApi::translate2marketName($alts[1]);
     $app_symbols[$symbol] = $product;
-    $subscribe_str .= strtolower($symbol) . '@depth/';
+    $subscribe_str .= strtolower($symbol) . '@depth@100ms/';
   }
+  $subscribe_str = substr($subscribe_str, 0, strlen($subscribe_str)-1);
   $client = new Client(WSS_URL . $subscribe_str, ['timeout' => 60]);
   foreach ($app_symbols as $symbol => $app_symbol) {
-    $snapshot = $rest_api->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => $options['bookdepth']]);
+    $snapshot = $rest_api->jsonRequest('GET', 'v3/depth', ['symbol' => $symbol, 'limit' => $options['bookdepth']]);
     $orderbook[$app_symbol] = $snapshot;
     $orderbook[$app_symbol]['isSnapshot'] = true;
 

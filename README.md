@@ -5,6 +5,7 @@ sudo apt-get update && sudo apt-get install -y php7.0 php-bcmath php-curl compos
 clone project
 In the repository root directory:
 composer create-project
+composer require textalk/websocket
 
 create a json file "private.keys" in common folder and fill it with your api credentials:
 > {"cryptopia":

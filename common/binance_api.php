@@ -67,7 +67,7 @@ class BinanceApi
         $this->time = $now;
       }
 
-      $public_set = array( 'v1/depth', 'v1/exchangeInfo', 'v1/ping');
+      $public_set = array( 'v3/depth', 'v3/exchangeInfo', 'v3/ping');
 
       $opt = $this->default_curl_opt;
       $url = self::API_URL . $path;
@@ -154,9 +154,9 @@ class BinanceApi
     function getProductList()
     {
       $list = [];
-      $products = $this->jsonRequest('GET','v1/exchangeInfo')["symbols"];
-      //var_dump($products);
-      foreach($products as $product) {
+      $products = $this->jsonRequest('GET','v3/exchangeInfo');
+
+      foreach($products['symbols'] as $product) {
         if ($product['status'] == 'TRADING') {
           $alt = self::binance2crypto($product['baseAsset']);
           $base = self::binance2crypto($product['quoteAsset']);
@@ -205,7 +205,7 @@ class BinanceApi
         $i=0;
         while (true) {
           try {
-            $book = $this->jsonRequest('GET', 'v1/depth', ['symbol' => $symbol, 'limit' => $this->orderbook_depth]);
+            $book = $this->jsonRequest('GET', 'v3/depth', ['symbol' => $symbol, 'limit' => $this->orderbook_depth]);
             break;
           } catch (Exception $e) {
             if($i > 8)
@@ -409,7 +409,7 @@ class BinanceApi
 
     function ping()
     {
-      $ping = $this->jsonRequest('GET', 'v1/ping');
+      $ping = $this->jsonRequest('GET', 'v3/ping');
       return isset($ping['error']) ? false : true;
     }
 
