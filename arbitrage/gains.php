@@ -79,7 +79,7 @@ print ("total: $total_gains_eur EUR\n");
 print "\n";
 
 $Cashroll = 0;
-foreach (['binance','kraken','cobinhood'] as $market_name) {
+foreach (['binance','kraken'/*,'cobinhood'*/] as $market_name) {
   $i=0;
   while ($i < 5) {
     try {
