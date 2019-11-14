@@ -115,45 +115,54 @@ function getOrderBook($products)
           elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
             $symbol = $channel_ids[$msg[0]];
             //var_dump($msg);
-            foreach ($msg as $idx => $data) {
-              if ($idx == 0) {
-                continue;
-              } elseif (isset($data['a'])) {
-                $side = 'asks';
-                $kside = 'a';
-              } elseif (isset($data['b'])) {
-                $side = 'bids';
-                $kside = 'b';
-              }
-              foreach ($data[$kside] as $new_offer) {
-                //remove offer
-                $new_price = floatval($new_offer[0]);
-                if (floatval($new_offer[1]) == 0) {
-                  foreach ($orderbook[$symbol][$side] as $key => $offer) {
-                    if (floatval($offer[0]) != $new_price)
-                      continue;
-                    unset($orderbook[$symbol][$side][$key]);
+            if (isset($msg[1]['a'])) {
+              $side = 'asks';
+              $kside = 'a';
+            }
+            elseif (isset($msg[1]['b'])) {
+              $side = 'bids';
+              $kside = 'b';
+            }
+            else {
+              print_dbg("$file unknown message received \"{$msg}\"", true);
+              var_dump($msg);
+            }
+
+
+            var_dump($msg[1]);
+            foreach ($msg[1][$kside] as $new_offer) {
+              $new_price = floatval($new_offer[0]);
+              //delete message
+              if (floatval($new_offer[1]) == 0) {
+                foreach ($orderbook[$symbol][$side] as $key => $offer) {
+                  if (floatval($offer[0]) != $new_price)
+                    continue;
+                  print("delete offer level {$offer[0]}\n");
+                  unset($orderbook[$symbol][$side][$key]);
+                  break;
+                }
+                $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
+              } else {
+                foreach ($orderbook[$symbol][$side] as $key => $offer) {
+                  if ($side == 'bids' && $new_price > floatval($offer[0]) ||
+                      $side == 'asks' && $new_price < floatval($offer[0]) ) {
+                    print("new offer level {$new_offer[0]}  {$key}\n");
+                    array_splice($orderbook[$symbol][$side], $key, 0, [0 => $new_offer]);
+                    break;
+                  } elseif ($new_price == floatval($offer[0])) {
+                    print("update offer level {$offer[0]}  {$key}\n");
+                    $orderbook[$symbol][$side][$key][0] = $new_offer[0];
+                    $orderbook[$symbol][$side][$key][1] = $new_offer[1];
                     break;
                   }
-                  $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
-                } else {
-                  foreach ($orderbook[$symbol][$side] as $key => $offer) {
-                    if ($side == 'bids' && $new_price > floatval($offer[0]) ||
-                        $side == 'asks' && $new_price < floatval($offer[0]) ) {
-                      array_splice($orderbook[$symbol][$side], $key, 0, [0 => $new_offer]);
-                      break;
-                    } elseif ($new_price == floatval($offer[0])) {
-                      $orderbook[$symbol][$side][$key][0] = $new_offer[0];
-                      $orderbook[$symbol][$side][$key][1] = $new_offer[1];
-                      break;
-                    }
-                    if ($key == count($orderbook[$symbol][$side]) -1 ) {
-                      $orderbook[$symbol][$side][$key+1][0] = $new_offer[0];
-                      $orderbook[$symbol][$side][$key+1][1] = $new_offer[1];
-                    }
+                  if ($key == count($orderbook[$symbol][$side]) -1 ) {
+                    print("new offer level at last level: {$new_offer[0]}  {$key}\n");
+                    $orderbook[$symbol][$side][$key+1][0] = $new_offer[0];
+                    $orderbook[$symbol][$side][$key+1][1] = $new_offer[1];
                   }
-                  $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
                 }
+                $orderbook[$symbol][$side] = array_slice($orderbook[$symbol][$side], 0, intval($options['bookdepth']));
+                $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
               }
             }
             $orderbook['last_update'] = microtime(true);

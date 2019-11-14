@@ -79,6 +79,10 @@ function getOrderBook($products)
         $msg = json_decode($message , true);
         //var_dump($msg);
         if (isset($msg['data'])) {
+          if (!isset($msg['data']['e'])) {
+            print_dbg("unknown data received \"{$msg['data']}\"", true);
+            var_dump($$msg['data']);
+          }
           switch ($msg['data']['e']) {
             case 'depthUpdate':
                 $app_symbol = $app_symbols[$msg['data']['s']];
@@ -144,7 +148,6 @@ function getOrderBook($products)
         }
         if(!$sync) {
           print_dbg("{$msg['data']['s']} $app_symbol orderbook out of sync u={$msg['data']['u']} U={$msg['data']['U']} lastUpdateId + 1= $u_1",true);
-          unlink($file);
           //var_dump($msg);
           break;
         }
