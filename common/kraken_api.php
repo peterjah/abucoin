@@ -308,13 +308,13 @@ class KrakenApi
       $order = ['pair' => $pair,
                 'type' => $side,
                 'ordertype' => $type,
-                'volume' => strval(truncate($size,$product->size_decimals)),
+                'volume' => number_format($price, $product->price_decimals, '.', ''),
                 'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
               ];
       if($type == 'limit') {
         print "price:\n";
         var_dump($price);
-        $order['price'] = strval(truncate($price,$product->price_decimals));
+        $order['price'] = number_format($price, $product->price_decimals, '.', '');
       } else {
         $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
         if ($side == 'buy') {
