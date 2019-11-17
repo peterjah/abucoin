@@ -308,7 +308,7 @@ class KrakenApi
       $order = ['pair' => $pair,
                 'type' => $side,
                 'ordertype' => $type,
-                'volume' => number_format($price, $product->price_decimals, '.', ''),
+                'volume' => number_format($size, $product->size_decimals, '.', ''),
                 'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
               ];
       if($type == 'limit') {
