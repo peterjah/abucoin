@@ -112,7 +112,6 @@ function getOrderBook($products)
                         unset($orderbook[$app_symbol][$side][$key]);
                         break;
                       }
-                      $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
                     } else {
                       foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
                         if ($side == 'bids' && $new_price > floatval($offer[0]) ||
@@ -129,7 +128,9 @@ function getOrderBook($products)
                           $orderbook[$app_symbol][$side][$key+1][1] = $new_offer[1];
                         }
                       }
-                    }
+		    }
+		    $orderbook[$app_symbol][$side] = array_slice($orderbook[$app_symbol][$side], 0, intval($options['bookdepth']));
+                    $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
                   }
                 }
               }
