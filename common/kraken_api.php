@@ -152,6 +152,7 @@ class KrakenApi
                 'PAXG' => 'PAXG',
                 'ICX' => 'ICX',
                 'DAI' => 'DAI',
+                'LSK' => 'LSK',
                 ];
       if($reverse)
         $table = array_flip($table);
@@ -410,7 +411,8 @@ class KrakenApi
                 'OMG'=>10,
                 'SC'=>5000,
                 'WAVES'=>10,
-                'PAXG'=>0.01,
+		'PAXG'=>0.01,
+		'LSK'=>1,
               ];
 
     if(array_key_exists($crypto,$table))
