@@ -103,38 +103,39 @@ function getOrderBook($products)
                   $side_letter = substr($side,0,1);
                   if (isset($msg['data'][$side_letter])) {
                     foreach ($msg['data'][$side_letter] as $new_offer) {
-                    //remove offer
-                    $new_price = floatval($new_offer[0]);
-                    if (floatval($new_offer[1]) == 0) {
-                      foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                        if (floatval($offer[0]) != $new_price)
-                          continue;
-                        unset($orderbook[$app_symbol][$side][$key]);
-                        break;
-                      }
-                    } else {
-                      foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                        if ($side == 'bids' && $new_price > floatval($offer[0]) ||
-                            $side == 'asks' && $new_price < floatval($offer[0]) ) {
-                          array_splice($orderbook[$app_symbol][$side], $key, 0, [0 => $new_offer]);
-                          break;
-                        } elseif ($new_price == floatval($offer[0])) {
-                          $orderbook[$app_symbol][$side][$key][0] = $new_offer[0];
-                          $orderbook[$app_symbol][$side][$key][1] = $new_offer[1];
+                      //remove offer
+                      $new_price = floatval($new_offer[0]);
+                      if (floatval($new_offer[1]) == 0) {
+                        foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
+                          if (floatval($offer[0]) != $new_price)
+                            continue;
+                          unset($orderbook[$app_symbol][$side][$key]);
                           break;
                         }
-                        if ($key == count($orderbook[$app_symbol][$side]) -1 ) {
-                          $orderbook[$app_symbol][$side][$key+1][0] = $new_offer[0];
-                          $orderbook[$app_symbol][$side][$key+1][1] = $new_offer[1];
+                      }
+                      else {
+                        foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
+                          if ($side == 'bids' && $new_price > floatval($offer[0]) ||
+                              $side == 'asks' && $new_price < floatval($offer[0]) ) {
+                            array_splice($orderbook[$app_symbol][$side], $key, 0, [0 => $new_offer]);
+                            break;
+                          } elseif ($new_price == floatval($offer[0])) {
+                            $orderbook[$app_symbol][$side][$key][0] = $new_offer[0];
+                            $orderbook[$app_symbol][$side][$key][1] = $new_offer[1];
+                            break;
+                          }
+                          if ($key == count($orderbook[$app_symbol][$side]) -1 ) {
+                            $orderbook[$app_symbol][$side][$key+1][0] = $new_offer[0];
+                            $orderbook[$app_symbol][$side][$key+1][1] = $new_offer[1];
+                          }
                         }
                       }
-		    }
-		    $orderbook[$app_symbol][$side] = array_slice($orderbook[$app_symbol][$side], 0, intval($options['bookdepth']));
-                    $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
+                      $orderbook[$app_symbol][$side] = array_slice($orderbook[$app_symbol][$side], 0, intval($options['bookdepth']));
+                      $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
+                    }
                   }
                 }
-              }
-              break;
+                break;
             case 'ping':
               //send pong
               print_dbg('Ping. Send pong',true);

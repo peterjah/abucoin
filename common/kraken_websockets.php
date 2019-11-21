@@ -171,7 +171,6 @@ function getOrderBook($products)
             var_dump($msg);
             break;
           }
-          //var_dump($orderbook);
           file_put_contents($file, json_encode($orderbook), LOCK_EX);
         }
       }
