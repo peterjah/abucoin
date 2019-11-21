@@ -313,8 +313,6 @@ class KrakenApi
                 'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
               ];
       if($type == 'limit') {
-        print "price:\n";
-        var_dump($price);
         $order['price'] = number_format($price, $product->price_decimals, '.', '');
       } else {
         $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
@@ -345,18 +343,18 @@ class KrakenApi
        $id = $ret['result']['txid'][0];
        $status = [];
        $order_canceled = false;
-       $timeout = 10;//sec
+       $timeout = 6;//sec
        $begin = microtime(true);
-       while ((@$status['status'] != 'closed') && (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
+       while (($status['status'] != 'closed') && ($status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
          $status = $this->getOrderStatus(null, $id);
          print_dbg("open order check: {$status['status']}");
          if(!isset($status)) {
            $status = $this->getOrdersHistory(['id' => $id]);
-           var_dump($status);
            print_dbg("closed order check: {$status['status']}");
+           var_dump($status);
          }
        }
-       if(empty($status['status']) || $status['status'] == 'open') {
+       if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
          $order_canceled = $this->cancelOrder(null, $id);
          $begin = microtime(true);
          while (empty($status['status']) && (microtime(true) - $begin) < $timeout) {
@@ -402,7 +400,7 @@ class KrakenApi
                 'USDT'=>0,
                 'USD'=>0,
                 'EUR'=>0,
-                'ATOM'=>1,
+                'ATOM'=>0.1,
                 'BAT'=> 50,
                 'LINK'=>10,
                 'DAI'=>10,
@@ -411,8 +409,8 @@ class KrakenApi
                 'OMG'=>10,
                 'SC'=>5000,
                 'WAVES'=>10,
-		'PAXG'=>0.01,
-		'LSK'=>1,
+	              'PAXG'=>0.01,
+		            'LSK'=>10,
               ];
 
     if(array_key_exists($crypto,$table))
