@@ -87,8 +87,10 @@ function getOrderBook($products)
             case 'depthUpdate':
                 $app_symbol = $app_symbols[$msg['data']['s']];
                 $lastUpdateId = $orderbook[$app_symbol]['lastUpdateId'];
-                if ( $msg['data']['u'] <= $lastUpdateId)
+                if ( $msg['data']['u'] <= $lastUpdateId) {
+                  print_dbg("Binance websocket: should not happen", true);
                   break;
+                }
                 $u_1 = $lastUpdateId + 1;
                 if ($msg['data']['U'] <= $u_1 && $msg['data']['u'] >= $u_1) {
                   $orderbook[$app_symbol]['isSnapshot'] = false;
@@ -98,43 +100,38 @@ function getOrderBook($products)
                   break;
                 }
                 $orderbook[$app_symbol]['lastUpdateId'] = $msg['data']['u'];
-
+                $stackSize = intval($options['bookdepth']);
                 foreach (['bids', 'asks'] as $side) {
                   $side_letter = substr($side,0,1);
                   if (isset($msg['data'][$side_letter])) {
                     foreach ($msg['data'][$side_letter] as $new_offer) {
-                    //remove offer
-                    $new_price = floatval($new_offer[0]);
-                    if (floatval($new_offer[1]) == 0) {
-                      foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                        if (floatval($offer[0]) != $new_price)
-                          continue;
-                        unset($orderbook[$app_symbol][$side][$key]);
-                        break;
-                      }
-                    } else {
-                      foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                        if ($side == 'bids' && $new_price > floatval($offer[0]) ||
-                            $side == 'asks' && $new_price < floatval($offer[0]) ) {
-                          array_splice($orderbook[$app_symbol][$side], $key, 0, [0 => $new_offer]);
-                          break;
-                        } elseif ($new_price == floatval($offer[0])) {
-                          $orderbook[$app_symbol][$side][$key][0] = $new_offer[0];
-                          $orderbook[$app_symbol][$side][$key][1] = $new_offer[1];
+                      $stack = $orderbook[$app_symbol][$side];
+                      $new_price = floatval($new_offer[0]);
+                      $new_vol = floatval($new_offer[1]);
+                      foreach ($stack as $key => $offer) {
+                        if (is_better($new_price, floatval($offer[0]), $side) && $new_vol > 0) {
+                          array_splice($stack, $key, 0, [$new_offer]);
                           break;
                         }
-                        if ($key == count($orderbook[$app_symbol][$side]) -1 ) {
-                          $orderbook[$app_symbol][$side][$key+1][0] = $new_offer[0];
-                          $orderbook[$app_symbol][$side][$key+1][1] = $new_offer[1];
+                        if ($new_price == floatval($offer[0])) {
+                          if ($new_vol == 0) {
+                            unset($stack[$key]);
+                          } else {
+                            $stack[$key] = $new_offer;
+                          }
+                          break;
+                        }
+                        if ($key < $stackSize && !isset($stack[$key+1]) && $new_vol > 0) {
+                          $stack[$key+1] = $new_offer;
+                          break;
                         }
                       }
-		    }
-		    $orderbook[$app_symbol][$side] = array_slice($orderbook[$app_symbol][$side], 0, intval($options['bookdepth']));
-                    $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
+                      $stack = array_values($stack);
+                      $orderbook[$app_symbol][$side] = array_slice($stack, 0, $stackSize);
+		                }
                   }
                 }
-              }
-              break;
+                break;
             case 'ping':
               //send pong
               print_dbg('Ping. Send pong',true);
@@ -163,5 +160,13 @@ function getOrderBook($products)
       //print_dbg(var_dump($e),true);
       break;
     }
+  }
+}
+
+function is_better($price, $ref, $side ){
+  if ($side === 'asks') {
+    return $price < $ref;
+  } else {
+    return $price > $ref;
   }
 }
