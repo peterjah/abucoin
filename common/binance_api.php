@@ -415,10 +415,8 @@ class BinanceApi
 
     static function crypto2binance($crypto, $reverse = false)
     {
-      $table = ['BSV' => 'BCHSV',
-                'BCH' => 'BCHABC',
-                'USD' => 'PAX', //BIG HACK!
-                ];
+      $table = [ 'USD' => 'PAX', //BIG HACK!
+               ];
       if($reverse)
         $table = array_flip($table);
       if(array_key_exists($crypto,$table))
