@@ -105,7 +105,7 @@ function getOrderBook($products)
                 foreach (['bids', 'asks'] as $side) {
                   $side_letter = substr($side,0,1);
                   if (isset($msg['data'][$side_letter])) {
-                    $offers =$msg['data'][$side_letter]
+                    $offers =$msg['data'][$side_letter];
                     $orderbook[$app_symbol][$side] =
                       handle_offers($orderbook[$app_symbol], $offers, $side, $stackSize);
                   }
