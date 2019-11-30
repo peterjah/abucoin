@@ -1,6 +1,7 @@
 <?php
 use WebSocket\Client;
 require_once('../common/tools.php');
+require_once('../common/websockets_tools.php');
 @define('WSS_URL','wss://stream.binance.com:9443');
 
 declare(ticks = 1);
@@ -104,31 +105,9 @@ function getOrderBook($products)
                 foreach (['bids', 'asks'] as $side) {
                   $side_letter = substr($side,0,1);
                   if (isset($msg['data'][$side_letter])) {
-                    foreach ($msg['data'][$side_letter] as $new_offer) {
-                      $stack = $orderbook[$app_symbol][$side];
-                      $new_price = floatval($new_offer[0]);
-                      $new_vol = floatval($new_offer[1]);
-                      foreach ($stack as $key => $offer) {
-                        if (is_better($new_price, floatval($offer[0]), $side) && $new_vol > 0) {
-                          array_splice($stack, $key, 0, [$new_offer]);
-                          break;
-                        }
-                        if ($new_price == floatval($offer[0])) {
-                          if ($new_vol == 0) {
-                            unset($stack[$key]);
-                          } else {
-                            $stack[$key] = $new_offer;
-                          }
-                          break;
-                        }
-                        if ($key < $stackSize && !isset($stack[$key+1]) && $new_vol > 0) {
-                          $stack[$key+1] = $new_offer;
-                          break;
-                        }
-                      }
-                      $stack = array_values($stack);
-                      $orderbook[$app_symbol][$side] = array_slice($stack, 0, $stackSize);
-		                }
+                    $offers =$msg['data'][$side_letter]
+                    $orderbook[$app_symbol][$side] =
+                      handle_offers($orderbook[$app_symbol], $offers, $side, $stackSize);
                   }
                 }
                 break;
@@ -160,13 +139,5 @@ function getOrderBook($products)
       //print_dbg(var_dump($e),true);
       break;
     }
-  }
-}
-
-function is_better($price, $ref, $side ){
-  if ($side === 'asks') {
-    return $price < $ref;
-  } else {
-    return $price > $ref;
   }
 }
