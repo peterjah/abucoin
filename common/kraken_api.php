@@ -357,8 +357,9 @@ class KrakenApi
        if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
          $order_canceled = $this->cancelOrder(null, $id);
          $begin = microtime(true);
-         while (empty($status['status']) && (microtime(true) - $begin) < $timeout) {
+         while ((empty($status['status']) || $status['status'] == 'open') && (microtime(true) - $begin) < $timeout) {
            $status = $this->getOrdersHistory(['id' => $id]);
+           usleep(500000);//0.5 sec
          }
        }
        print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
