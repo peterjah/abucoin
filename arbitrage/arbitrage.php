@@ -218,6 +218,12 @@ function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
       $status = async_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size, $arbId);
       if ($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
 
+        if ($status['buy']['filled_size'] == 0) {
+          $buy_market->products[$symbol]->removeBestOffer('asks');
+        }
+        if ($status['sell']['filled_size'] == 0) {
+          $sell_market->products[$symbol]->removeBestOffer('bids');
+        }
         if ($status['buy']['filled_size'] != $status['sell']['filled_size'])
           print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
 

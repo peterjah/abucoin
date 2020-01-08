@@ -133,10 +133,11 @@ class BinanceApi
           break;
         }
         catch (Exception $e) {
-          if($i > 8)
+          if($i > 8) {
             throw new BinanceAPIException("failed to get balances [{$e->getMessage()}]");
+          }
           $i++;
-          print "{$this->name}: failed to get balances. retry $i...\n";
+          print "{$this->name}: la failed to get balances. [{$e->getMessage()}] retry $i...\n";
           usleep(50000);
         }
       }
@@ -191,11 +192,11 @@ class BinanceApi
       return $list;
     }
 
-    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
+    function getOrderBook($product, $depth_base = 0, $depth_alt = 0, $use_websockets = true)
     {
       $file = $this->orderbook_file;
       $this->using_websockets = false;
-      if (file_exists($file)) {
+      if (file_exists($file) && $use_websockets) {
         $book = getWsOrderbook($file, $product);
         if ($book !== false)
           $this->using_websockets = true;
@@ -216,8 +217,9 @@ class BinanceApi
           }
         }
       }
-      if(!isset($book['asks'], $book['bids']))
+      if(!isset($book['asks'], $book['bids'])) {
         throw new BinanceAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
+      }
 
       foreach( ['asks', 'bids'] as $side)
       {
@@ -228,13 +230,15 @@ class BinanceApi
               || ($best[$side]['size'] < $depth_alt) )
               && $i < $this->orderbook_depth)
         {
-          if (!isset($book[$side][$i][0], $book[$side][$i][1]))
-            break;
-          $size = floatval($book[$side][$i][1]);
           $price = floatval($book[$side][$i][0]);
+          $size = floatval($book[$side][$i][1]);
+
+          if (!isset($price, $size))
+            break;
+
           $best[$side]['price'] = ($best[$side]['price']*$best[$side]['size'] + $price*$size) / ($size+$best[$side]['size']);
           $best[$side]['size'] += $size;
-          $best[$side]['order_price'] = floatval($book[$side][$i][0]);
+          $best[$side]['order_price'] = $price;
           //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
           $i++;
         }
@@ -265,7 +269,6 @@ class BinanceApi
         $order['timeInForce'] = 'GTC';
       }
 
-      var_dump($order);
       $status = $this->jsonRequest('POST', 'v3/order', $order);
       print "{$this->name} trade says:\n";
       var_dump($status);
@@ -299,8 +302,16 @@ class BinanceApi
           $begin = microtime(true);
           while ( (@$status['status'] != 'closed') && ((microtime(true) - $begin) < $timeout)) {
             $status = $this->getOrderStatus($product, $id);
+            $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
+            if ($side == 'buy') {
+              $new_price = $book['asks']['price'];
+            } else {
+              $new_price = $book['bids']['price'];
+            }
+            print_dbg("expected price: {$order['price']} new best price: $new_price", true);
+            usleep(50000);
           }
-          print_dbg("Check {$this->name} order $id status: {$status['status']} $side $alt filled:{$status['filled']} ");
+          print_dbg("Check {$this->name} order $id status: {$status['status']} $side $alt filled:{$status['filled']}", true);
 
           if(empty($status['status']) || $status['status'] == 'open') {
             $order_canceled = $this->cancelOrder($product, $id);
@@ -310,7 +321,7 @@ class BinanceApi
             }
           }
 
-          print_dbg("Final check status: {$status['status']} $side $alt filled:{$status['filled']} ");
+          print_dbg("Final check status: {$status['status']} $side $alt filled:{$status['filled']}", true);
           var_dump($status);
           $filled_size = $status['filled'];
           $filled_base = $status['filled_base'];
@@ -399,7 +410,6 @@ class BinanceApi
 
       if(isset($ret['error']))
       {
-        var_dump($ret);
         print_dbg("Failed to cancel order. [{$ret['error']['msg']}]");
         return false;
       }

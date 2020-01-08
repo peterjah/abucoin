@@ -45,6 +45,11 @@ class Product
     $depth_alt = max($depth_alt, $this->min_order_size);
     return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
   }
+
+  function removeBestOffer($side)
+  {
+    array_slice($this->book[$side], 1);
+  }
 }
 
 function getProductBySymbol($api, $symbol)
@@ -72,147 +77,24 @@ class Market
       $this->api =  new $market_table[$market_name](0.01);
     else throw new \Exception("Unknown market \"$market_name\"");
 
-    $this->products = $this->api->getProductList();
+    $this->updateProductList();
   }
 
   function getBalance() {
     return $this->api->getBalance(null, false);
   }
+
   function updateProductList() {
     $this->products = $this->api->getProductList();
   }
-}
-
-function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $trade_size, $arbId)
-{
-  $sell_api = $sell_market->api;
-  $buy_api = $buy_market->api;
-  $buy_product = $buy_market->products[$symbol];
-  $sell_product = $sell_market->products[$symbol];
-  $alt = $buy_product->alt;
-  $base = $sell_product->base;
-  $alt_bal = $sell_api->balances[$alt];
-  $base_bal = $buy_api->balances[$base];
-
-  if($sell_api->PriorityLevel < $buy_api->PriorityLevel) {
-    $first_market = $sell_market;
-    $first_action = 'sell';
-    $second_market = $buy_market;
-    $second_action = 'buy';
-  }
-  else {
-    $first_market = $buy_market;
-    $first_action = 'buy';
-    $second_market = $sell_market;
-    $second_action = 'sell';
-  }
-
-  print "start with= {$first_market->api->name} \n";
-  print "balances: $base_bal $base; $alt_bal $alt \n";
-
-  $buy_price = truncate($buy_price, $buy_product->price_decimals);
-  $sell_price = truncate($sell_price, $sell_product->price_decimals);
-
-  print "BUY $trade_size $alt on {$buy_api->name} at $buy_price $base = ".($buy_price*$trade_size)."$base\n";
-  print "SELL $trade_size $alt on {$sell_api->name} at $sell_price $base = ".($sell_price*$trade_size)."$base\n";
-
-  $price = $first_action == 'buy' ? $buy_price : $sell_price;
-
-  $i=0;
-  while(true)
-  {
-    try{
-      $order_status = $first_market->api->place_order($first_market->products[$symbol], 'limit', $first_action, $price, $trade_size, $arbId);
-      break;
-    }
-    catch(Exception $e){
-       print ("unable to $first_action retrying...: $e\n");
-       $err = $e->getMessage();
-       // if( $err != 'no response from api' || $err != 'EAPI:Invalid nonce' )
-       //   print_dbg("unable to $first_action $alt (first action) [$err] on {$first_market->api->name}: tradeSize=$trade_size at $price. try $i");
-
-       if($i == 5 || $err == 'ERROR: Insufficient Funds.' || $err == 'Market is closed.' || $err == 'EOrder:Insufficient Funds.')
-         throw new \Exception("unable to $first_action. [$err]");
-       if ($err == 'Rest API trading is not enabled.')
-         throw new \Exception($err);
-       if ($err == "Unable to locate order in history")
-         throw new \Exception($err);
-       usleep(500000);
-       $i++;
-    }
-  }
-  $trade_size = $order_status['filled_size'];
-
-  $ret = [];
-  $ret[$first_action] = $order_status;
-  $ret[$first_action]['filled_size'] = $trade_size;
-
-  $second_status = [];
-  if($trade_size > 0)
-  {
-    $i=0;
-    while(true) {
-      try {
-        $price = $second_action == 'buy' ? $buy_price : $sell_price;
-        $second_status = $second_market->api->place_order($second_market->products[$symbol], 'market', $second_action, $price, $trade_size, $arbId);
-        break;
-      }
-      catch(Exception $e) {
-         print ("unable to $second_action retrying...: $e\n");
-         var_dump($second_status);
-         $err = $e->getMessage();
-         if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance'|| $err == 'ERROR: Insufficient Funds.' ||
-            $err == 'Account has insufficient balance for requested action.' || $err == 'Order rejected')
-         {
-           $second_market->getBalance();
-           print_dbg("Insufficient funds to $second_action $trade_size $alt @ $price , base_bal:{$second_market->api->balances[$base]} alt_bal:{$second_market->api->balances[$alt]}");
-           if($second_action == 'buy')
-           {
-             $base_bal = $second_market->api->balances[$base];
-             //price may be not relevant anymore. moreover we want a market order
-             $book = $buy_product->refreshBook($base_bal, $trade_size);
-             $trade_size = min(truncate($base_bal / ($book['asks']['order_price'] * (1 + $buy_product->fees/100)) , $buy_product->size_decimals), $trade_size);
-             $buy_price = $book['asks']['order_price'];
-             print_dbg("new tradesize: $trade_size, new price $buy_price base_bal: $base_bal");
-           } else {
-             $alt_bal = $second_market->api->balances[$alt];
-             $trade_size = truncate($alt_bal* (1 - $sell_product->fees/100), $sell_product->size_decimals);
-           }
-         }
-         if ($err == "Unable to locate order in history") {
-           print_dbg("$err. giving up...");
-           throw new \Exception($err);
-         }
-         if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size' ||
-             $err == 'Filter failure: MIN_NOTIONAL' || $err == 'balance_locked' || $err == 'try_again_later')
-         {
-           print_dbg("$err. giving up...");
-           $trade_size = 0;
-           break;
-         }
-         if ($err == 'Rest API trading is not enabled.')
-           throw new \Exception($err);
-         if($i == 8){
-           $trade_size = 0;
-           break;
-         }
-         $i++;
-         usleep(500000);
-      }
-    }
-  }
-
-  $ret[$second_action] = $second_status;
-  return $ret;
 }
 
 function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $size, $arbId)
 {
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
-  $buy_product = $buy_market->products[$symbol];
-  $alt = $buy_product->alt;
-  $base = $buy_product->base;
+  $alt = $buy_market->products[$symbol]->alt;
+  $base = $buy_market->products[$symbol]->base;
   $alt_bal = $sell_api->balances[$alt];
   $base_bal = $buy_api->balances[$base];
 
@@ -236,6 +118,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
   //get child status:
   $grep = shell_exec("tail -n20 trades | grep \"{$arbId} " . ucfirst($buy_api->name) .'"' );
   if (empty($grep)) {
+    print_dbg("failed to retrieve child trade status", true);
     $buy_status = ['filled_size' => 0, 'price' => 0];
   } else {
     preg_match('/^(.*): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) ([.-E0-]+) ([A-Z]+) at ([.-E0-]+) ([A-Z]+)$/',$grep, $matches);
@@ -255,7 +138,6 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
   while(true) {
     try {
       return $market->api->place_order($product, $type, $side, $price, $size, $arbId);
-      break;
     }
     catch(Exception $e) {
        $err = $e->getMessage();

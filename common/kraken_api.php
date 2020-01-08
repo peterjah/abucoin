@@ -329,7 +329,6 @@ class KrakenApi
           throw new KrakenAPIException('market order failed: real order price is too different from the expected price');
         }
       }
-      var_dump($order);
       $ret = $this->jsonRequest('AddOrder', $order);
       print "{$this->name} trade says:\n";
       var_dump($ret);
@@ -345,13 +344,20 @@ class KrakenApi
        $order_canceled = false;
        $timeout = 6;//sec
        $begin = microtime(true);
-       while (($status['status'] != 'closed') && ($status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
+       while ((@$status['status'] != 'closed') && (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
          $status = $this->getOrderStatus(null, $id);
-         print_dbg("open order check: {$status['status']}");
+         print_dbg("open order check: {$status['status']}", true);
+         $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
+         if ($side == 'buy') {
+           $new_price = $book['asks']['price'];
+         } else {
+           $new_price = $book['bids']['price'];
+         }
+         print_dbg("expected price: {$order['price']} new best price: $new_price", true);
+
          if(!isset($status)) {
            $status = $this->getOrdersHistory(['id' => $id]);
            print_dbg("closed order check: {$status['status']}");
-           var_dump($status);
          }
        }
        if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
@@ -433,7 +439,6 @@ class KrakenApi
       if(count($open_orders)) {
         foreach ($open_orders as $id => $open_order) {
           if($id == $order_id) {
-            var_dump($open_order);
             return  $status = [ 'id' => $id,
                                 'status' => 'open',
                                 'filled' => $open_order['vol_exec'],
@@ -476,7 +481,6 @@ class KrakenApi
                        'filled_base' => floatval($order['cost']),
                        'price' => floatval($order['price'])
                      ];
-           var_dump($status);
          }
        }
        return $status;
@@ -505,7 +509,6 @@ class KrakenApi
      }
      if(isset($ret['error'][0]))
      {
-       var_dump($ret);
        print_dbg("Failed to cancel order. [{$ret['error'][0]}]");
        return false;
      }
@@ -552,11 +555,13 @@ class KrakenApi
                || ($best[$side]['size'] < $depth_alt) )
                && $i < $this->orderbook_depth)
        {
-         if (!isset($book[$side][$i][0], $book[$side][$i][1]))
+         $price = floatval($book[$side][$i][0]);
+         $size = floatval($book[$side][$i][1]);
+         if (!isset($price, $size))
            break;
-         $best[$side]['price'] = floatval(($best[$side]['price']*$best[$side]['size'] + $book[$side][$i][0]*$book[$side][$i][1]) / ($book[$side][$i][1]+$best[$side]['size']));
-         $best[$side]['size'] += floatval($book[$side][$i][1]);
-         $best[$side]['order_price'] = floatval($book[$side][$i][0]);
+         $best[$side]['price'] = ($best[$side]['price']*$best[$side]['size'] + $price * $size) / ($size + $best[$side]['size']);
+         $best[$side]['size'] += $size;
+         $best[$side]['order_price'] = $price;
          $i++;
        }
      }
