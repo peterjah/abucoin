@@ -425,7 +425,7 @@ class BinanceApi
 
     static function crypto2binance($crypto, $reverse = false)
     {
-      $table = [ 'USD' => 'PAX', //BIG HACK!
+      $table = [
                ];
       if($reverse)
         $table = array_flip($table);
