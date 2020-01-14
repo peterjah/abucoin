@@ -130,6 +130,10 @@ function getOrderBook($products)
         }
         //var_dump($orderbook);
         $orderbook['last_update'] = microtime(true);
+        if (!file_exists($file)) {
+          print_dbg('Restarting Binance websocket',true);
+          break;
+        }
         file_put_contents($file, json_encode($orderbook), LOCK_EX);
       }
     }

@@ -74,7 +74,7 @@ while(true) {
           }
           else {
             print "second book refresh\n";
-            @$profits[$base] += $status['final_gains']['base'];
+            $profits[$base] += $status['final_gains']['base'];
           }
         }
       }
@@ -102,7 +102,7 @@ while(true) {
             break;
           }
           else {
-            @$profits[$base] += $status['final_gains']['base'];
+            $profits[$base] += $status['final_gains']['base'];
           }
         }
       }
@@ -140,8 +140,8 @@ while(true) {
   }
   print "~~~~{$market2->api->name}:{$market2->api->balances['BTC']}BTC  {$market1->api->name}:{$market1->api->balances['BTC']}BTC~~~~\n\n";
   print "~~~~Cash roll: $btc_cash_roll BTC ~~~~\n\n";
-  print "~~~~Websocket: {$market1->api->name}:" . (@$market1->api->using_websockets ? 'yes' : 'no')."~~~~\n";
-  print "~~~~Websocket: {$market2->api->name}:" . (@$market2->api->using_websockets ? 'yes' : 'no')."~~~~\n\n";
+  print "~~~~Websocket: {$market1->api->name}:" . ($market1->api->using_websockets ? 'yes' : 'no')."~~~~\n";
+  print "~~~~Websocket: {$market2->api->name}:" . ($market2->api->using_websockets ? 'yes' : 'no')."~~~~\n\n";
   print "~~~~Api call stats: {$market2->api->name}: {$market2->api->api_calls_rate}/min , {$market1->api->name}: {$market1->api->api_calls_rate}/min~~~~\n\n";
 
   if($market1->api instanceof PaymiumApi || $market2->api instanceof PaymiumApi) {
@@ -216,18 +216,13 @@ function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
       print_dbg("SELL $trade_size $alt on {$sell_market->api->name} at $sell_price", true);
       print_dbg("BUY $trade_size $alt on {$buy_market->api->name} at $buy_price", true);
       $status = async_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size, $arbId);
-      if ($status['buy']['filled_size'] > 0 && $status['sell']['filled_size'] > 0) {
+      $filled_buy = $status['buy']['filled_size'];
+      $filled_sell = $status['sell']['filled_size'];
+      if ($filled_buy > 0 && $filled_sell > 0) {
+        if ($filled_buy != $filled_sell)
+          print_dbg("Different tradesizes buy:{$filled_buy} != sell:{$filled_sell}");
 
-        if ($status['buy']['filled_size'] == 0) {
-          $buy_market->products[$symbol]->removeBestOffer('asks');
-        }
-        if ($status['sell']['filled_size'] == 0) {
-          $sell_market->products[$symbol]->removeBestOffer('bids');
-        }
-        if ($status['buy']['filled_size'] != $status['sell']['filled_size'])
-          print_dbg("Different tradesizes buy:{$status['buy']['filled_size']} != sell:{$status['sell']['filled_size']}");
-
-        $trade_size = min($status['buy']['filled_size'] , $status['sell']['filled_size']);
+        $trade_size = min($filled_buy , $filled_sell);
         $final_gains = computeGains($status['buy']['price'], $buy_fees, $status['sell']['price'], $sell_fees, $trade_size);
         $profit += $final_gains['base'];
 
@@ -253,10 +248,21 @@ function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
         file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
 
         //Just in case
-        $buy_market->api->balances[$alt] += $status['buy']['filled_size'];
+        $buy_market->api->balances[$alt] += $filled_buy;
         $buy_market->api->balances[$base] -= $trade_size * $status['sell']['price'];
         $sell_market->api->balances[$base] += $trade_size * $status['buy']['price'];
-        $sell_market->api->balances[$alt] -= $status['sell']['filled_size'];
+        $sell_market->api->balances[$alt] -= $filled_sell;
+      }
+      else {
+        print_dbg("Arbitrage $arbId failed...", true);
+        if ($filled_buy == 0 && $filled_sell > 0) {
+          unlink($buy_market->api->orderbook_file);
+          print_dbg("Restarting {$buy_market->api->name} websockets", true);
+        }
+        if ($filled_sell == 0 && $filled_buy > 0) {
+          unlink($sell_market->api->orderbook_file);
+          print_dbg("Restarting {$sell_market->api->name} websockets", true);
+        }
       }
     }
   }

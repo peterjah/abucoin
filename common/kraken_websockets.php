@@ -132,7 +132,10 @@ function getOrderBook($products)
             var_dump($msg);
             break;
           }
-          //var_dump($orderbook);
+          if (!file_exists($file)) {
+            print_dbg('Restarting Kraken websocket', true);
+            break;
+          }
           file_put_contents($file, json_encode($orderbook), LOCK_EX);
         }
       }

@@ -239,7 +239,9 @@ function firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded)
     $op = array_values($buy['ids']);
     $alt = $op[0]['alt'];
     $base = $op[0]['base'];
-    save_trade($alt, $base, $res_side, $res_size, $res_price);
+    if($res_size > 0) {
+      save_trade($alt, $base, $res_side, $res_size, $res_price);
+    }
     $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
                    'alt' => $alt,
                    'base' => $base,
