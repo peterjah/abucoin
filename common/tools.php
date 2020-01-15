@@ -106,56 +106,49 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
   } else if ($pid) {
      // we are the parent
      print "I am the father pid = $pid\n";
-     $sell_status = place_order($sell_market, 'limit', $symbol, 'sell', $sell_price, $size, $arbId);
-     print "SOLD {$sell_status['filled_size']} $alt on {$sell_api->name} at {$sell_status['price']}\n";
+     $status['sell'] = place_order($sell_market, 'limit', $symbol, 'sell', $sell_price, $size, $arbId);
+     print "SOLD {$status['sell']['filled_size']} $alt on {$sell_api->name} at {$status['sell']['price']}\n";
   } else {
      // we are the child
      print "I am the child pid = $pid\n";
-     $buy_status = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
-     print "BOUGHT {$buy_status['filled_size']} $alt on {$buy_api->name} at {$buy_status['price']}\n";
+     $status['buy'] = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
+     print "BOUGHT {$status['buy']['filled_size']} $alt on {$buy_api->name} at {$status['buy']['price']}\n";
      exit();
   }
-  pcntl_waitpid($pid, $status);
-  var_dump($status);
+  pcntl_waitpid($pid, $stat);
+  var_dump($stat);
   //get child status:
   $grep = shell_exec("tail -n20 trades | grep \"{$arbId} " . ucfirst($buy_api->name) .'"' );
   if (empty($grep)) {
     print_dbg("failed to retrieve child trade status", true);
-    $buy_status = ['filled_size' => 0, 'price' => 0];
+    $status['buy'] = ['filled_size' => 0, 'price' => 0];
   } else {
     preg_match('/^(.*): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) ([.-E0-]+) ([A-Z]+) at ([.-E0-]+) ([A-Z]+)$/',$grep, $matches);
-    var_dump($matches);
-    $buy_status = ['filled_size' => $matches[6], 'price' => $matches[8]];
+    $status['buy'] = ['filled_size' => $matches[6], 'price' => $matches[8]];
   }
 
-  $filled_buy = $status['buy']['filled_size'];
-  $filled_sell = $status['sell']['filled_size'];
   foreach(['buy','sell'] as $side) {
     $toSell = $side == 'sell';
     $opSide = $toSell ? 'buy' : 'sell';
-    $filled = $status[$side]['filled_size'];
+    $filled = $status[$opSide]['filled_size'];
     $product = $toSell ? $sell_product : $buy_product;
     $opProduct = $toSell ? $buy_product : $sell_product;
     $market = $toSell ? $sell_market : $buy_market;
-    if ($status[$opSide]['filled_size'] == 0 && $filled > 0) {
+    if ($status[$side]['filled_size'] == 0 && $filled > 0) {
       $book = $this->getOrderBook($product, $product->min_order_size_base, $filled, false);
       $new_price = $toSell ? $book['bids']['price'] : $book['asks']['price'];
       $expected_gains = computeGains($new_price, $product->fees, $status[$opSide]['price'], $opProduct->fees, $filled);
+      print_dbg("last chance to $side $alt at $new_price... expected gains: $expected_gains['base'] $base", true);
       if ($expected_gains['base'] >= 0) {
         print_dbg("retrying to $side $alt at $new_price", true);
-        $status = place_order($market, 'limit', $symbol, $side, $new_price, $filled, $arbId);
-        if ($toSell) {
-          $sell_status = $status;
-        } else {
-          $buy_status = $status;
-        }
+        $status[$side] = place_order($market, 'limit', $symbol, $side, $new_price, $filled, $arbId);
       }
       unlink($market->api->orderbook_file);
       print_dbg("Restarting {$market->api->name} websockets", true);
     }
   }
 
-  return ['buy' => $buy_status, 'sell' => $sell_status];
+  return $status;
 }
 
 function place_order($market, $type, $symbol, $side, $price, $size, $arbId)

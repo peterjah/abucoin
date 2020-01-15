@@ -348,13 +348,6 @@ class KrakenApi
        while ((@$status['status'] != 'closed') && (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
          $status = $this->getOrderStatus(null, $id);
          print_dbg("open order check: {$status['status']}", true);
-         $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
-         if ($side == 'buy') {
-           $new_price = $book['asks']['price'];
-         } else {
-           $new_price = $book['bids']['price'];
-         }
-         print_dbg("expected price: {$order['price']} new best price: $new_price", true);
 
          if(!isset($status)) {
            $status = $this->getOrdersHistory(['id' => $id]);
