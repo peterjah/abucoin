@@ -557,10 +557,11 @@ class KrakenApi
                || ($best[$side]['size'] < $depth_alt) )
                && $i < $this->orderbook_depth)
        {
+         if (!isset($book[$side][$i]))
+           break;
+
          $price = floatval($book[$side][$i][0]);
          $size = floatval($book[$side][$i][1]);
-         if (!isset($price, $size))
-           break;
          $best[$side]['price'] = ($best[$side]['price']*$best[$side]['size'] + $price * $size) / ($size + $best[$side]['size']);
          $best[$side]['size'] += $size;
          $best[$side]['order_price'] = $price;
