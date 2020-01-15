@@ -138,7 +138,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
       $book = $this->getOrderBook($product, $product->min_order_size_base, $filled, false);
       $new_price = $toSell ? $book['bids']['price'] : $book['asks']['price'];
       $expected_gains = computeGains($new_price, $product->fees, $status[$opSide]['price'], $opProduct->fees, $filled);
-      print_dbg("last chance to $side $alt at $new_price... expected gains: $expected_gains['base'] $base", true);
+      print_dbg("last chance to $side $alt at $new_price... expected gains: {$expected_gains["base"]} $base", true);
       if ($expected_gains['base'] >= 0) {
         print_dbg("retrying to $side $alt at $new_price", true);
         $status[$side] = place_order($market, 'limit', $symbol, $side, $new_price, $filled, $arbId);
