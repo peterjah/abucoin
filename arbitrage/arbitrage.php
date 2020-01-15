@@ -255,14 +255,6 @@ function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
       }
       else {
         print_dbg("Arbitrage $arbId failed...", true);
-        if ($filled_buy == 0 && $filled_sell > 0) {
-          unlink($buy_market->api->orderbook_file);
-          print_dbg("Restarting {$buy_market->api->name} websockets", true);
-        }
-        if ($filled_sell == 0 && $filled_buy > 0) {
-          unlink($sell_market->api->orderbook_file);
-          print_dbg("Restarting {$sell_market->api->name} websockets", true);
-        }
       }
     }
   }

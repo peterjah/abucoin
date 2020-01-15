@@ -93,8 +93,10 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
 {
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
-  $alt = $buy_market->products[$symbol]->alt;
-  $base = $buy_market->products[$symbol]->base;
+  $buy_product = $buy_market->products[$symbol];
+  $sell_product = $sell_market->products[$symbol];
+  $alt = $buy_product->alt;
+  $base = $buy_product->base;
   $alt_bal = $sell_api->balances[$alt];
   $base_bal = $buy_api->balances[$base];
 
@@ -126,6 +128,33 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
     $buy_status = ['filled_size' => $matches[6], 'price' => $matches[8]];
   }
 
+  $filled_buy = $status['buy']['filled_size'];
+  $filled_sell = $status['sell']['filled_size'];
+  foreach(['buy','sell'] as $side) {
+    $toSell = $side == 'sell';
+    $opSide = $toSell ? 'buy' : 'sell';
+    $filled = $status[$side]['filled_size'];
+    $product = $toSell ? $sell_product : $buy_product;
+    $opProduct = $toSell ? $buy_product : $sell_product;
+    $market = $toSell ? $sell_market : $buy_market;
+    if ($status[$opSide]['filled_size'] == 0 && $filled > 0) {
+      $book = $this->getOrderBook($product, $product->min_order_size_base, $filled, false);
+      $new_price = $toSell ? $book['bids']['price'] : $book['asks']['price'];
+      $expected_gains = computeGains($new_price, $product->fees, $status[$opSide]['price'], $opProduct->fees, $filled);
+      if ($expected_gains['base'] >= 0) {
+        print_dbg("retrying to $side $alt at $new_price", true);
+        $status = place_order($market, 'limit', $symbol, $side, $new_price, $filled, $arbId);
+        if ($toSell) {
+          $sell_status = $status;
+        } else {
+          $buy_status = $status;
+        }
+      }
+      unlink($market->api->orderbook_file);
+      print_dbg("Restarting {$market->api->name} websockets", true);
+    }
+  }
+
   return ['buy' => $buy_status, 'sell' => $sell_status];
 }
 
@@ -141,7 +170,7 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
     }
     catch(Exception $e) {
        $err = $e->getMessage();
-       print_dbg("unable to $side retrying. $i ..: {$err}\n", true);
+       print_dbg("unable to $side retrying. $i ..: {$err}", true);
        if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance' || $err == 'ERROR: Insufficient Funds.' ||
           $err == 'Account has insufficient balance for requested action.' || $err == 'Order rejected')
        {
