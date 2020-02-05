@@ -311,16 +311,21 @@ function parseTradeFile()
 
         if($OpId != 'solved') {
           if( !isset($ledger[$symbol][$OpId]) ) {
-            $ledger[$symbol][$OpId] = ['date' => $date,
-                                            'side' =>$side,
-                                            'size' =>$size,
-                                            'price' =>$price,
-                                            'id' => $trade_id,
-                                            'exchange' => $exchange,
-                                            'line' => trim($line),
-                                            'alt' => $alt,
-                                            'base' => $base
-                                            ];
+            if ($size == 0) {
+              markSolved([$OpId]);
+            }
+            else {
+              $ledger[$symbol][$OpId] = ['date' => $date,
+                                              'side' =>$side,
+                                              'size' =>$size,
+                                              'price' =>$price,
+                                              'id' => $trade_id,
+                                              'exchange' => $exchange,
+                                              'line' => trim($line),
+                                              'alt' => $alt,
+                                              'base' => $base
+                                              ];
+            }
           }
           elseif (isset($ledger[$symbol]["{$OpId}_2"]) && $ledger[$symbol]["{$OpId}_2"]['size'] == $size) {
             unset($ledger[$symbol]["{$OpId}_2"]);
