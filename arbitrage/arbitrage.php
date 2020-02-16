@@ -20,8 +20,7 @@ $sig_stop = false;
 if(!file_exists(GAINS_FILE))
   touch(GAINS_FILE);
 
-@define('BUY_TRESHOLD', 0.000001);
-@define('CRITICAL_BUY_TRESHOLD_BASE', -0.000001);
+@define('BUY_TRESHOLD', 0.01); //percent
 
 $market1 = new Market($argv[1]);
 $market2 = new Market($argv[2]);
@@ -195,18 +194,11 @@ function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
     $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $trade_size);
     //swap conditions
     $do_swap = false;
-    if ($base == 'BTC') {
-      if ($expected_gains['base'] > BUY_TRESHOLD ||
-         ($get_base_market && ($expected_gains['base'] >= 0)) ) {
-           $do_swap = true;
-         }
-    } else if ($expected_gains['base'] > 0) {
-      if($buy_market->api instanceof PaymiumApi) {
-        if ($expected_gains['base'] > 1/*€*/)
-          $do_swap = true;
-      } else
-        $do_swap = true;
+    if ($expected_gains['percent'] > BUY_TRESHOLD ||
+       ($get_base_market && ($expected_gains['base'] >= 0)) ) {
+         $do_swap = true;
     }
+
 
     if ($do_swap) {
       $buy_market->getBalance();
