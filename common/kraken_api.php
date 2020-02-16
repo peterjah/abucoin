@@ -367,7 +367,7 @@ class KrakenApi
 
        if($status['filled'] > 0) {
          $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
-       } elseif ($order_canceled) {
+       } elseif ($order_canceled  || $status['status'] == 'expired') {
          return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
        } else {
          throw new Exception("Unable to locate order in history");
