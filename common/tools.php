@@ -143,10 +143,11 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
         $new_price = $book['asks']['price'];
         $expected_gains = computeGains($new_price, $product->fees, $status[$opSide]['price'], $opProduct->fees, $filled);
       }
-      print_dbg("last chance to $side $alt at $new_price... expected gains: {$expected_gains["base"]} $base", true);
-      if ($expected_gains['base'] >= 0) {
+      print_dbg("last chance to $side $alt at $new_price... expected gains: {$expected_gains["base"]} $base {$expected_gains["percent"]}%", true);
+      if ($expected_gains['percent'] >= -0.1) {
         print_dbg("retrying to $side $alt at $new_price", true);
         $status[$side] = place_order($market, 'limit', $symbol, $side, $new_price, $filled, $arbId);
+        print "$side {$status[$side]['filled_size']} $alt on {$market->api->name} at {$status[$side]['price']}\n";
       }
       unlink($market->api->orderbook_file);
       print_dbg("Restarting {$market->api->name} websockets", true);
