@@ -64,9 +64,7 @@ while(true) {
         while (true) {
           $status = [];
           if ($market2->api->balances[$alt] > $min_order_size_alt && $market1->api->balances[$base] > $min_order_size_base) {
-            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
-            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
-            $status = testSwap($symbol, $market1/*buy*/, $book1, $market2/*sell*/, $book2);
+            $status = testSwap($symbol, $market1/*buy*/, $market2/*sell*/);
           }
           if(empty($status) || $status['final_gains']['base'] <= 0) {
             break;
@@ -93,9 +91,7 @@ while(true) {
         while (true) {
           $status = [];
           if ($market1->api->balances[$alt] > $min_order_size_alt && $market2->api->balances[$base] > $min_order_size_base) {
-            $book1 = $product1->refreshBook($min_order_size_base, $min_order_size_alt);
-            $book2 = $product2->refreshBook($min_order_size_base, $min_order_size_alt);
-            $status = testSwap($symbol, $market2/*buy*/, $book2, $market1/*sell*/, $book1);
+            $status = testSwap($symbol, $market2/*buy*/, $market1/*sell*/);
           }
           if(empty($status) || $status['final_gains']['base'] <= 0) {
             break;
@@ -170,7 +166,7 @@ while(true) {
   }
 }
 
-function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
+function testSwap($symbol, $buy_market, $sell_market)
 {
   $arbitrage_logs = [];
   $buy_product = $buy_market->products[$symbol];
@@ -180,17 +176,20 @@ function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
   $base_cash_roll = $buy_market->api->balances[$base] + $sell_market->api->balances[$base];
   $get_base_market = $buy_market->api->balances[$base] > $sell_market->api->balances[$base];
 
-  $sell_price = $sell_book['bids']['price'];
-  $sell_order_price = $sell_book['bids']['order_price'];
-  $buy_price = $buy_book['asks']['price'];
-  $buy_order_price = $buy_book['asks']['order_price'];
-  $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);
 
   $buy_fees = $buy_product->fees;
   $sell_fees = $sell_product->fees;
 
-  $trade_size = check_tradesize($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size);
+  $trade_size = get_tradesize($symbol, $sell_market, $buy_market);
   if ($trade_size > 0) {
+    $min_trade_base = max($buy_product->min_order_size_base, $sell_product->min_order_size_base);
+    $buy_book = $buy_product->refreshBook($min_trade_base, $trade_size);
+    $sell_book = $sell_product->refreshBook($min_trade_base, $trade_size);
+    $sell_price = $sell_book['bids']['price'];
+    $sell_order_price = truncate($sell_book['bids']['order_price'], $sell_product->price_decimals);
+    $buy_price = $buy_book['asks']['price'];
+    $buy_order_price = truncate($buy_book['asks']['order_price'], $buy_product->price_decimals);
+
     $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $trade_size);
     //swap conditions
     $do_swap = false;
@@ -198,7 +197,6 @@ function testSwap($symbol, $buy_market, $buy_book, $sell_market, $sell_book)
        ($get_base_market && ($expected_gains['base'] >= 0)) ) {
          $do_swap = true;
     }
-
 
     if ($do_swap) {
       $buy_market->getBalance();

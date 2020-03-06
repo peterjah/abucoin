@@ -246,7 +246,7 @@ function print_dbg($dbg_str, $print_stderr = false)
     print($str);
 }
 
-function check_tradesize($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $trade_size)
+function get_tradesize($symbol, $sell_market, $buy_market)
 {
   $buy_product = $buy_market->products[$symbol];
   $sell_product = $sell_market->products[$symbol];
@@ -257,20 +257,25 @@ function check_tradesize($symbol, $sell_market, $sell_price, $buy_market, $buy_p
   $min_trade_base = max($buy_product->min_order_size_base, $sell_product->min_order_size_base);
   $min_trade_alt = max($buy_product->min_order_size, $sell_product->min_order_size);
   $size_decimals = min($buy_product->size_decimals, $sell_product->size_decimals);
+  $buy_book = $buy_product->refreshBook($min_trade_base, $min_trade_alt);
+  $sell_book = $sell_product->refreshBook($min_trade_base, $min_trade_alt);
 
+  // get first order size
+  $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);
+
+  $buy_order_price = $buy_book['asks']['price'];
+
+  // not enough founds
   if ($base_bal < $min_trade_base || $alt_bal < $min_trade_alt) {
     return 0;
   }
 
-  $buy_price = truncate($buy_price, $buy_product->price_decimals);
-  $sell_price = truncate($sell_price, $sell_product->price_decimals);
-
-  $base_to_spend_fee = ($buy_price * $trade_size * (1 + $buy_product->fees/100));
+  $base_to_spend_fee = ($buy_order_price * $trade_size * (1 + $buy_product->fees/100));
 
   if ($base_to_spend_fee > $base_bal) {
       $base_to_spend_fee = $base_bal;
       $base_amount = $base_to_spend_fee * (1 - $buy_product->fees/100);
-      $trade_size = $base_amount / $buy_price;
+      $trade_size = $base_amount / $buy_order_price;
   }
 
   if ($trade_size > $alt_bal) {
@@ -278,7 +283,7 @@ function check_tradesize($symbol, $sell_market, $sell_price, $buy_market, $buy_p
   }
 
   $trade_size = truncate($trade_size, $size_decimals);
-  $base_to_spend_fee = ($buy_price * $trade_size * (1 + $buy_product->fees/100));
+  $base_to_spend_fee = ($buy_order_price * $trade_size * (1 + $buy_product->fees/100));
   if ($base_to_spend_fee < $min_trade_base || $trade_size < $min_trade_alt) {
     return 0;
   }
