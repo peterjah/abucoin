@@ -237,11 +237,19 @@ class KrakenApi
               throw new KrakenAPIException("failed to get product infos [{$e->getMessage()}]");
         }
       }
-
-      $fees = $tradeVolume['result']['fees']['XLTCXXBT']['fee'];
+      $tradedVolume = $tradeVolume['result']['volume'];
       foreach($products['result'] as $kraken_symbol => $product) {
         if (substr($kraken_symbol, -2) == '.d')
           continue;
+
+        foreach($product['fees'] as $feesLevel) {
+          if ($tradedVolume > $feesLevel[0]) {
+            $fees = $feesLevel[1];
+            continue;
+          }
+          break;
+        }
+
         $alt = self::kraken2crypto($product['base']);
         $base = self::kraken2crypto($product['quote']);
         if (!isset($alt) || !isset($base))
