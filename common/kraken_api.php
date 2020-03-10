@@ -130,40 +130,17 @@ class KrakenApi
                 'USD' => "ZUSD",
                 'USDT' => "USDT",
                 'DOGE' => "XXDG",
-                'DASH' => "DASH",
-                'EOS' => "EOS",
-                'BCH' => "BCH",
-                'ADA' => "ADA",
-                'QTUM' => "QTUM",
-                'BSV' => "BSV",
-                'XTZ' => "XTZ",
-                'GNO' => "GNO",
                 'MLN' => "XMLN",
                 'CAD' => "ZCAD",
                 'JPY' => "ZJPY",
                 'GBP' => "ZGBP",
-                'ATOM' => "ATOM",
-                'BAT' => 'BAT',
-                'WAVES' => 'WAVES',
-                'SC' => 'SC',
-                'OMG' => 'OMG',
-                'NANO' => 'NANO',
-                'LINK' => 'LINK',
-                'PAXG' => 'PAXG',
-                'ICX' => 'ICX',
-                'DAI' => 'DAI',
-                'LSK' => 'LSK',
-                'USDC' => 'USDC',
-                'TRX' => 'TRX',
                 ];
       if($reverse)
         $table = array_flip($table);
       if(array_key_exists($crypto,$table))
         return $table[$crypto];
-      else
-      {
-        print( "KrakenApi warning: Unknown crypto $crypto\n");
-        return null;
+      else {
+        return $crypto;
       }
     }
 
@@ -415,6 +392,7 @@ class KrakenApi
 		            'LSK'=>10,
                 'USDC'=>5,
                 'TRX'=>500,
+                'ALGO'=>50,
               ];
 
     if(array_key_exists($crypto,$table))
