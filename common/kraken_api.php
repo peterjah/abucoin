@@ -18,9 +18,8 @@ class KrakenApi
     public $orderbook_file;
     public $orderbook_depth;
     public $using_websockets;
-    public $max_price_diff;
 
-    public function __construct($max_price_diff = null)
+    public function __construct()
     {
       $keys = json_decode(file_get_contents("../common/private.keys"));
       if (!isset($keys->kraken))
@@ -29,10 +28,6 @@ class KrakenApi
       $this->key = $keys->kraken->api_key;
       $this->name = 'Kraken';
       $this->PriorityLevel = 9;
-      if (isset($max_price_diff))
-        $this->max_price_diff = $max_price_diff;
-      else
-        $this->max_price_diff = 0.01;//1%
 
       $this->curl = curl_init();
       curl_setopt_array($this->curl, array(
@@ -69,8 +64,8 @@ class KrakenApi
         $this->time = $now;
       }
       $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs', 'Time');
-      if ( !in_array($method ,$public_set ) )
-      { //private method
+      if ( !in_array($method ,$public_set ) ) {
+        //private method
         if(!isset($request['nonce'])) {
           // generate a 64 bit nonce using a timestamp at microsecond resolution
           // string functions are used to avoid problems on 32 bit systems
@@ -85,9 +80,7 @@ class KrakenApi
             'API-Key: ' . $this->key,
             'API-Sign: ' . base64_encode($sign)
             );
-      }
-      else
-      {
+      } else {
         $path = '/' . self::API_VERSION . '/public/' . $method;
         $headers = array ();
         $postdata = http_build_query($request, '', '&');
@@ -105,8 +98,7 @@ class KrakenApi
       $result = json_decode($result, true);
       if(!is_array($result))
           throw new KrakenAPIException('JSON decode error');
-      if(isset($result['error'][0]) && $result['error'][0] == 'EAPI:Rate limit exceeded')
-      {
+      if(isset($result['error'][0]) && $result['error'][0] == 'EAPI:Rate limit exceeded') {
         print "Kraken Api call limit reached\n";
         sleep(15);
         throw new KrakenAPIException($result['error'][0]);

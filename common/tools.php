@@ -47,11 +47,6 @@ class Product
     $depth_alt = max($depth_alt, $this->min_order_size);
     return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
   }
-
-  function removeBestOffer($side)
-  {
-    array_slice($this->book[$side], 1);
-  }
 }
 
 function getProductBySymbol($api, $symbol)
@@ -69,14 +64,12 @@ class Market
 
   public function __construct($market_name)
   {
-    $market_table = [ 'cryptopia' => 'CryptopiaApi',
-                      'kraken' => 'KrakenApi',
-                      'cobinhood' => 'CobinhoodApi',
+    $market_table = [ 'kraken' => 'KrakenApi',
                       'binance' => 'BinanceApi',
                       'paymium' => 'PaymiumApi'
                       ];
     if( isset($market_table[$market_name]))
-      $this->api =  new $market_table[$market_name](0.01);
+      $this->api =  new $market_table[$market_name]();
     else throw new \Exception("Unknown market \"$market_name\"");
 
     $this->updateProductList();

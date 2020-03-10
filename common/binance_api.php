@@ -31,7 +31,7 @@ class BinanceApi
       CURLOPT_TIMEOUT        => 5
     ];
 
-    public function __construct($max_price_diff = null)
+    public function __construct()
     {
         $keys = json_decode(file_get_contents("../common/private.keys"));
         if (!isset($keys->binance))
@@ -43,10 +43,7 @@ class BinanceApi
         $this->name = 'Binance';
 
         $this->PriorityLevel = 1;
-        if (isset($max_price_diff))
-          $this->max_price_diff = $max_price_diff;
-        else
-          $this->max_price_diff = 0.01;//1%
+
         //App specifics
         $this->products = [];
         $this->balances = [];
@@ -264,8 +261,7 @@ class BinanceApi
                 'type'=> $orderType,
                 ];
 
-      if($type == 'limit')
-      {
+      if($type == 'limit') {
         $order['price'] = number_format($price, $product->price_decimals, '.', '');
         $order['timeInForce'] = 'GTC';
       }
@@ -274,28 +270,24 @@ class BinanceApi
       print "{$this->name} trade says:\n";
       var_dump($status);
 
-      if( count($status) && !isset($status['code']))
-      {
+      if( count($status) && !isset($status['code'])) {
         $id = $status['orderId'];
         $filled_size = 0;
         $filled_base = 0;
         $order_canceled = false;
 
-        if($status['status'] == 'FILLED')
-        {
+        if($status['status'] == 'FILLED') {
           $filled_size = floatval($status['executedQty']);
           $filled_base = floatval($status['cummulativeQuoteQty']);
           /*real price*/
           $pond_price = 0;
-          foreach($status['fills'] as $fills)
-          {
+          foreach($status['fills'] as $fills) {
             $pond_price += $fills['price'] * $fills['qty'];
           }
           $price = $pond_price / $filled_size;
           print_dbg("{$this->name}: trade $id closed: $filled_size $alt @ $price", true);
         }
-        else
-        {
+        else {
           //give server some time to handle order
           usleep(500000);//0.5 sec
           $status = [];
@@ -389,11 +381,9 @@ class BinanceApi
         try{
           $ret = $this->jsonRequest('DELETE', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
           break;
-        }catch (Exception $e)
-        {
+        } catch (Exception $e) {
           print_dbg("Failed to cancel order. [{$e->getMessage()}] retrying...$i");
-          if($e->getMessage() == 'UNKNOWN_ORDER')
-          {
+          if($e->getMessage() == 'UNKNOWN_ORDER') {
             return false;
           }
           $i++;
