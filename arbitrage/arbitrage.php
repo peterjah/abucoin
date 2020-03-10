@@ -174,8 +174,7 @@ function testSwap($symbol, $buy_market, $sell_market)
   $alt = $buy_product->alt;
   $base = $sell_product->base;
   $base_cash_roll = $buy_market->api->balances[$base] + $sell_market->api->balances[$base];
-  $get_base_market = $buy_market->api->balances[$base] > $sell_market->api->balances[$base];
-
+  $get_base_market = $sell_market->api->balances[$base] * 10 < $base_cash_roll;
 
   $buy_fees = $buy_product->fees;
   $sell_fees = $sell_product->fees;
