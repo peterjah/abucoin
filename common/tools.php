@@ -8,6 +8,8 @@ require_once('../common/binance_api.php');
 require_once('../common/paymium_api.php');
 date_default_timezone_set("UTC");
 
+@define('LOSS_TRESHOLD', 0.01); //percent
+
 class Product
 {
   public $symbol;
@@ -144,7 +146,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
         $expected_gains = computeGains($new_price, $product->fees, $status[$opSide]['price'], $opProduct->fees, $filled);
       }
       print_dbg("last chance to $side $alt at $new_price... expected gains: {$expected_gains["base"]} $base {$expected_gains["percent"]}%", true);
-      if ($expected_gains['percent'] >= -0.1) {
+      if ($expected_gains['percent'] >= (-1 * LOSS_TRESHOLD)) {
         print_dbg("retrying to $side $alt at $new_price", true);
         $status[$side] = place_order($market, 'limit', $symbol, $side, $new_price, $filled, $arbId);
         print "$side {$status[$side]['filled_size']} $alt on {$market->api->name} at {$status[$side]['price']}\n";
