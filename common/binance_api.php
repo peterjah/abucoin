@@ -292,7 +292,7 @@ class BinanceApi
             $pond_price += $fills['price'] * $fills['qty'];
           }
           $price = $pond_price / $filled_size;
-          print_dbg("Directly filled: $filled_size $alt @ $price", true);
+          print_dbg("{$this->name}: trade $id closed: $filled_size $alt @ $price", true);
         }
         else
         {
@@ -312,6 +312,7 @@ class BinanceApi
             $begin = microtime(true);
             while (empty($status['status']) && (microtime(true) - $begin) < $timeout) {
               $status = $this->getOrderStatus($product, $id);
+              usleep(50000);
             }
           }
 
@@ -347,17 +348,15 @@ class BinanceApi
 
     function getOrderStatus($product, $orderId)
     {
-      print_dbg("get order status of $orderId");
       $i=0;
       $alt = self::crypto2binance($product->alt);
       $base = self::crypto2binance($product->base);
       $symbol = "{$alt}{$base}";
-      while($i<5)
-      {
-        try{
+      while($i<5) {
+        try {
           $order = $this->jsonRequest('GET', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
           break;
-        }catch (Exception $e){ $i++; usleep(500000); print ("{$this->name}: Failed to get status retrying...$i\n");}
+        } catch (Exception $e){ $i++; usleep(500000); print ("{$this->name}: Failed to get status retrying...$i\n");}
       }
 
       if(isset($order))

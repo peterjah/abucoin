@@ -202,7 +202,7 @@ function testSwap($symbol, $buy_market, $sell_market)
       $buy_market->getBalance();
       $sell_market->getBalance();
       $arbId = substr($sell_market->api->name, 0, 2) . substr($buy_market->api->name, 0, 2) . '_' . number_format(microtime(true) * 100, 0, '.', '');
-      print "do arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."% \n";
+      print_dbg("\n Arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."%");
       print_dbg("SELL $trade_size $alt on {$sell_market->api->name} at $sell_price", true);
       print_dbg("BUY $trade_size $alt on {$buy_market->api->name} at $buy_price", true);
       $status = async_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size, $arbId);

@@ -325,19 +325,20 @@ class KrakenApi
        $begin = microtime(true);
        while ((@$status['status'] != 'closed') && (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
          $status = $this->getOrderStatus(null, $id);
-         print_dbg("open order check: {$status['status']}", true);
 
          if(!isset($status)) {
            $status = $this->getOrdersHistory(['id' => $id]);
            print_dbg("closed order check: {$status['status']}");
          }
+         usleep(50000);
        }
+       print_dbg("Order final status: {$status['status']}", true);
        if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
          $order_canceled = $this->cancelOrder(null, $id);
          $begin = microtime(true);
          while ((empty($status['status']) || $status['status'] == 'open') && (microtime(true) - $begin) < $timeout) {
            $status = $this->getOrdersHistory(['id' => $id]);
-           usleep(500000);//0.5 sec
+           usleep(50000);
          }
        }
        print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
