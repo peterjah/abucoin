@@ -110,7 +110,7 @@ function do_solve($markets, $symbol, $side, $traded)
     if($size < $product->min_order_size )
       continue;
     try {
-      $book = $product->refreshBook(0, $size);
+      $book = $market->api->getOrderBook($product, $product->min_order_size_base, $size, false);
     } catch (Exception $e) {
       print_dbg("{$e->getMessage()}: continue..", true);
       continue;

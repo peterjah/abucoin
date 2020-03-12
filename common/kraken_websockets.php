@@ -62,7 +62,7 @@ function getOrderBook($products)
     $client->send(json_encode([
         "event" => "subscribe",
         "pair" => $kraken_products,
-        "subscription" => ['name' => 'book', 'depth' => intval($options['bookdepth'])]
+        "subscription" => ['name' => 'ticker']
     ]));
 
     $date = DateTime::createFromFormat('U.u', microtime(TRUE));
@@ -99,33 +99,27 @@ function getOrderBook($products)
                   $channel_ids[$msg['channelID']] = $app_symbol;
                   break;
               case 'pong':
-              case 'heartbeat': break;
+                  print("pong...");
+                  break;
+              case 'heartbeat':
+                print("heartbeat...");
+              break;
               default:
                 print_dbg("$file unknown event received \"{$msg['event']}\"", true);
                 var_dump($msg);
                 break;
             }
           }
-          elseif (isset($msg[1]['as']) || isset($msg[1]['bs'])) {
+          elseif (isset($msg[1]['a']) && isset($msg[1]['b'])) {
             $symbol = $channel_ids[$msg[0]];
-            if (count($msg[1]['as']))
-              $orderbook[$symbol]['asks'] = $msg[1]['as'];
-            if (count($msg[1]['bs']))
-              $orderbook[$symbol]['bids'] = $msg[1]['bs'];
-          }
-          elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
-            $symbol = $channel_ids[$msg[0]];
-            $stackSize = intval($options['bookdepth']);
 
-            var_dump($msg[1]);
-            foreach (['bids', 'asks'] as $side) {
-              $side_letter = substr($side,0,1);
-              if (isset($msg[1][$side_letter])) {
-                $offers = $msg[1][$side_letter];
-                $orderbook[$symbol][$side] =
-                  handle_offers($orderbook[$symbol], $offers, $side, $stackSize);
-              }
-            }
+            //price
+            $orderbook[$app_symbol]['bids'][0][0] = $msg[1]['b'][0];
+            $orderbook[$app_symbol]['asks'][0][0] = $msg[1]['a'][0];
+            //vol
+            $orderbook[$app_symbol]['bids'][0][1] = $msg[1]['b'][2];
+            $orderbook[$app_symbol]['asks'][0][1] = $msg[1]['a'][2];
+
             $orderbook['last_update'] = microtime(true);
           } else {
             print_dbg("$file msg received", true);

@@ -37,15 +37,26 @@ class Product
     $this->min_order_size_base = @$params['min_order_size_base'] ?: 0;
     $this->price_decimals = @$params['price_decimals'];
     $this->symbol_exchange = @$params['symbol_exchange'];
-
-    $book = null;
   }
 
-  function refreshBook($depth_base = 0, $depth_alt = 0)
+  function refreshBook($side, $depth_base = 0, $depth_alt = 0)
   {
     $depth_base = max($depth_base, $this->min_order_size_base);
     $depth_alt = max($depth_alt, $this->min_order_size);
-    return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
+    $book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
+    if ($side == 'buy' &&
+      ($book['asks']['size'] < $depth_alt
+      || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {
+        return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
+    }
+
+    if ($side == 'sell' &&
+    ($book['bids']['size'] < $depth_alt
+    || ($book['bids']['size'] * $book['bids']['price']) < $depth_base)) {
+      return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
+  }
+
+    return $this->book = $book;
   }
 }
 
@@ -174,7 +185,7 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
          {
            $base_bal = $market->api->balances[$base];
            //price may be not relevant anymore. moreover we want a market order
-           $book = $product->refreshBook(0, $size);
+           $book = $product->refreshBook($side, 0, $size);
            $size = min(truncate($base_bal / ($book['asks']['price'] * (1 + $product->fees/100)) , $product->size_decimals), $size);
            $buy_price = $book['asks']['order_price'];
            print_dbg("new tradesize: $size, new price $buy_price base_bal: $base_bal", true);
@@ -252,8 +263,8 @@ function get_tradesize($symbol, $sell_market, $buy_market)
   $min_trade_base = max($buy_product->min_order_size_base, $sell_product->min_order_size_base);
   $min_trade_alt = max($buy_product->min_order_size, $sell_product->min_order_size);
   $size_decimals = min($buy_product->size_decimals, $sell_product->size_decimals);
-  $buy_book = $buy_product->refreshBook($min_trade_base, $min_trade_alt);
-  $sell_book = $sell_product->refreshBook($min_trade_base, $min_trade_alt);
+  $buy_book = $buy_product->refreshBook('buy', $min_trade_base, $min_trade_alt);
+  $sell_book = $sell_product->refreshBook('sell', $min_trade_base, $min_trade_alt);
 
   // get first order size
   $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);

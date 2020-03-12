@@ -182,8 +182,8 @@ function testSwap($symbol, $buy_market, $sell_market)
   $trade_size = get_tradesize($symbol, $sell_market, $buy_market);
   if ($trade_size > 0) {
     $min_trade_base = max($buy_product->min_order_size_base, $sell_product->min_order_size_base);
-    $buy_book = $buy_product->refreshBook($min_trade_base, $trade_size);
-    $sell_book = $sell_product->refreshBook($min_trade_base, $trade_size);
+    $buy_book = $buy_product->refreshBook('buy', $min_trade_base, $trade_size);
+    $sell_book = $sell_product->refreshBook('sell', $min_trade_base, $trade_size);
     $sell_price = $sell_book['bids']['price'];
     $sell_order_price = truncate($sell_book['bids']['order_price'], $sell_product->price_decimals);
     $buy_price = $buy_book['asks']['price'];
