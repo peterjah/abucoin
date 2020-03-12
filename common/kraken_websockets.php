@@ -76,6 +76,7 @@ function getOrderBook($products)
         $message = $client->receive();
         if ($message) {
           if ($date < DateTime::createFromFormat('U.u', microtime(TRUE))) {
+              print("ping...");
               $client->send(json_encode(["event"=>"ping"]));
               $date->add(new DateInterval('PT' . 5 . 'S'));
           }

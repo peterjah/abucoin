@@ -46,7 +46,7 @@ if(@$autoSolve) {
   }
   //init api
   $markets = [];
-  foreach( ['binance','kraken','cobinhood','paymium'] as $name) {
+  foreach( ['binance','kraken','paymium'] as $name) {
     $i=0;
     while($i<6) {
       try{

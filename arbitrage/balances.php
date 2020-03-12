@@ -15,7 +15,7 @@ function sortBalance($a, $b)
 }
 
 $markets = [];
-foreach(['kraken'/*, 'cobinhood'*/, 'binance', 'paymium'] as $api) {
+foreach(['kraken', 'binance', 'paymium'] as $api) {
   $i=0;
   while ($i < 5) {
     try {
@@ -29,7 +29,6 @@ foreach(['kraken'/*, 'cobinhood'*/, 'binance', 'paymium'] as $api) {
   }
 }
 
-//$ticker = json_decode(file_get_contents("https://api.99cryptocoin.com/v1/ticker"), true);
 $cryptoInfo = [];
 
 if(isset($options['alt']))
