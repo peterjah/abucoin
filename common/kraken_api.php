@@ -261,7 +261,7 @@ class KrakenApi
                     'min_order_size' => self::minimumAltTrade($alt),
                     'lot_size_step' => pow(10,-1*$product['lot_decimals']),
                     'size_decimals' => $product['lot_decimals'],
-                    'min_order_size_base' => 0,//sel,::minimumAltTrade($base),
+                    'min_order_size_base' => 0,//??
                     'price_decimals' => $product['pair_decimals'],
                     'symbol_exchange' => $kraken_symbol,
                   ];
@@ -377,9 +377,10 @@ class KrakenApi
                 'QTUM'=>0.1,
                 'BSV'=>0.002,
                 'XTZ'=>1,
-                'USDT'=>0,
-                'USD'=>0,
-                'EUR'=>0,
+                'USDT'=>5,
+                'GPB'=>10,
+                'USD'=>10,
+                'EUR'=>10,
                 'ATOM'=>0.1,
                 'BAT'=> 50,
                 'LINK'=>10,
@@ -399,7 +400,8 @@ class KrakenApi
     if(array_key_exists($crypto,$table))
       return $table[$crypto];
     else
-      throw new KrakenAPIException("Unknown crypto $crypto");
+      print_dbg("Warning, unknown minimum order for $crypto", true);
+      return 0;
     }
 
     function getOrderStatus($alt = null, $order_id)
