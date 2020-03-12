@@ -378,7 +378,7 @@ class KrakenApi
                 'BSV'=>0.002,
                 'XTZ'=>1,
                 'USDT'=>5,
-                'GPB'=>10,
+                'GBP'=>10,
                 'USD'=>10,
                 'EUR'=>10,
                 'ATOM'=>0.1,
