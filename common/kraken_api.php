@@ -303,7 +303,7 @@ class KrakenApi
           $price_diff = 1 - ($new_price / $price);
         }
         print_dbg("{$this->name}: market offer: $new_price orig price: $price ; diff: $price_diff");
-        if($price_diff > $this->max_price_diff) {
+        if($price_diff > 0) {
           print_dbg("{$this->name}: market order failed: real order price is too different from the expected price", true);
           throw new KrakenAPIException('market order failed: real order price is too different from the expected price');
         }
@@ -321,7 +321,7 @@ class KrakenApi
        $id = $ret['result']['txid'][0];
        $status = [];
        $order_canceled = false;
-       $timeout = 6;//sec
+       $timeout = 10;//sec
        $begin = microtime(true);
        while ((@$status['status'] != 'closed') && (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
          $status = $this->getOrderStatus(null, $id);
@@ -330,7 +330,7 @@ class KrakenApi
            $status = $this->getOrdersHistory(['id' => $id]);
            print_dbg("closed order check: {$status['status']}");
          }
-         usleep(50000);
+         usleep(500000);
        }
        print_dbg("Order final status: {$status['status']}", true);
        if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
