@@ -115,11 +115,11 @@ function getOrderBook($products)
             $symbol = $channel_ids[$msg[0]];
 
             //price
-            $orderbook[$app_symbol]['bids'][0][0] = $msg[1]['b'][0];
-            $orderbook[$app_symbol]['asks'][0][0] = $msg[1]['a'][0];
+            $orderbook[$app_symbol]['bids'][0] = $msg[1]['b'][0];
+            $orderbook[$app_symbol]['asks'][0] = $msg[1]['a'][0];
             //vol
-            $orderbook[$app_symbol]['bids'][0][1] = $msg[1]['b'][2];
-            $orderbook[$app_symbol]['asks'][0][1] = $msg[1]['a'][2];
+            $orderbook[$app_symbol]['bids'][1] = $msg[1]['b'][2];
+            $orderbook[$app_symbol]['asks'][1] = $msg[1]['a'][2];
 
             $orderbook['last_update'] = microtime(true);
           } else {

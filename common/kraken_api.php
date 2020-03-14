@@ -504,8 +504,8 @@ class KrakenApi
 
          foreach( ['asks', 'bids'] as $side)
          {
-           $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
-           $best[$side]['size'] = floatval($book[$side][0][1]);
+           $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0]);
+           $best[$side]['size'] = floatval($book[$side][1]);
          }
          return $best;
        }

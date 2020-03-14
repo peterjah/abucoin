@@ -73,11 +73,11 @@ function getOrderBook($products)
         if (isset($msg['data'])) {
           $app_symbol = $app_symbols[$msg['data']['s']];
           //price
-          $orderbook[$app_symbol]['bids'][0][0] = $msg['data']['b'];
-          $orderbook[$app_symbol]['asks'][0][0] = $msg['data']['a'];
+          $orderbook[$app_symbol]['bids'][0] = $msg['data']['b'];
+          $orderbook[$app_symbol]['asks'][0] = $msg['data']['a'];
           //vol
-          $orderbook[$app_symbol]['bids'][0][1] = $msg['data']['B'];
-          $orderbook[$app_symbol]['asks'][0][1] = $msg['data']['A'];
+          $orderbook[$app_symbol]['bids'][1] = $msg['data']['B'];
+          $orderbook[$app_symbol]['asks'][1] = $msg['data']['A'];
 
           $orderbook['last_update'] = microtime(true);
           if (!file_exists($file)) {
