@@ -15,7 +15,7 @@ require_once('../common/tools.php');
 if (@$argv[1] == '-solve' && isset($argv[2])) {
   $ret = str_replace($argv[2], 'solved', file_get_contents(TRADES_FILE), $count);
   if($count > 0) {
-    file_put_contents(TRADES_FILE, $ret);
+    file_put_contents(TRADES_FILE, $ret, LOCK_EX);
     print "Tx $argv[2] marked as solved\n";
   }
   else {
@@ -275,7 +275,7 @@ function save_trade($alt, $base, $side, $size, $price)
 {
   $timestamp = intval(microtime(true)*1000);
   $trade_str = date("Y-m-d H:i:s").": arbitrage: toSolve_" . $timestamp ." cleaner: trade cleanerTx: $side $size $alt at $price $base\n";
-  file_put_contents(TRADES_FILE, $trade_str,FILE_APPEND);
+  file_put_contents(TRADES_FILE, $trade_str,FILE_APPEND | LOCK_EX);
 }
 
 function save_gain($arbitrage_log)
