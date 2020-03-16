@@ -51,8 +51,11 @@ $btc_start_cash = $market1->api->balances['BTC'] + $market2->api->balances['BTC'
 $last_update = time();
 $loop_begin = microtime(true);
 while(true) {
-  foreach( $symbol_list as $symbol) {
-    if (!$sig_stop) {
+  if (!$sig_stop) {
+    foreach( $symbol_list as $symbol) {
+      if ($sig_stop) {
+        break;
+      }
       print "Testing $symbol trade\n";
       $product1 = $market1->products[$symbol];
       $product2 = $market2->products[$symbol];
@@ -117,15 +120,15 @@ while(true) {
           $market2->getBalance();
         }catch (Exception $e){}
       }
-    } else { //Quit !
-      foreach ([$market1, $market2] as $market) {
-        $orderbook_file = $market->api->orderbook_file;
-        //Should be useless
-        if (isset($orderbook_file))
-          unlink($orderbook_file);
-      }
-      exit();
     }
+  } else { //Quit !
+    foreach ([$market1, $market2] as $market) {
+      $orderbook_file = $market->api->orderbook_file;
+      //Should be useless
+      if (isset($orderbook_file))
+        unlink($orderbook_file);
+    }
+    exit();
   }
 
   $btc_cash_roll = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
