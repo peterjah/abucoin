@@ -502,12 +502,12 @@ class KrakenApi
        if ($book !== false) {
          $this->using_websockets = true;
 
-         foreach( ['asks', 'bids'] as $side)
-         {
-           $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0]);
-           $best[$side]['size'] = floatval($book[$side][1]);
-         }
-         return $best;
+        //  foreach( ['asks', 'bids'] as $side)
+        //  {
+        //    $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0]);
+        //    $best[$side]['size'] = floatval($book[$side][1]);
+        //  }
+        //  return $best;
        }
      }
      if ($this->using_websockets === false) {
