@@ -333,7 +333,7 @@ function getWsOrderbook($file, $product) {
     return false;
   }
   if (!isset($orderbook[$product->symbol])) {
-    print_dbg("$file: Unknown websocket stream $product->symbol", true);
+    print("$file: Unknown websocket stream $product->symbol");
     return false;
   }
   return $orderbook[$product->symbol];
