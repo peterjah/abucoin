@@ -192,36 +192,35 @@ class BinanceApi
     function getOrderBook($product, $depth_base = 0, $depth_alt = 0, $use_websockets = true)
     {
       $file = $this->orderbook_file;
-      $this->using_websockets = false;
       if (file_exists($file) && $use_websockets) {
         $book = getWsOrderbook($file, $product);
         if ($book !== false) {
           $this->using_websockets = true;
 
-          foreach( ['asks', 'bids'] as $side)
-          {
+          foreach( ['asks', 'bids'] as $side) {
             $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0]);
             $best[$side]['size'] = floatval($book[$side][1]);
           }
           return $best;
         }
       }
-      if ($this->using_websockets === false) {
-        $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
-        $i=0;
-        while (true) {
-          try {
-            $book = $this->jsonRequest('GET', 'v3/depth', ['symbol' => $symbol, 'limit' => $this->orderbook_depth]);
-            break;
-          } catch (Exception $e) {
-            if($i > 8)
-              throw new BinanceAPIException("{$this->name}: failed to get order book [{$e->getMessage()}]");
-            $i++;
-            print "{$this->name}: failed to get order book. retry $i...\n";
-            usleep(50000);
-          }
+      $this->using_websockets = false;
+
+      $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
+      $i=0;
+      while (true) {
+        try {
+          $book = $this->jsonRequest('GET', 'v3/depth', ['symbol' => $symbol, 'limit' => $this->orderbook_depth]);
+          break;
+        } catch (Exception $e) {
+          if($i > 8)
+            throw new BinanceAPIException("{$this->name}: failed to get order book [{$e->getMessage()}]");
+          $i++;
+          print "{$this->name}: failed to get order book. retry $i...\n";
+          usleep(50000);
         }
       }
+
       if(!isset($book['asks'], $book['bids'])) {
         throw new BinanceAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
       }
