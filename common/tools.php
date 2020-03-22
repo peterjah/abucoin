@@ -8,7 +8,7 @@ require_once('../common/binance_api.php');
 require_once('../common/paymium_api.php');
 date_default_timezone_set("UTC");
 
-@define('LOSS_TRESHOLD', 0.1); //percent
+@define('LOSS_TRESHOLD', 1); //percent
 
 class Product
 {
