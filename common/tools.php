@@ -44,7 +44,7 @@ class Product
     || ($book['bids']['size'] * $book['bids']['price']) < $depth_base)) {
       print("ticker size is too low");
       return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
-  }
+    }
 
     return $this->book = $book;
   }
@@ -239,7 +239,7 @@ function print_dbg($dbg_str, $print_stderr = false)
     print($str);
 }
 
-function get_tradesize($symbol, $sell_market, $buy_market)
+function get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book)
 {
   $buy_product = $buy_market->products[$symbol];
   $sell_product = $sell_market->products[$symbol];
@@ -250,8 +250,6 @@ function get_tradesize($symbol, $sell_market, $buy_market)
   $min_trade_base = max($buy_product->min_order_size_base, $sell_product->min_order_size_base);
   $min_trade_alt = max($buy_product->min_order_size, $sell_product->min_order_size);
   $size_decimals = min($buy_product->size_decimals, $sell_product->size_decimals);
-  $buy_book = $buy_product->refreshBook('buy', $min_trade_base, $min_trade_alt);
-  $sell_book = $sell_product->refreshBook('sell', $min_trade_base, $min_trade_alt);
 
   // get first order size
   $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);
