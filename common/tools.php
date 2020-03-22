@@ -36,7 +36,6 @@ class Product
       ($book['asks']['size'] < $depth_alt
       || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {
         print("ticker size is too low");
-        var_dump($book['asks']);
         return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
     }
 
@@ -44,7 +43,6 @@ class Product
     ($book['bids']['size'] < $depth_alt
     || ($book['bids']['size'] * $book['bids']['price']) < $depth_base)) {
       print("ticker size is too low");
-      var_dump($book['bids']);
       return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
   }
 
