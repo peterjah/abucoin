@@ -30,9 +30,6 @@ $profits = [];
 $symbol_list = getCommonProducts($market1, $market2);
 
 $use_websocket = true;
-if($market1->api instanceof PaymiumApi || $market2->api instanceof PaymiumApi) {
-  $use_websocket = false;
-}
 
 foreach ([$market1, $market2] as $market) {
   while (true) { try {
@@ -142,9 +139,6 @@ while(true) {
   print "~~~~Websocket: {$market2->api->name}:" . ($market2->api->using_websockets ? 'yes' : 'no')."~~~~\n\n";
   print "~~~~Api call stats: {$market2->api->name}: {$market2->api->api_calls_rate}/min , {$market1->api->name}: {$market1->api->api_calls_rate}/min~~~~\n\n";
 
-  if($market1->api instanceof PaymiumApi || $market2->api instanceof PaymiumApi) {
-    sleep(3600);
-  }
   //avoid useless cpu usage
   $loop_time = microtime(true) - $loop_begin;
   $min_loop_time = 1;//sec
@@ -153,7 +147,7 @@ while(true) {
   }
   $loop_begin = microtime(true);
 
-  if( time() - $last_update > 10/*sec*/) {
+  if( time() - $last_update > 60/*sec*/) {
     try {
       foreach([$market1, $market2] as $market) {
         while($market->api->ping() === false) {
@@ -166,6 +160,12 @@ while(true) {
       }
     } catch (Exception $e){}
     $last_update = time();
+  }
+
+  foreach ([$market1, $market2] as $market) {
+    if($market->api instanceof KrakenApi) {
+      $market->api->renewWebsocketToken();
+    }
   }
 }
 

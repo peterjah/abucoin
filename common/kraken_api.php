@@ -1,4 +1,7 @@
 <?php
+use WebSocket\Client;
+@define('WSS_AUTH_URL','wss://ws-auth.kraken.com');
+
 require_once('../common/tools.php');
 class KrakenAPIException extends ErrorException {};
 
@@ -47,6 +50,8 @@ class KrakenApi
       $this->time = time();
 
       $this->orderbook_depth = 25;
+      $this->websocket_token_exp = 0;
+      $this->renewWebsocketToken();
     }
 
     function __destruct()
@@ -63,8 +68,9 @@ class KrakenApi
         $this->api_calls = 0;
         $this->time = $now;
       }
+
       $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs', 'Time');
-      if ( !in_array($method ,$public_set ) ) {
+      if (!in_array($method, $public_set)) {
         //private method
         if(!isset($request['nonce'])) {
           // generate a 64 bit nonce using a timestamp at microsecond resolution
@@ -264,6 +270,7 @@ class KrakenApi
                     'min_order_size_base' => 0,//??
                     'price_decimals' => $product['pair_decimals'],
                     'symbol_exchange' => $kraken_symbol,
+                    'ws_name' => $product['wsname'],
                   ];
         $product = new Product($params);
         $list[$product->symbol] = $product;
@@ -280,80 +287,136 @@ class KrakenApi
 
     function place_order($product, $type, $side, $price, $size, $tradeId)
     {
-      $alt = $product->alt;
-      $base = $product->base;
+      $client = new Client(WSS_AUTH_URL, ['timeout' => 60]);
 
-      $pair = $product->symbol_exchange;
+      // get websocket token
+     $client->send(json_encode(
+       [
+         'event' => 'addOrder',
+         'token' => $this->websocket_token,
+         'pair' => $product->ws_name,
+         'type' => $side,
+         'ordertype' => $type,
+         'volume' => $this->toString($size, $product->size_decimals),
+         'price' => $this->toString($price, $product->price_decimals),
+         'expiretm' => '+20',
+         ]
+      ));
+      while (true) {
+        try
+        {
+          $msg = $client->receive();
+          if ($msg) {
+            $msg = json_decode($msg , true);
+            print "new message:\n";
+            var_dump($msg);
+            if($msg['status'] === 'error') {
+             break;
+            }
+            if ($msg['status'] === 'ok' && $msg['event'] === 'addOrderStatus') {
+              $id = $msg['txid'];
+              $status = $this->waitForStatus($msg['txid']);
+              var_dump($status);
 
-      $order = ['pair' => $pair,
-                'type' => $side,
-                'ordertype' => $type,
-                'volume' => number_format($size, $product->size_decimals, '.', ''),
-                'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
-              ];
-      if($type == 'limit') {
-        $order['price'] = number_format($price, $product->price_decimals, '.', '');
-      } else {
-        $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
-        if ($side == 'buy') {
-          $new_price = $book['asks']['order_price'];
-          $price_diff = ($new_price / $price) - 1;
-        } else {
-          $new_price = $book['bids']['order_price'];
-          $price_diff = 1 - ($new_price / $price);
+              print_dbg("Order final status: {$status['status']}", true);
+              if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
+                $order_canceled = $this->cancelOrder(null, $id);
+                $begin = microtime(true);
+                $timeout = 10;//sec
+                while ((empty($status['status']) || $status['status'] == 'open') && (microtime(true) - $begin) < $timeout) {
+                  $status = $this->getOrdersHistory(['id' => $id]);
+                  usleep(50000);
+                }
+              }
+              
+              print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
+              var_dump($status);
+       
+              if($status['filled'] > 0) {
+                $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
+              } elseif ($order_canceled  || $status['status'] == 'expired') {
+                return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
+              } else {
+                throw new Exception("Unable to locate order in history");
+              }
+              return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
+            }
+          }
         }
-        print_dbg("{$this->name}: market offer: $new_price orig price: $price ; diff: $price_diff");
-        if($price_diff > 0) {
-          print_dbg("{$this->name}: market order failed: real order price is too different from the expected price", true);
-          throw new KrakenAPIException('market order failed: real order price is too different from the expected price');
+        catch(Exception $e)
+        {
+          print_dbg("Place websocket order error:" . $e->getMessage(), true);
+          break;
         }
       }
-      $ret = $this->jsonRequest('AddOrder', $order);
-      print "{$this->name} trade says:\n";
-      var_dump($ret);
-      if(count($ret['error'])) {
-        print_dbg("{$this->name}: place order failed: {$ret['error'][0]}", true);
-        throw new KrakenAPIException($ret['error'][0]);
-      }
-      else {
-       //give server some time to handle order
-       usleep(500000);//0.5 sec
-       $id = $ret['result']['txid'][0];
-       $status = [];
-       $order_canceled = false;
-       $timeout = 10;//sec
-       $begin = microtime(true);
-       while ((@$status['status'] != 'closed') && (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
-         $status = $this->getOrderStatus(null, $id);
 
-         if(!isset($status)) {
-           $status = $this->getOrdersHistory(['id' => $id]);
-           print_dbg("closed order check: {$status['status']}");
-         }
-         usleep(500000);
-       }
-       print_dbg("Order final status: {$status['status']}", true);
-       if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
-         $order_canceled = $this->cancelOrder(null, $id);
-         $begin = microtime(true);
-         while ((empty($status['status']) || $status['status'] == 'open') && (microtime(true) - $begin) < $timeout) {
-           $status = $this->getOrdersHistory(['id' => $id]);
-           usleep(50000);
-         }
-       }
-       print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
-       var_dump($status);
-
-       if($status['filled'] > 0) {
-         $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
-       } elseif ($order_canceled  || $status['status'] == 'expired') {
-         return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
-       } else {
-         throw new Exception("Unable to locate order in history");
-       }
-       return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
-      }
     }
+
+    // function place_order($product, $type, $side, $price, $size, $tradeId)
+    // {
+    //   $pair = $product->symbol_exchange;
+
+    //   $order = ['pair' => $pair,
+    //             'type' => $side,
+    //             'ordertype' => $type,
+    //             'volume' => $this->toString($size, $product->size_decimals),
+    //             'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
+    //           ];
+
+    //   if($type == 'limit') {
+    //     $order['price'] = $this->toString($price, $product->price_decimals);
+    //   } else {
+    //     $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
+    //     if ($side == 'buy') {
+    //       $new_price = $book['asks']['order_price'];
+    //       $price_diff = ($new_price / $price) - 1;
+    //     } else {
+    //       $new_price = $book['bids']['order_price'];
+    //       $price_diff = 1 - ($new_price / $price);
+    //     }
+      //   print_dbg("{$this->name}: market offer: $new_price orig price: $price ; diff: $price_diff");
+      //   if($price_diff > 0) {
+      //     print_dbg("{$this->name}: market order failed: real order price is too different from the expected price", true);
+      //     throw new KrakenAPIException('market order failed: real order price is too different from the expected price');
+      //   }
+      // }
+      // $ret = $this->jsonRequest('AddOrder', $order);
+      // print "{$this->name} trade says:\n";
+      // var_dump($ret);
+      // if(count($ret['error'])) {
+      //   print_dbg("{$this->name}: place order failed: {$ret['error'][0]}", true);
+      //   throw new KrakenAPIException($ret['error'][0]);
+      // }
+      // else {
+      //  //give server some time to handle order
+      //  usleep(500000);//0.5 sec
+      //  $order_canceled = false;
+      //  $id = $ret['result']['txid'][0];
+      //  $status = $this->waitForStatus($id);
+
+    //    print_dbg("Order final status: {$status['status']}", true);
+    //    if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
+    //      $order_canceled = $this->cancelOrder(null, $id);
+    //      $begin = microtime(true);
+    //      while ((empty($status['status']) || $status['status'] == 'open') && (microtime(true) - $begin) < $timeout) {
+    //        $status = $this->getOrdersHistory(['id' => $id]);
+    //        usleep(50000);
+    //      }
+    //    }
+
+    //    print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
+    //    var_dump($status);
+
+    //    if($status['filled'] > 0) {
+    //      $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
+    //    } elseif ($order_canceled  || $status['status'] == 'expired') {
+    //      return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
+    //    } else {
+    //      throw new Exception("Unable to locate order in history");
+    //    }
+    //    return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
+    //   }
+    // }
 
     static function minimumAltTrade($crypto)
     {
@@ -417,16 +480,25 @@ class KrakenApi
       if(count($open_orders)) {
         foreach ($open_orders as $id => $open_order) {
           if($id == $order_id) {
-            return  $status = [ 'id' => $id,
-                                'status' => 'open',
-                                'filled' => $open_order['vol_exec'],
-                                'filled_base' => $open_order['cost']
-                              ];
+            return  [ 'id' => $id,
+                      'status' => 'open',
+                      'filled' => $open_order['vol_exec'],
+                      'filled_base' => $open_order['cost']
+                    ];
           }
         }
       }
    }
-
+   function renewWebsocketToken()
+   {
+      $now = time();
+      //renew websocket token
+      if (!$this->websocket_token_exp || ($now - $this->websocket_token_exp) > 59 * 3600) {
+        $token = $this->jsonRequest('GetWebSocketsToken');
+        $this->websocket_token = $token['result']['token'];
+        $this->websocket_token_exp = $now;
+      }
+   }
    function ping()
    {
      $ping = $this->jsonRequest('Time');
@@ -554,4 +626,25 @@ class KrakenApi
      }
      return $best;
    }
+
+   function toString($float, $prec) {
+    $pow = pow(10, $prec);
+    return number_format(floor($float*$pow)/$pow, $prec, '.', '');
+   }
+
+   function waitForStatus($id) {
+    $status = [];
+    $timeout = 10;//sec
+    $begin = microtime(true);
+    while ((@$status['status'] != 'closed') && (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
+      $status = $this->getOrderStatus(null, $id);
+
+      if(!isset($status)) {
+        $status = $this->getOrdersHistory(['id' => $id]);
+        print_dbg("closed order check: {$status['status']}");
+      }
+      usleep(500000);
+    }
+    return $status;
+  }
 }

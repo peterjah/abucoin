@@ -12,19 +12,6 @@ date_default_timezone_set("UTC");
 
 class Product
 {
-  public $symbol;
-  public $alt;
-  public $base;
-  public $min_order_size;
-  public $lot_size_step;
-  public $size_decimals;
-  public $min_order_size_base;
-  public $price_decimals;
-  public $fees;
-  public $book;
-  public $api;
-  public $symbol_exchange;
-
   public function __construct($params) {
     $this->api = $params['api'];
     $this->alt = $params['alt'];
@@ -37,6 +24,7 @@ class Product
     $this->min_order_size_base = @$params['min_order_size_base'] ?: 0;
     $this->price_decimals = @$params['price_decimals'];
     $this->symbol_exchange = @$params['symbol_exchange'];
+    $this->ws_name = @$params['ws_name'];
   }
 
   function refreshBook($side, $depth_base = 0, $depth_alt = 0)
@@ -70,9 +58,6 @@ function getProductBySymbol($api, $symbol)
 
 class Market
 {
-  public $api;
-  public $products;
-
   public function __construct($market_name)
   {
     $market_table = [ 'kraken' => 'KrakenApi',
