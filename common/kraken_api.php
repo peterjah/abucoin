@@ -288,7 +288,7 @@ class KrakenApi
     function place_order($product, $type, $side, $price, $size, $tradeId)
     {
       $client = new Client(WSS_AUTH_URL, ['timeout' => 60]);
-
+      $error = "";
       $client->send(json_encode(
        [
          'event' => 'addOrder',
@@ -302,53 +302,46 @@ class KrakenApi
          ]
       ));
       while (true) {
-        try
-        {
-          $msg = $client->receive();
-          if ($msg) {
-            $msg = json_decode($msg , true);
-            print "new message:\n";
-            var_dump($msg);
-            if($msg['status'] === 'error') {
-             break;
-            }
-            if ($msg['status'] === 'ok' && $msg['event'] === 'addOrderStatus') {
-              $id = $msg['txid'];
-              $status = $this->waitForStatus($msg['txid']);
-              var_dump($status);
+        $msg = $client->receive();
+        if ($msg) {
+          $msg = json_decode($msg , true);
+          print "new message:\n";
+          var_dump($msg);
+          if($msg['status'] === 'error') {
+            $error = $msg['errorMessage'];
+            break;
+          }
+          if ($msg['status'] === 'ok' && $msg['event'] === 'addOrderStatus') {
+            $id = $msg['txid'];
+            $status = $this->waitForStatus($msg['txid']);
+            var_dump($status);
 
-              print_dbg("Order final status: {$status['status']}", true);
-              if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
-                $order_canceled = $this->cancelOrder(null, $id);
-                $begin = microtime(true);
-                $timeout = 10;//sec
-                while ((empty($status['status']) || $status['status'] == 'open') && (microtime(true) - $begin) < $timeout) {
-                  $status = $this->getOrdersHistory(['id' => $id]);
-                  usleep(50000);
-                }
+            print_dbg("Order final status: {$status['status']}", true);
+            if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
+              $order_canceled = $this->cancelOrder(null, $id);
+              $begin = microtime(true);
+              $timeout = 10;//sec
+              while ((empty($status['status']) || $status['status'] == 'open') && (microtime(true) - $begin) < $timeout) {
+                $status = $this->getOrdersHistory(['id' => $id]);
+                usleep(50000);
               }
-              
-              print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
-              var_dump($status);
-       
-              if($status['filled'] > 0) {
-                $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
-              } elseif ($order_canceled  || $status['status'] == 'expired') {
-                return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
-              } else {
-                throw new Exception("Unable to locate order in history");
-              }
-              return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
             }
+            
+            print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
+            var_dump($status);
+      
+            if($status['filled'] > 0) {
+              $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
+            } elseif ($order_canceled  || $status['status'] == 'expired') {
+              return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
+            } else {
+              throw new Exception("Unable to locate order in history");
+            }
+            return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
           }
         }
-        catch(Exception $e)
-        {
-          print_dbg("Place websocket order error:" . $e->getMessage(), true);
-          break;
-        }
       }
-      throw new KrakenAPIException("websocket place order failed");
+      throw new KrakenAPIException("websocket place order failed: $error");
     }
 
     // function place_order($product, $type, $side, $price, $size, $tradeId)

@@ -160,11 +160,12 @@ while(true) {
       }
     } catch (Exception $e){}
     $last_update = time();
-  }
 
-  foreach ([$market1, $market2] as $market) {
-    if($market->api instanceof KrakenApi) {
-      $market->api->renewWebsocketToken();
+    foreach ([$market1, $market2] as $market) {
+      if($market->api instanceof KrakenApi) {
+        print "Renew kraken websocket auth token\n";
+        $market->api->renewWebsocketToken();
+      }
     }
   }
 }
