@@ -316,7 +316,7 @@ function getWsOrderbook($file, $product) {
   $orderbook = json_decode(file_get_contents($file), true);
   flock($fp, LOCK_UN);
   fclose($fp);
-  $update_timeout = 3;
+  $update_timeout = 30;
   if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
     print("$file orderbook not uptaded since $update_timeout sec. Switching to rest API\n");
     return false;
