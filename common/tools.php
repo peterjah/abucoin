@@ -314,7 +314,7 @@ function getWsOrderbook($file, $product) {
   fclose($fp);
   $update_timeout = 3;
   if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
-    //print_dbg("$file orderbook not uptaded since $update_timeout sec. Switching to rest API");
+    print("$file orderbook not uptaded since $update_timeout sec. Switching to rest API\n");
     return false;
   }
   if (!isset($orderbook[$product->symbol])) {
