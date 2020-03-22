@@ -289,8 +289,7 @@ class KrakenApi
     {
       $client = new Client(WSS_AUTH_URL, ['timeout' => 60]);
 
-      // get websocket token
-     $client->send(json_encode(
+      $client->send(json_encode(
        [
          'event' => 'addOrder',
          'token' => $this->websocket_token,
@@ -349,7 +348,7 @@ class KrakenApi
           break;
         }
       }
-
+      throw new KrakenAPIException("websocket place order failed");
     }
 
     // function place_order($product, $type, $side, $price, $size, $tradeId)
