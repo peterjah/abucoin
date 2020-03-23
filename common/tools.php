@@ -98,12 +98,12 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
      // we are the parent
      print "I am the father pid = $pid\n";
      $status['sell'] = place_order($sell_market, 'limit', $symbol, 'sell', $sell_price, $size, $arbId);
-     print "SOLD {$status['sell']['filled_size']} $alt on {$sell_api->name} at {$status['sell']['price']}. expected {$sell_product->book['asks']['price']} orderprice: {$sell_product->book['asks']['order_price']}\n";
+     print_dbg("SOLD {$status['sell']['filled_size']} $alt on {$sell_api->name} at {$status['sell']['price']}. expected {$sell_product->book['asks']['price']} orderprice: {$sell_product->book['asks']['order_price']}\n",true);
   } else {
      // we are the child
      print "I am the child pid = $pid\n";
      $status['buy'] = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
-     print "BOUGHT {$status['buy']['filled_size']} $alt on {$buy_api->name} at {$status['buy']['price']}. expected {$buy_product->book['bids']['price']} orderprice: {$buy_product->book['bids']['order_price']}\n";
+     print_dbg("BOUGHT {$status['buy']['filled_size']} $alt on {$buy_api->name} at {$status['buy']['price']}. expected {$buy_product->book['bids']['price']} orderprice: {$buy_product->book['bids']['order_price']}\n",true);
      exit();
   }
   pcntl_waitpid($pid, $stat);
