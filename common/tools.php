@@ -35,14 +35,14 @@ class Product
     if ($side == 'buy' &&
       ($book['asks']['size'] < $depth_alt
       || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {
-        print("ticker size is too low");
+        print("ticker size is too low\n");
         return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
     }
 
     if ($side == 'sell' &&
     ($book['bids']['size'] < $depth_alt
     || ($book['bids']['size'] * $book['bids']['price']) < $depth_base)) {
-      print("ticker size is too low");
+      print("ticker size is too low\n");
       return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
     }
 
@@ -90,8 +90,6 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
   $sell_product = $sell_market->products[$symbol];
   $alt = $buy_product->alt;
   $base = $buy_product->base;
-  $alt_bal = $sell_api->balances[$alt];
-  $base_bal = $buy_api->balances[$base];
 
   $pid = pcntl_fork();
   if ($pid == -1) {
@@ -100,12 +98,12 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
      // we are the parent
      print "I am the father pid = $pid\n";
      $status['sell'] = place_order($sell_market, 'limit', $symbol, 'sell', $sell_price, $size, $arbId);
-     print "SOLD {$status['sell']['filled_size']} $alt on {$sell_api->name} at {$status['sell']['price']}\n";
+     print "SOLD {$status['sell']['filled_size']} $alt on {$sell_api->name} at {$status['sell']['price']}. expected {$sell_product->book['asks']['price']} orderprice: {$sell_product->book['asks']['order_price']}\n";
   } else {
      // we are the child
      print "I am the child pid = $pid\n";
      $status['buy'] = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
-     print "BOUGHT {$status['buy']['filled_size']} $alt on {$buy_api->name} at {$status['buy']['price']}\n";
+     print "BOUGHT {$status['buy']['filled_size']} $alt on {$buy_api->name} at {$status['buy']['price']}. expected {$buy_product->book['bids']['price']} orderprice: {$buy_product->book['bids']['order_price']}\n";
      exit();
   }
   pcntl_waitpid($pid, $stat);
