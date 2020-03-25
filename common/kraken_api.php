@@ -50,7 +50,6 @@ class KrakenApi
       $this->time = time();
 
       $this->orderbook_depth = 25;
-      $this->websocket_token_exp = 0;
       $this->renewWebsocketToken();
     }
 
@@ -308,7 +307,7 @@ class KrakenApi
           print "new message:\n";
           var_dump($msg);
           if($msg['status'] === 'error') {
-            $error = $msg['errorMessage'];
+            $error = "{$msg['errorMessage']} token: {$this->websocket_token}";
             break;
           }
           if ($msg['status'] === 'ok' && $msg['event'] === 'addOrderStatus') {
@@ -483,13 +482,9 @@ class KrakenApi
    }
    function renewWebsocketToken()
    {
-      $now = time();
-      //renew websocket token
-      if (!$this->websocket_token_exp || ($now - $this->websocket_token_exp) > 59 * 3600) {
-        $token = $this->jsonRequest('GetWebSocketsToken');
-        $this->websocket_token = $token['result']['token'];
-        $this->websocket_token_exp = $now;
-      }
+      $token = $this->jsonRequest('GetWebSocketsToken');
+      $this->websocket_token = $token['result']['token'];
+      print_dbg("Kraken: get new websocket token {$this->websocket_token}", true);
    }
    function ping()
    {
