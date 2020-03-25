@@ -246,15 +246,18 @@ function testSwap($symbol, $buy_market, $sell_market)
         fclose($fp);
         $gains_logs['arbitrages'][] = $arbitrage_logs;
         file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
-
-        //Just in case
-        $buy_market->api->balances[$alt] += $filled_buy;
-        $buy_market->api->balances[$base] -= $trade_size * $status['sell']['price'];
-        $sell_market->api->balances[$base] += $trade_size * $status['buy']['price'];
-        $sell_market->api->balances[$alt] -= $filled_sell;
       }
       else {
         print_dbg("Arbitrage $arbId failed...", true);
+      }
+
+      if ($filled_buy > 0) {
+          $buy_market->api->balances[$alt] += $filled_buy;
+          $buy_market->api->balances[$base] -= $filled_buy * $status['buy']['price'];
+      }
+      if ($filled_sell > 0) {
+          $sell_market->api->balances[$base] += $filled_sell * $status['sell']['price'];
+          $sell_market->api->balances[$alt] -= $filled_sell;
       }
     }
   }
