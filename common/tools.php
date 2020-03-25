@@ -27,7 +27,7 @@ class Product
     $this->ws_name = @$params['ws_name'];
   }
 
-  function refreshBook($side, $depth_base = 0, $depth_alt = 0)
+  function refreshBook($side, $depth_base = 0, $depth_alt = 0, $use_rest = true)
   {
     $depth_base = max($depth_base, $this->min_order_size_base);
     $depth_alt = max($depth_alt, $this->min_order_size);
@@ -36,14 +36,20 @@ class Product
       ($book['asks']['size'] < $depth_alt
       || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {
         print("ticker size is too low\n");
-        return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
+        if ($use_rest) {
+            return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
+        }
+        return false;
     }
 
     if ($side == 'sell' &&
     ($book['bids']['size'] < $depth_alt
     || ($book['bids']['size'] * $book['bids']['price']) < $depth_base)) {
       print("ticker size is too low\n");
-      return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
+      if ($use_rest) {
+          return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
+      }
+      return false;
     }
 
     return $this->book = $book;

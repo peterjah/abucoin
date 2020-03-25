@@ -141,7 +141,7 @@ while(true) {
 
   //avoid useless cpu usage
   $loop_time = microtime(true) - $loop_begin;
-  $min_loop_time = 1;//sec
+  $min_loop_time = 0.1;//sec
   if( $loop_time < $min_loop_time) {
     usleep(($min_loop_time-$loop_time)*1000000);
   }
@@ -186,9 +186,12 @@ function testSwap($symbol, $buy_market, $sell_market)
   $min_trade_base = max($buy_product->min_order_size_base, $sell_product->min_order_size_base);
   $min_trade_alt = max($buy_product->min_order_size, $sell_product->min_order_size);
 
-  $buy_book = $buy_product->refreshBook('buy', $min_trade_base, $min_trade_alt);
-  $sell_book = $sell_product->refreshBook('sell', $min_trade_base, $min_trade_alt);
+  $buy_book = $buy_product->refreshBook('buy', $min_trade_base, $min_trade_alt, false);
+  $sell_book = $sell_product->refreshBook('sell', $min_trade_base, $min_trade_alt, false);
 
+  if (!$buy_book || !$sell_book) {
+    return [];
+  }
   $trade_size = get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book);
 
   if ($trade_size > 0) {
