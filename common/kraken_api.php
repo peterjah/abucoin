@@ -484,7 +484,7 @@ class KrakenApi
    {
       $token = $this->jsonRequest('GetWebSocketsToken');
       $this->websocket_token = $token['result']['token'];
-      print_dbg("Kraken: get new websocket token {$this->websocket_token}", true);
+      print("Kraken: get new websocket token {$this->websocket_token}");
    }
    function ping()
    {
