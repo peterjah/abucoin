@@ -3,7 +3,18 @@ use WebSocket\Client;
 @define('WSS_AUTH_URL','wss://ws-auth.kraken.com');
 
 require_once('../common/tools.php');
-class KrakenAPIException extends ErrorException {};
+class KrakenAPIException extends ErrorException {
+
+  public function __construct($msg, $data = null)
+  {
+    parent::__construct($msg);
+    $this->data = $data;
+  }
+
+  public function msg() {
+    return "Kraken error: {$this->getMessage()}";
+  }
+};
 
 class KrakenApi
 {
@@ -49,7 +60,7 @@ class KrakenApi
       $this->api_calls_rate = 0;
       $this->time = time();
 
-      $this->orderbook_depth = 25;
+      $this->orderbook_depth = 10;
       $this->renewWebsocketToken();
     }
 
@@ -104,7 +115,7 @@ class KrakenApi
       if(!is_array($result))
           throw new KrakenAPIException('JSON decode error');
       if(isset($result['error'][0]) && $result['error'][0] == 'EAPI:Rate limit exceeded') {
-        print "Kraken Api call limit reached\n";
+        print_dbg("Kraken: api call limit reached", true);
         sleep(15);
         throw new KrakenAPIException($result['error'][0]);
       }
@@ -161,59 +172,34 @@ class KrakenApi
       }
     }
 
-    function getBalance($alt = null, $in_order = true)
+    function getBalance()
     {
-      $res = [];
-      //var_dump($cryptos);
-      $i=0;
-      while ( true ) {
-        try {
-          $balances = $this->jsonRequest('Balance');
-          if ($in_order)
-            $open_orders = $this->jsonRequest('OpenOrders');
-          break;
-        }
-        catch (Exception $e) {
-          $i++;
-          print "{$this->name}: failed to get balances. [{$e->getMessage()}] retry $i...\n";
-          usleep(50000);
-          if($i > 8)
-            throw new KrakenAPIException("failed to get balances [{$e->getMessage()}]");
-        }
-      }
-
+      $balances = $this->wrappedRequest('Balance');
+      $open_orders = $this->wrappedRequest('OpenOrders');
+      
       $crypto_in_order = [];
-      if(isset($open_orders['result']) && count($open_orders['result']['open'])) {
+      if(isset($open_orders['result']['open'])) {
         foreach($open_orders['result']['open'] as $openOrder) {
-          $krakenPair = $openOrder['descr']['pair'];
-          $base = substr($krakenPair,-3);//fixme
-          $base = $base == 'XBT' ? 'BTC' : $base;
-          $krakenAlt = substr($krakenPair,0, strlen($krakenPair)-3);
-          $alt = $this->kraken2crypto($krakenAlt);
-          $alt = $alt == null ? $this->kraken2crypto("X{$krakenAlt}") : $alt;
-          print "alt=$alt base=$base\n";
+          $product = getProductByParam($this->products, "exchange_symbol", $openOrder['descr']['pair']);
+
           if($openOrder['descr']['type'] == 'sell') {
-            $crypto_in_order[$alt] += $openOrder['vol'];
+            @$crypto_in_order[$product->alt] += $openOrder['vol'];
           } else {
-            $crypto_in_order[$base] += $openOrder['vol'] * $openOrder['descr']['price'];
+            @$crypto_in_order[$product->base] += $openOrder['vol'] * $openOrder['descr']['price'];
           }
         }
       }
 
-      if(isset($balances['result'])) {
-        foreach($balances['result'] as $crypto => $bal) {
-          $crypto = $this->kraken2crypto($crypto);
-          $in_order = isset($crypto_in_order[$crypto]) ? $crypto_in_order[$crypto] : 0;
-          $res[$crypto] = @$this->balances[$crypto] = floatval($bal - $crypto_in_order[$crypto]);
-        }
+      $assetBalances = [];
+      foreach($balances['result'] as $krakenAlt => $bal) {
+        $crypto = $this->kraken2crypto($krakenAlt);
+        $assetBalances[$crypto] = @$this->balances[$crypto] = floatval($bal - $crypto_in_order[$crypto]);
       }
 
-      if( !isset($res) )
+      if( !isset($assetBalances) )
         throw new KrakenAPIException('failed to get balances');
 
-      if ($alt != null)
-        return $res[$alt];
-      else return $res;
+      return $assetBalances;
     }
 
     function save_trade($id, $product, $side, $size, $price, $tradeId)
@@ -227,26 +213,20 @@ class KrakenApi
 
     function getProductList($base = null)
     {
-      $list = [];
-      $i=0;
-      while (true) { try {
-          $products = $this->jsonRequest('AssetPairs');
-          $tradeVolume = $this->jsonRequest('TradeVolume', ['pair' => 'XLTCXXBT']);
-          break;
-        }
-        catch (Exception $e) {
-            $i++;
-            print "{$this->name}: failed to get product info. retry $i...\n";
-            usleep(50000);
-            if($i > 8)
-              throw new KrakenAPIException("failed to get product infos [{$e->getMessage()}]");
-        }
-      }
+      $products = $this->wrappedRequest('AssetPairs');
+      $tradeVolume = $this->wrappedRequest('TradeVolume');
+
       $tradedVolume = $tradeVolume['result']['volume'];
       foreach($products['result'] as $kraken_symbol => $product) {
+
         if (substr($kraken_symbol, -2) == '.d')
           continue;
 
+        $symbols = explode('/',$product['wsname']);
+        $alt = $this->translate2marketName($symbols[0], true);
+        $base = $this->translate2marketName($symbols[1], true);
+
+        //compute fee level
         foreach($product['fees'] as $feesLevel) {
           if ($tradedVolume > $feesLevel[0]) {
             $fees = $feesLevel[1];
@@ -255,10 +235,6 @@ class KrakenApi
           break;
         }
 
-        $alt = self::kraken2crypto($product['base']);
-        $base = self::kraken2crypto($product['quote']);
-        if (!isset($alt) || !isset($base))
-          continue;
         $params = [ 'api' => $this,
                     'alt' => $alt,
                     'base' => $base,
@@ -268,20 +244,30 @@ class KrakenApi
                     'size_decimals' => $product['lot_decimals'],
                     'min_order_size_base' => 0,//??
                     'price_decimals' => $product['pair_decimals'],
-                    'symbol_exchange' => $kraken_symbol,
+                    'exchange_symbol' => $kraken_symbol,
+                    'alt_symbol' => $product['altname'],
                     'ws_name' => $product['wsname'],
                   ];
+
         $product = new Product($params);
-        $list[$product->symbol] = $product;
+        $this->products[$product->symbol] = $product;
 
         if (!isset($this->balances[$alt]))
           $this->balances[$alt] = 0;
         if (!isset($this->balances[$base]))
           $this->balances[$base] = 0;
       }
-      $this->products = $list;
 
-      return $list;
+      return $this->products;
+    }
+
+    function getProductsStr($symbol_list) {
+      $products_str = "";
+      foreach ($symbol_list as $symbol) {
+        $products_str .= "{$this->products[$symbol]->alt_symbol},";
+      }
+      // remove last ,
+      return substr($products_str, 0, strlen($products_str)-1);
     }
 
     function place_order($product, $type, $side, $price, $size, $tradeId)
@@ -460,14 +446,7 @@ class KrakenApi
 
     function getOrderStatus($alt = null, $order_id)
     {
-      $i=0;
-      for ($i=0; $i<5; $i++) {
-        try{
-          $open_orders = $this->jsonRequest('OpenOrders')['result']['open'];
-          break;
-        }catch (Exception $e){usleep(500000); print ("{$this->name}: Failed to get status retrying...$i\n");}
-      }
-
+      $open_orders = $this->wrappedRequest('OpenOrders')['result']['open'];
       if(count($open_orders)) {
         foreach ($open_orders as $id => $open_order) {
           if($id == $order_id) {
@@ -482,14 +461,21 @@ class KrakenApi
    }
    function renewWebsocketToken()
    {
-      $token = $this->jsonRequest('GetWebSocketsToken');
+      $token = $this->wrappedRequest('GetWebSocketsToken');
       $this->websocket_token = $token['result']['token'];
-      print("Kraken: get new websocket token {$this->websocket_token}");
    }
+
    function ping()
    {
-     $ping = $this->jsonRequest('Time');
-     return count($ping['error']) ? false : true;
+      try {
+        $this->wrappedRequest('Time');
+      } catch(KrakenAPIException $e) {
+        if(count($e->data)) {
+          print_dbg($e->data[0], true);
+          return false;
+        }
+     }
+     return true;
    }
 
    //mean api_call_time= 0.34057093024254
@@ -500,13 +486,8 @@ class KrakenApi
        $params['txid'] = $filter['id'];
      }
 
-     $i=0;
-     while($i<8) {
-       try {
-         $trades = $this->jsonRequest('QueryOrders', $params);
-         break;
-       }catch (Exception $e){ $i++; usleep(500000); print_dbg("Failed to getOrdersHistory. [{$e->getMessage()}]..$i");}
-     }
+     $trades = $this->wrappedRequest('QueryOrders', $params);
+
      if(!empty($trades['result'])) {
        foreach($trades['result'] as $idx => $order)
        {
@@ -526,92 +507,120 @@ class KrakenApi
 
    function cancelOrder($product, $orderId)
    {
-     print_dbg($this->name . " canceling order $orderId");
-     $i=0;
-     while($i<10)
-     {
-       try{
-         $ret = $this->jsonRequest('CancelOrder', ['txid' => $orderId]);
-         break;
-       }catch (Exception $e)
-       {
-         print_dbg("Failed to cancel order. [{$e->getMessage()}] retrying...$i");
-         if($e->getMessage() == 'EOrder:Unknown order')
-         {
-           return false;
-         }
-         $i++;
-         sleep(1);
+      print_dbg($this->name . " canceling order $orderId", true);
+      try{
+        $this->wrappedRequest('CancelOrder', ['txid' => $orderId]);
+      }catch (Exception $e)
+      {
+        if($e->getMessage() == 'EOrder:Unknown order')
+        {
+          return false;
+        }
+        throw $e;
+      }
+      return true;
+   }
+
+   function wrappedRequest($method, $request = [])
+   {
+      for($i = 0; $i<10; $i++) {
+        try {
+          $ret = $this->jsonRequest($method, $request);
+          break;
+        }catch (Exception $e) {
+          print_dbg("Kraken: Api method $method failed: [{$e->getMessage()}] retrying...$i", true);
+          usleep(500000);//0.5 sec
+        }
+      }
+      if(count($ret['error'])) {
+        print_dbg("Kraken: Api method $method error: [{$ret['error'][0]}]", true);
+        throw new KrakenAPIException($ret['error'][0], $ret['error']);
+      }
+      return $ret;
+   }
+
+   function refreshTickers($symbol_list)
+   {
+    $str = $this->getProductsStr($symbol_list);
+
+    $tickers = $this->wrappedRequest('Ticker',['pair' => $str]);
+
+    foreach($tickers['result'] as $symbol => $ticker) {
+      //price
+      $book['bids'][0] = $ticker['b'][0];
+      $book['asks'][0] = $ticker['a'][0];
+      //vol
+      $book['bids'][1] = $ticker['b'][2];
+      $book['asks'][1] = $ticker['a'][2];
+
+      $product = getProductByParam($this->products, "exchange_symbol", $symbol);
+      $this->ticker[$product->symbol] = $book;
+    }
+    return $this->ticker;
+   }
+
+   function getTickerOrderBook($product)
+   {
+       foreach (['asks', 'bids'] as $side) {
+          if (!isset($this->ticker[$product->symbol])) {
+            throw new KrakenAPIException("Unknown ticker {$product->symbol}");
+          }
+          $best[$side]['price'] = $best[$side]['order_price'] = floatval($this->ticker[$product->symbol][$side][0]);
+          $best[$side]['size'] = floatval($this->ticker[$product->symbol][$side][1]);
        }
-     }
-     if(isset($ret['error'][0]))
-     {
-       print_dbg("Failed to cancel order. [{$ret['error'][0]}]");
-       return false;
-     }
-     return true;
+       return $best;
    }
 
    function getOrderBook($product, $depth_base = 0, $depth_alt = 0, $use_websockets = true)
    {
-     $file = $this->orderbook_file;
-     $this->using_websockets = false;
-     if (file_exists($file) && $use_websockets) {
-       $book = getWsOrderbook($file, $product);
-       if ($book !== false) {
-         $this->using_websockets = true;
+      $file = $this->orderbook_file;
+      $this->using_websockets = false;
+      if (file_exists($file) && $use_websockets) {
+        $book = getWsOrderbook($file);
+        if (!isset($book[$product->symbol])) {
+          print("$file: Unknown websocket stream $product->symbol \n");
+          $book = false;
+        }
 
-        //  foreach( ['asks', 'bids'] as $side)
-        //  {
-        //    $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0]);
-        //    $best[$side]['size'] = floatval($book[$side][1]);
-        //  }
-        //  return $best;
-       }
-     }
+        if ($book !== false) {
+          $this->using_websockets = true;
+          foreach( ['asks', 'bids'] as $side)
+          {
+            $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$product->symbol][$side][0]);
+            $best[$side]['size'] = floatval($book[$product->symbol][$side][1]);
+          }
+          return $best;
+        }
+      }
+
      if ($this->using_websockets === false) {
-       $i=0;
-       while (true) {
-         try {
-           $book = $this->jsonRequest('Depth',['pair' => $product->symbol_exchange, 'count' => $this->orderbook_depth]);
-           if(count($book['error']))
-             throw new KrakenAPIException($book['error'][0]);
-           $book = $book['result'][$product->symbol_exchange];
-           break;
-         } catch (Exception $e) {
-           if($i > 8)
-             throw new KrakenAPIException("failed to get order book [{$e->getMessage()}]");
-           $i++;
-           print "{$this->name}: failed to get order book. retry $i...\n";
-           usleep(50000);
+         $book = $this->wrappedRequest('Depth', ['pair' => $product->exchange_symbol, 'count' => $this->orderbook_depth]);
+
+         if (!isset($book['asks'], $book['bids'])) {
+             throw new KrakenAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
          }
-       }
-     }
-     if(!isset($book['asks'], $book['bids'])) {
-       throw new KrakenAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
-     }
 
-     foreach( ['asks', 'bids'] as $side)
-     {
-       $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
-       $best[$side]['size'] = floatval($book[$side][0][1]);
-       $i=1;
-       while( (($best[$side]['size'] * $best[$side]['price'] < $depth_base)
-               || ($best[$side]['size'] < $depth_alt) )
-               && $i < $this->orderbook_depth)
-       {
-         if (!isset($book[$side][$i]))
-           break;
+         foreach (['asks', 'bids'] as $side) {
+             $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
+             $best[$side]['size'] = floatval($book[$side][0][1]);
+             $i=1;
+             while ((($best[$side]['size'] * $best[$side]['price'] < $depth_base)
+               || ($best[$side]['size'] < $depth_alt))
+               && $i < $this->orderbook_depth) {
+                 if (!isset($book[$side][$i])) {
+                     break;
+                 }
 
-         $price = floatval($book[$side][$i][0]);
-         $size = floatval($book[$side][$i][1]);
-         $best[$side]['price'] = ($best[$side]['price']*$best[$side]['size'] + $price * $size) / ($size + $best[$side]['size']);
-         $best[$side]['size'] += $size;
-         $best[$side]['order_price'] = $price;
-         $i++;
-       }
+                 $price = floatval($book[$side][$i][0]);
+                 $size = floatval($book[$side][$i][1]);
+                 $best[$side]['price'] = ($best[$side]['price']*$best[$side]['size'] + $price * $size) / ($size + $best[$side]['size']);
+                 $best[$side]['size'] += $size;
+                 $best[$side]['order_price'] = $price;
+                 $i++;
+             }
+         }
      }
-     return $best;
+    return $best;
    }
 
    function toString($float, $prec) {

@@ -33,7 +33,7 @@ $use_websocket = true;
 
 foreach ([$market1, $market2] as $market) {
   while (true) { try {
-      if ($use_websocket) {
+      if ($use_websocket && !($market->api instanceof KrakenApi)) {
         subscribeWsOrderBook($market, $symbol_list, getmypid());
       }
       print "retrieve {$market->api->name} balances\n";
@@ -49,6 +49,11 @@ $last_update = time();
 $loop_begin = microtime(true);
 while(true) {
   if (!$sig_stop) {
+
+    foreach ([$market1, $market2] as $market) {
+      $market->api->refreshTickers($symbol_list);
+    }
+
     foreach( $symbol_list as $symbol) {
       if ($sig_stop) {
         break;
@@ -75,17 +80,8 @@ while(true) {
           }
         }
       }
-      catch (Exception $e)
-      {
-        $err = $e->getMessage();
-        print "$err\n";
-        if (!strpos($err, 'failed to get order book')) {
-          print_dbg($err, true);
-        }
-        try {
-          $market1->getBalance();
-          $market2->getBalance();
-        }catch (Exception $e){}
+      catch (Exception $e) {
+        print "{$e->msg()}\n";
       }
       try {
         while (true) {
@@ -102,20 +98,7 @@ while(true) {
         }
       }
       catch (Exception $e) {
-        $err = $e->getMessage();
-        print "$err\n";
-        if (!strpos($err, 'failed to get order book')) {
-          print_dbg($err, true);
-        }
-        if($e->getMessage() == 'Rest API trading is not enabled.')
-        {
-          sleep(3600);//exchange maintenance ?
-          break;
-        }
-        try {
-          $market1->getBalance();
-          $market2->getBalance();
-        }catch (Exception $e){}
+        print "{$e->msg()}\n";
       }
     }
   } else { //Quit !

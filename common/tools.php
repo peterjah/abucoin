@@ -23,15 +23,16 @@ class Product
     $this->size_decimals = @$params['size_decimals'];
     $this->min_order_size_base = @$params['min_order_size_base'] ?: 0;
     $this->price_decimals = @$params['price_decimals'];
-    $this->symbol_exchange = @$params['symbol_exchange'];
+    $this->exchange_symbol = @$params['exchange_symbol'];
     $this->ws_name = @$params['ws_name'];
+    $this->alt_symbol = @$params['alt_symbol'];
   }
 
   function refreshBook($side, $depth_base = 0, $depth_alt = 0, $use_rest = true)
   {
     $depth_base = max($depth_base, $this->min_order_size_base);
     $depth_alt = max($depth_alt, $this->min_order_size);
-    $book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
+    $book = $this->api->getTickerOrderBook($this);
     if ($side == 'buy' &&
       ($book['asks']['size'] < $depth_alt
       || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {
@@ -56,12 +57,17 @@ class Product
   }
 }
 
-function getProductBySymbol($api, $symbol)
+function getProductByParam($products, $param, $value)
 {
-  foreach($api->products as $product) {
-    if ($product->symbol == $symbol)
-      return $product;
+  foreach($products as $product) {
+    if (isset($product->$param)) {
+      if ($product->$param == $value) {
+        return $product;
+      }
+    } else {
+      new \Exception("Unknown market param\"$param\"");
     }
+  }
 }
 
 class Market
@@ -165,7 +171,7 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
       return $market->api->place_order($product, $type, $side, $price, $size, $arbId);
     }
     catch(Exception $e) {
-       $err = $e->getMessage();
+       $err = $e->msg();
        print_dbg("unable to $side retrying. $i ..: {$err}", true);
        if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance' || $err == 'ERROR: Insufficient Funds.' ||
           $err == 'Account has insufficient balance for requested action.' || $err == 'Order rejected')
@@ -310,7 +316,7 @@ function subscribeWsOrderBook($market, $products_list, $suffix)
   }
 }
 
-function getWsOrderbook($file, $product) {
+function getWsOrderbook($file) {
   $fp = fopen($file, "r");
   flock($fp, LOCK_SH, $wouldblock);
   $orderbook = json_decode(file_get_contents($file), true);
@@ -321,9 +327,5 @@ function getWsOrderbook($file, $product) {
     print("$file orderbook not uptaded since $update_timeout sec. Switching to rest API\n");
     return false;
   }
-  if (!isset($orderbook[$product->symbol])) {
-    print("$file: Unknown websocket stream $product->symbol \n");
-    return false;
-  }
-  return $orderbook[$product->symbol];
+  return $orderbook;
 }
