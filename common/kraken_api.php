@@ -31,7 +31,6 @@ class KrakenApi
     public $balances;
     public $orderbook_file;
     public $orderbook_depth;
-    public $using_websockets;
 
     public function __construct()
     {
@@ -320,7 +319,7 @@ class KrakenApi
             } elseif ($order_canceled  || $status['status'] == 'expired') {
               return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
             } else {
-              throw new Exception("Unable to locate order in history");
+              throw new KrakenAPIException("Unable to locate order in history");
             }
             return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
           }
@@ -328,72 +327,6 @@ class KrakenApi
       }
       throw new KrakenAPIException("websocket place order failed: $error");
     }
-
-    // function place_order($product, $type, $side, $price, $size, $tradeId)
-    // {
-    //   $pair = $product->symbol_exchange;
-
-    //   $order = ['pair' => $pair,
-    //             'type' => $side,
-    //             'ordertype' => $type,
-    //             'volume' => $this->toString($size, $product->size_decimals),
-    //             'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
-    //           ];
-
-    //   if($type == 'limit') {
-    //     $order['price'] = $this->toString($price, $product->price_decimals);
-    //   } else {
-    //     $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
-    //     if ($side == 'buy') {
-    //       $new_price = $book['asks']['order_price'];
-    //       $price_diff = ($new_price / $price) - 1;
-    //     } else {
-    //       $new_price = $book['bids']['order_price'];
-    //       $price_diff = 1 - ($new_price / $price);
-    //     }
-      //   print_dbg("{$this->name}: market offer: $new_price orig price: $price ; diff: $price_diff");
-      //   if($price_diff > 0) {
-      //     print_dbg("{$this->name}: market order failed: real order price is too different from the expected price", true);
-      //     throw new KrakenAPIException('market order failed: real order price is too different from the expected price');
-      //   }
-      // }
-      // $ret = $this->jsonRequest('AddOrder', $order);
-      // print "{$this->name} trade says:\n";
-      // var_dump($ret);
-      // if(count($ret['error'])) {
-      //   print_dbg("{$this->name}: place order failed: {$ret['error'][0]}", true);
-      //   throw new KrakenAPIException($ret['error'][0]);
-      // }
-      // else {
-      //  //give server some time to handle order
-      //  usleep(500000);//0.5 sec
-      //  $order_canceled = false;
-      //  $id = $ret['result']['txid'][0];
-      //  $status = $this->waitForStatus($id);
-
-    //    print_dbg("Order final status: {$status['status']}", true);
-    //    if(empty($status['status']) || $status['status'] == 'open' || $status['status'] == 'expired') {
-    //      $order_canceled = $this->cancelOrder(null, $id);
-    //      $begin = microtime(true);
-    //      while ((empty($status['status']) || $status['status'] == 'open') && (microtime(true) - $begin) < $timeout) {
-    //        $status = $this->getOrdersHistory(['id' => $id]);
-    //        usleep(50000);
-    //      }
-    //    }
-
-    //    print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
-    //    var_dump($status);
-
-    //    if($status['filled'] > 0) {
-    //      $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
-    //    } elseif ($order_canceled  || $status['status'] == 'expired') {
-    //      return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
-    //    } else {
-    //      throw new Exception("Unable to locate order in history");
-    //    }
-    //    return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
-    //   }
-    // }
 
     static function minimumAltTrade($crypto)
     {
@@ -515,7 +448,7 @@ class KrakenApi
         {
           return false;
         }
-        throw $e;
+        throw new KrakenAPIException($e->getMessage());
       }
       return true;
    }

@@ -21,7 +21,6 @@ class BinanceApi
     protected $products;
     public $balances;
     public $orderbook_file;
-    public $using_websockets;
     public $orderbook_depth;
     public $max_price_diff;
 
@@ -323,7 +322,7 @@ class BinanceApi
           return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
         }
         else {
-          throw new Exception("Unable to locate order in history");
+          throw new BinanceAPIException("Unable to locate order in history");
         }
       }
       else
@@ -377,7 +376,7 @@ class BinanceApi
         if($e->getMessage() == 'UNKNOWN_ORDER') {
           return false;
         }
-        throw $e;
+        throw new BinanceAPIException($e->getMessage());
       }
       return true;
     }
