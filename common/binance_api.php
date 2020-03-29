@@ -311,7 +311,6 @@ class BinanceApi
           print_dbg("Final check status: {$status['status']} $side $alt filled:{$status['filled']}", true);
           var_dump($status);
           $filled_size = $status['filled'];
-          $filled_base = $status['filled_base'];
           $price = $status['price'];
         }
         if ($filled_size > 0) {
@@ -335,7 +334,11 @@ class BinanceApi
       $base = $product->base;
       print("saving trade\n");
       $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price $base\n";
-      file_put_contents('trades',$trade_str,FILE_APPEND);
+      $fp = fopen(TRADE_FILE, "r");
+      flock($fp, LOCK_SH, $wouldblock);
+      file_put_contents(TRADE_FILE, $trade_str, FILE_APPEND);
+      flock($fp, LOCK_UN);
+      fclose($fp);
     }
 
     function getOrderStatus($product, $orderId)

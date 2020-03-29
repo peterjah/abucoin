@@ -168,10 +168,9 @@ function testSwap($symbol, $buy_market, $sell_market)
   $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $trade_size);
 
   //swap conditions
-  if ($expected_gains['percent'] > BUY_TRESHOLD ||
-      ($get_base_market && ($expected_gains['base'] >= 0)) ) {
-      $arbitrage_logs = [];
+  if ($expected_gains['percent'] > BUY_TRESHOLD || ($get_base_market && ($expected_gains['base'] >= 0)) ) {
 
+      $arbitrage_logs = [];
       $arbId = substr($sell_market->api->name, 0, 2) . substr($buy_market->api->name, 0, 2) . '_' . number_format(microtime(true) * 100, 0, '.', '');
       print_dbg("\n Arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."%");
       print_dbg("SELL $trade_size $alt on {$sell_market->api->name} at $sell_price, orderPrice: $sell_order_price ordersize: {$sell_book['bids']['size']}", true);

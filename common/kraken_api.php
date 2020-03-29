@@ -23,14 +23,9 @@ class KrakenApi
     protected $key;     // API key
     protected $secret;  // API secret
     protected $curl;    // curl handle
-    public $api_calls_rate;
     protected $api_calls;
     protected $time;
-    public $name;
     protected $products;
-    public $balances;
-    public $orderbook_file;
-    public $orderbook_depth;
 
     public function __construct()
     {
@@ -207,7 +202,11 @@ class KrakenApi
       $base = $product->base;
       print("saving trade\n");
       $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price $base\n";
-      file_put_contents('trades',$trade_str,FILE_APPEND);
+      $fp = fopen(TRADE_FILE, "r");
+      flock($fp, LOCK_SH, $wouldblock);
+      file_put_contents(TRADE_FILE, $trade_str, FILE_APPEND);
+      flock($fp, LOCK_UN);
+      fclose($fp);
     }
 
     function getProductList($base = null)
