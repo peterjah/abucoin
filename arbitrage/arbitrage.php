@@ -93,7 +93,8 @@ while(true) {
   }
 
   $btc_cash_roll = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
-  print "~~~~ ".date("Y-m-d H:i:s")." ~~~~~\n\n";
+
+  print "~~~~ ".date_create_from_format( 'U.u', number_format(microtime(true), 6, '.', ''))->format('Y-m-d H:i:s.u')." ~~~~~\n\n";
   foreach($profits as $base => $profit) {
     print "~~~~cumulated gain: $profit $base~~~~~\n\n";
   }
