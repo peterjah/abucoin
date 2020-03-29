@@ -595,7 +595,7 @@ class KrakenApi
      if ($this->using_websockets === false) {
          $book = $this->wrappedRequest('Depth', ['pair' => $product->exchange_symbol, 'count' => $this->orderbook_depth]);
 
-         $book = $book['result'][$product->symbol_exchange];
+         $book = $book['result'][$product->exchange_symbol];
          if (!isset($book['asks'], $book['bids'])) {
              throw new KrakenAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
          }
