@@ -488,7 +488,9 @@ class KrakenApi
       $book['asks'][1] = $ticker['a'][2];
 
       $product = getProductByParam($this->products, "exchange_symbol", $symbol);
-      $this->ticker[$product->symbol] = $book;
+      if (isset($product)) {
+        $this->ticker[$product->symbol] = $book;
+      }
     }
     return $this->ticker;
    }

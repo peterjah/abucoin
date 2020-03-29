@@ -67,7 +67,7 @@ class BinanceApi
         $this->time = $now;
       }
 
-      $public_set = array( 'v3/depth', 'v3/exchangeInfo', 'v3/ping');
+      $public_set = array( 'v3/depth', 'v3/exchangeInfo', 'v3/ping', 'v3/ticker/bookTicker');
 
       $opt = $this->default_curl_opt;
       $url = self::API_URL . $path;
@@ -163,6 +163,7 @@ class BinanceApi
                       'alt' => $alt,
                       'base' => $base,
                       'fees' => 0.075,
+                      'exchange_symbol' => $product['symbol'],
                     ];
           foreach($product['filters'] as $filter) {
             if ($filter['filterType'] == 'PRICE_FILTER') {
@@ -192,7 +193,24 @@ class BinanceApi
 
     function refreshTickers($symbol_list)
     {
-      $this->ticker = getWsOrderbook($this->orderbook_file);
+      if( !isset($this->ticker)) {
+        $tickers = $this->wrappedRequest('GET', 'v3/ticker/bookTicker');
+
+        foreach($tickers as $ticker) {
+          //price
+          $book['bids'][0] = $ticker['bidPrice'];
+          $book['asks'][0] = $ticker['askPrice'];
+          //vol
+          $book['bids'][1] = $ticker['bidQty'];
+          $book['asks'][1] = $ticker['askQty'];
+
+          $product = getProductByParam($this->products, "exchange_symbol", $ticker['symbol']);
+          if (isset($product)) {
+            $this->ticker[$product->symbol] = $book;
+          }
+        }
+      }
+      $this->ticker = array_merge($this->ticker, getWsOrderbook($this->orderbook_file));
       return $this->ticker;
     }
 

@@ -69,6 +69,7 @@ function getProductByParam($products, $param, $value)
       new \Exception("Unknown market param\"$param\"");
     }
   }
+  return null;
 }
 
 class Market
