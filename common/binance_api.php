@@ -192,8 +192,7 @@ class BinanceApi
 
     function refreshTickers($symbol_list)
     {
-      $file = $this->orderbook_file;
-      $this->ticker = getWsOrderbook($file);
+      $this->ticker = getWsOrderbook($this->orderbook_file);
       return $this->ticker;
     }
 

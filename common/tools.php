@@ -137,19 +137,20 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
     $product = $toSell ? $sell_product : $buy_product;
     $opProduct = $toSell ? $buy_product : $sell_product;
     $market = $toSell ? $sell_market : $buy_market;
-    if ($status[$side]['filled_size'] == 0 && $filled > 0) {
-      $book = $market->api->getOrderBook($product, $product->min_order_size_base, $filled, false);
+    if ($status[$side]['filled_size'] < $filled ) {
+      $size = $filled - $status[$side]['filled_size'];
+      $book = $market->api->getOrderBook($product, $product->min_order_size_base, $size, false);
       if($toSell) {
         $new_price = $book['bids']['price'];
-        $expected_gains = computeGains($status[$opSide]['price'], $opProduct->fees, $new_price, $product->fees, $filled);
+        $expected_gains = computeGains($status[$opSide]['price'], $opProduct->fees, $new_price, $product->fees, $size);
       } else {
         $new_price = $book['asks']['price'];
-        $expected_gains = computeGains($new_price, $product->fees, $status[$opSide]['price'], $opProduct->fees, $filled);
+        $expected_gains = computeGains($new_price, $product->fees, $status[$opSide]['price'], $opProduct->fees, $size);
       }
-      print_dbg("last chance to $side $alt at $new_price... expected gains: {$expected_gains["base"]} $base {$expected_gains["percent"]}%", true);
+      print_dbg("last chance to $side $size $alt at $new_price... expected gains: {$expected_gains["base"]} $base {$expected_gains["percent"]}%", true);
       if ($expected_gains['percent'] >= (-1 * LOSS_TRESHOLD)) {
         print_dbg("retrying to $side $alt at $new_price", true);
-        $status[$side] = place_order($market, 'limit', $symbol, $side, $new_price, $filled, $arbId);
+        $status[$side] = place_order($market, 'limit', $symbol, $side, $new_price, $size, $arbId);
         print "$side {$status[$side]['filled_size']} $alt on {$market->api->name} at {$status[$side]['price']}\n";
       }
       unlink($market->api->orderbook_file);
@@ -294,7 +295,6 @@ function get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book
 
 function subscribeWsOrderBook($market, $products_list, $suffix)
 {
-
   $websocket_script = "../common/".strtolower($market->api->name)."_websockets.php";
   if (file_exists($websocket_script)) {
     print ("Subscribing {$market->api->name} Orderbook WS feed\n");
@@ -324,8 +324,7 @@ function getWsOrderbook($file) {
   fclose($fp);
   $update_timeout = 30;
   if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
-    print("$file orderbook not uptaded since $update_timeout sec. Switching to rest API\n");
-    return false;
+    throw new \Exception("$file orderbook not uptaded since $update_timeout sec. Switching to rest API");
   }
   return $orderbook;
 }

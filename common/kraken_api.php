@@ -312,7 +312,7 @@ class KrakenApi
               }
             }
             
-            print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']}");
+            print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']} @ {$status['price']} $product->base");
             var_dump($status);
       
             if($status['filled'] > 0) {
@@ -478,7 +478,6 @@ class KrakenApi
      return true;
    }
 
-   //mean api_call_time= 0.34057093024254
    function getOrdersHistory($filter = null)
    {
      $params = [];
@@ -596,6 +595,7 @@ class KrakenApi
      if ($this->using_websockets === false) {
          $book = $this->wrappedRequest('Depth', ['pair' => $product->exchange_symbol, 'count' => $this->orderbook_depth]);
 
+         $book = $book['result'][$product->symbol_exchange];
          if (!isset($book['asks'], $book['bids'])) {
              throw new KrakenAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
          }
