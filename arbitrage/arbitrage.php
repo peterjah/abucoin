@@ -49,57 +49,40 @@ $last_update = time();
 $loop_begin = microtime(true);
 while(true) {
   if (!$sig_stop) {
+    try {
+        foreach ([$market1, $market2] as $market) {
+            $market->api->refreshTickers($symbol_list);
+        }
 
-    foreach ([$market1, $market2] as $market) {
-      $market->api->refreshTickers($symbol_list);
+        foreach ($symbol_list as $symbol) {
+            if ($sig_stop) {
+                break;
+            }
+            try {
+                print "Testing $symbol trade\n";
+                for($i=0;$i++;$i<2) {
+                  while (true) {
+                      $status = [];
+                      $buy_market = $i % 2 ? $market2 : $market1;
+                      $sell_market = $i % 2 ? $market1 : $market2;
+
+                      $status = testSwap($symbol, $buy_market, $sell_market);
+                      if (empty($status) || $status['final_gains']['base'] <= 0) {
+                          break;
+                      } else {
+                          print "second book refresh\n";
+                          $base = $market1->products[$symbol]->base;
+                          $profits[$base] += $status['final_gains']['base'];
+                      }
+                  }
+                }
+            } catch (Exception $e) {
+                print_dbg("{$e->msg()}", true);
+            }
+        }
     }
-
-    foreach( $symbol_list as $symbol) {
-      if ($sig_stop) {
-        break;
-      }
-      print "Testing $symbol trade\n";
-      $product1 = $market1->products[$symbol];
-      $product2 = $market2->products[$symbol];
-      $alt = $product1->alt;
-      $base = $product1->base;
-      $min_order_size_base = max($product1->min_order_size_base, $product2->min_order_size_base);
-      $min_order_size_alt = max($product1->min_order_size, $product2->min_order_size);
-      try {
-        while (true) {
-          $status = [];
-          if ($market2->api->balances[$alt] > $min_order_size_alt && $market1->api->balances[$base] > $min_order_size_base) {
-            $status = testSwap($symbol, $market1/*buy*/, $market2/*sell*/);
-          }
-          if(empty($status) || $status['final_gains']['base'] <= 0) {
-            break;
-          }
-          else {
-            print "second book refresh\n";
-            $profits[$base] += $status['final_gains']['base'];
-          }
-        }
-      }
-      catch (Exception $e) {
-        print "{$e->msg()}\n";
-      }
-      try {
-        while (true) {
-          $status = [];
-          if ($market1->api->balances[$alt] > $min_order_size_alt && $market2->api->balances[$base] > $min_order_size_base) {
-            $status = testSwap($symbol, $market2/*buy*/, $market1/*sell*/);
-          }
-          if(empty($status) || $status['final_gains']['base'] <= 0) {
-            break;
-          }
-          else {
-            $profits[$base] += $status['final_gains']['base'];
-          }
-        }
-      }
-      catch (Exception $e) {
-        print "{$e->msg()}\n";
-      }
+    catch (Exception $e) {
+      print_dbg("{$e->msg()}", true);
     }
   } else { //Quit !
     foreach ([$market1, $market2] as $market) {
