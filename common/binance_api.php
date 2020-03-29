@@ -138,7 +138,7 @@ class BinanceApi
        return $ret;
     }
 
-    function getBalance($alt = null)
+    function getBalance()
     {
       $res = [];
       $balances = $this->wrappedRequest('GET', "v3/account");
@@ -148,9 +148,7 @@ class BinanceApi
         $res[$crypto] = $this->balances[$crypto] = floatval($bal['free']);
       }
 
-      if($alt != null)
-       return $res[$alt];
-      else return $res;
+      return $res;
     }
 
     function getProductList()
@@ -218,7 +216,7 @@ class BinanceApi
       $book = $this->wrappedRequest('GET', 'v3/depth', ['symbol' => $symbol, 'limit' => $this->orderbook_depth]);
 
       if(!isset($book['asks'], $book['bids'])) {
-        throw new BinanceAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
+        throw new BinanceAPIException("failed to get order book with rest api");
       }
 
       foreach( ['asks', 'bids'] as $side)

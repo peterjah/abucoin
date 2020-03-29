@@ -29,17 +29,17 @@ $profits = [];
 
 $symbol_list = getCommonProducts($market1, $market2);
 
-$use_websocket = true;
-
 foreach ([$market1, $market2] as $market) {
-  while (true) { try {
-      if ($use_websocket && !($market->api instanceof KrakenApi)) {
-        subscribeWsOrderBook($market, $symbol_list, getmypid());
+  while (true) {
+    try {
+      $name = $market->api->name;
+      if ($name === "Binance") {
+        $market->api->orderbook_file = subscribeWsOrderBook($name, $symbol_list, $market->api->orderbook_depth);
       }
-      print "retrieve {$market->api->name} balances\n";
-      $market->getBalance();
       break;
-    } catch (Exception $e) {}
+    } catch (Exception $e) {
+      handleExeption($e);
+    }
   }
 }
 
@@ -77,12 +77,12 @@ while(true) {
                   }
                 }
             } catch (Exception $e) {
-                print_dbg("{$e->msg()}", true);
+              handleExeption($e);
             }
         }
     }
     catch (Exception $e) {
-      print_dbg("{$e->msg()}", true);
+      handleExeption($e);
     }
   } else { //Quit !
     foreach ([$market1, $market2] as $market) {
@@ -113,6 +113,7 @@ while(true) {
   }
   $loop_begin = microtime(true);
 
+  // time recurent tasks
   if( time() - $last_update > 60/*sec*/) {
     try {
       foreach([$market1, $market2] as $market) {
@@ -123,22 +124,21 @@ while(true) {
         $market->getBalance();
         //refresh product infos
         $market->updateProductList();
-      }
-    } catch (Exception $e){}
-    $last_update = time();
 
-    foreach ([$market1, $market2] as $market) {
-      if($market->api instanceof KrakenApi) {
-        print "Renew kraken websocket auth token\n";
-        $market->api->renewWebsocketToken();
+        if($market->api instanceof KrakenApi) {
+          print "Renew kraken websocket auth token\n";
+          $market->api->renewWebsocketToken();
+        }
       }
+    } catch (Exception $e){
+      handleExeption($e);
     }
+    $last_update = time();
   }
 }
 
 function testSwap($symbol, $buy_market, $sell_market)
 {
-  $arbitrage_logs = [];
   $buy_product = $buy_market->products[$symbol];
   $sell_product = $sell_market->products[$symbol];
   $alt = $buy_product->alt;
@@ -160,23 +160,21 @@ function testSwap($symbol, $buy_market, $sell_market)
   }
   $trade_size = get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book);
 
-  if ($trade_size > 0) {
-    $sell_price = $sell_book['bids']['price'];
-    $sell_order_price = truncate($sell_book['bids']['order_price'], $sell_product->price_decimals);
-    $buy_price = $buy_book['asks']['price'];
-    $buy_order_price = truncate($buy_book['asks']['order_price'], $buy_product->price_decimals);
+  if ($trade_size <= 0) {
+    return [];
+  }
 
-    $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $trade_size);
-    //swap conditions
-    $do_swap = false;
-    if ($expected_gains['percent'] > BUY_TRESHOLD ||
-       ($get_base_market && ($expected_gains['base'] >= 0)) ) {
-         $do_swap = true;
-    }
+  $sell_price = $sell_book['bids']['price'];
+  $sell_order_price = truncate($sell_book['bids']['order_price'], $sell_product->price_decimals);
+  $buy_price = $buy_book['asks']['price'];
+  $buy_order_price = truncate($buy_book['asks']['order_price'], $buy_product->price_decimals);
 
-    if ($do_swap) {
-      $buy_market->getBalance();
-      $sell_market->getBalance();
+  $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $trade_size);
+  //swap conditions
+  if ($expected_gains['percent'] > BUY_TRESHOLD ||
+      ($get_base_market && ($expected_gains['base'] >= 0)) ) {
+      $arbitrage_logs = [];
+
       $arbId = substr($sell_market->api->name, 0, 2) . substr($buy_market->api->name, 0, 2) . '_' . number_format(microtime(true) * 100, 0, '.', '');
       print_dbg("\n Arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."%");
       print_dbg("SELL $trade_size $alt on {$sell_market->api->name} at $sell_price, orderPrice: $sell_order_price ordersize: {$sell_book['bids']['size']}", true);
@@ -225,7 +223,17 @@ function testSwap($symbol, $buy_market, $sell_market)
           $sell_market->api->balances[$base] += $filled_sell * $status['sell']['price'];
           $sell_market->api->balances[$alt] -= $filled_sell;
       }
-    }
+      return $arbitrage_logs;
+  } else {
+    return [];
   }
-  return $arbitrage_logs;
+}
+
+function handleExeption($e) {
+  if (method_exists($e, 'msg')) {
+    print_dbg("{$e->msg()}", true);
+  } else {
+    print_dbg("{$e->getMessage()}", true);
+  }
+  usleep(100000);//0.1s
 }

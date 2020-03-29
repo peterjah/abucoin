@@ -38,7 +38,7 @@ class Product
       || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {
         print("ticker size is too low\n");
         if ($use_rest) {
-            return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
+            return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
         }
         return false;
     }
@@ -48,7 +48,7 @@ class Product
     || ($book['bids']['size'] * $book['bids']['price']) < $depth_base)) {
       print("ticker size is too low\n");
       if ($use_rest) {
-          return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt, false);
+          return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
       }
       return false;
     }
@@ -83,10 +83,12 @@ class Market
     else throw new \Exception("Unknown market \"$market_name\"");
 
     $this->updateProductList();
+
+    $this->getBalance();
   }
 
   function getBalance() {
-    return $this->api->getBalance(null, false);
+    return $this->api->getBalance();
   }
 
   function updateProductList() {
@@ -127,6 +129,9 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
     $status['buy'] = ['filled_size' => 0, 'price' => 0];
   } else {
     preg_match('/^(.*): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) ([.-E0-]+) ([A-Z]+) at ([.-E0-]+) ([A-Z]+)$/',$grep, $matches);
+    if (count($matches) !== 10) {
+      print_dbg("Invalid match count...",true);
+    }
     $status['buy'] = ['filled_size' => $matches[6], 'price' => $matches[8]];
   }
 
@@ -139,7 +144,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
     $market = $toSell ? $sell_market : $buy_market;
     if ($status[$side]['filled_size'] < $filled ) {
       $size = $filled - $status[$side]['filled_size'];
-      $book = $market->api->getOrderBook($product, $product->min_order_size_base, $size, false);
+      $book = $market->api->getOrderBook($product, $product->min_order_size_base, $size);
       if($toSell) {
         $new_price = $book['bids']['price'];
         $expected_gains = computeGains($status[$opSide]['price'], $opProduct->fees, $new_price, $product->fees, $size);
@@ -296,26 +301,21 @@ function get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book
   return $trade_size;
 }
 
-function subscribeWsOrderBook($market, $products_list, $suffix)
+function subscribeWsOrderBook($market_name, $symbol_list, $depth)
 {
-  $websocket_script = "../common/".strtolower($market->api->name)."_websockets.php";
+  $websocket_script = "../common/".strtolower($market_name)."_websockets.php";
   if (file_exists($websocket_script)) {
-    print ("Subscribing {$market->api->name} Orderbook WS feed\n");
-    $market->api->orderbook_file  = "{$market->api->name}_orderbook_{$suffix}.json";
-    $products_str = '';
-    $idx = 1;
-    foreach ($products_list as $symbol) {
-      $product = $market->products[$symbol];
-      $products_str .= $product->alt . "-" . $product->base;
-      if ($idx != count($products_list) )
-        $products_str .= ',';
-      $idx++;
-    }
-    $cmd = "nohup php ../common/".strtolower($market->api->name)."_websockets.php --file {$market->api->orderbook_file} --cmd getOrderBook \
-           --products {$products_str} --bookdepth {$market->api->orderbook_depth} >/dev/null 2>&1 &";
+    $suffix = getmypid();
+    print ("Subscribing {$market_name} Orderbook WS feed\n");
+    $orderbook_file  = "{$market_name}_orderbook_{$suffix}.json";
+    $products_str = implode(",", $symbol_list);
+
+    $cmd = "nohup php ../common/".strtolower($market_name)."_websockets.php --file {$orderbook_file} --cmd getOrderBook \
+           --products $products_str --bookdepth $depth >/dev/null 2>&1 &";
     print ("$cmd\n");
     shell_exec($cmd);
     sleep(1);
+    return $orderbook_file;
   }
 }
 

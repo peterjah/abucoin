@@ -573,57 +573,35 @@ class KrakenApi
        return $best;
    }
 
-   function getOrderBook($product, $depth_base = 0, $depth_alt = 0, $use_websockets = true)
+   function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
    {
-      $file = $this->orderbook_file;
-      $this->using_websockets = false;
-      if (file_exists($file) && $use_websockets) {
-        $book = getWsOrderbook($file);
-        if (!isset($book[$product->symbol])) {
-          print("$file: Unknown websocket stream $product->symbol \n");
-          $book = false;
+        $book = $this->wrappedRequest('Depth', ['pair' => $product->exchange_symbol, 'count' => $this->orderbook_depth]);
+
+        $book = $book['result'][$product->exchange_symbol];
+        if (!isset($book['asks'], $book['bids'])) {
+            throw new KrakenAPIException("failed to get order book with rest api");
         }
 
-        if ($book !== false) {
-          $this->using_websockets = true;
-          foreach( ['asks', 'bids'] as $side)
-          {
-            $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$product->symbol][$side][0]);
-            $best[$side]['size'] = floatval($book[$product->symbol][$side][1]);
-          }
-          return $best;
+        foreach (['asks', 'bids'] as $side) {
+            $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
+            $best[$side]['size'] = floatval($book[$side][0][1]);
+            $i=1;
+            while ((($best[$side]['size'] * $best[$side]['price'] < $depth_base)
+              || ($best[$side]['size'] < $depth_alt))
+              && $i < $this->orderbook_depth) {
+                if (!isset($book[$side][$i])) {
+                    break;
+                }
+
+                $price = floatval($book[$side][$i][0]);
+                $size = floatval($book[$side][$i][1]);
+                $best[$side]['price'] = ($best[$side]['price']*$best[$side]['size'] + $price * $size) / ($size + $best[$side]['size']);
+                $best[$side]['size'] += $size;
+                $best[$side]['order_price'] = $price;
+                $i++;
+            }
         }
-      }
-
-     if ($this->using_websockets === false) {
-         $book = $this->wrappedRequest('Depth', ['pair' => $product->exchange_symbol, 'count' => $this->orderbook_depth]);
-
-         $book = $book['result'][$product->exchange_symbol];
-         if (!isset($book['asks'], $book['bids'])) {
-             throw new KrakenAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
-         }
-
-         foreach (['asks', 'bids'] as $side) {
-             $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
-             $best[$side]['size'] = floatval($book[$side][0][1]);
-             $i=1;
-             while ((($best[$side]['size'] * $best[$side]['price'] < $depth_base)
-               || ($best[$side]['size'] < $depth_alt))
-               && $i < $this->orderbook_depth) {
-                 if (!isset($book[$side][$i])) {
-                     break;
-                 }
-
-                 $price = floatval($book[$side][$i][0]);
-                 $size = floatval($book[$side][$i][1]);
-                 $best[$side]['price'] = ($best[$side]['price']*$best[$side]['size'] + $price * $size) / ($size + $best[$side]['size']);
-                 $best[$side]['size'] += $size;
-                 $best[$side]['order_price'] = $price;
-                 $i++;
-             }
-         }
-     }
-    return $best;
+        return $best;
    }
 
    function toString($float, $prec) {
