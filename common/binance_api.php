@@ -119,13 +119,16 @@ class BinanceApi
 
     function wrappedRequest($method, $path, $params = [])
     {
-       for($i = 0; $i<10; $i++) {
+       for($i = 0; $i<=10; $i++) {
          try {
            $ret = $this->jsonRequest($method, $path, $params);
            break;
          }catch (Exception $e) {
            print_dbg("Binance: Api method $method failed: [{$e->getMessage()}] retrying...$i", true);
            usleep(500000);//0.5 sec
+           if ($i === 10) {
+            throw new BinanceAPIException($e->getMessage());
+          }
          }
        }
        if(isset($ret['error'])) {

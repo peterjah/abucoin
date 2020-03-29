@@ -147,6 +147,9 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
         $new_price = $book['asks']['price'];
         $expected_gains = computeGains($new_price, $product->fees, $status[$opSide]['price'], $opProduct->fees, $size);
       }
+      $base_bal = $market->api->balances[$base];
+      $size = min(truncate($base_bal / ($new_price * (1 + $product->fees/100)) , $product->size_decimals), $size);
+
       print_dbg("last chance to $side $size $alt at $new_price... expected gains: {$expected_gains["base"]} $base {$expected_gains["percent"]}%", true);
       if ($expected_gains['percent'] >= (-1 * LOSS_TRESHOLD)) {
         print_dbg("retrying to $side $alt at $new_price", true);
