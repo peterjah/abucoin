@@ -455,16 +455,16 @@ class KrakenApi
 
    function wrappedRequest($method, $request = [])
    {
-      for($i = 0; $i<=10; $i++) {
+     $retry = 6;
+      for($i = 0; $i<=$retry; $i++) {
         try {
           $ret = $this->jsonRequest($method, $request);
           break;
         }catch (Exception $e) {
-          print_dbg("Kraken: Api method $method failed: [{$e->getMessage()}] retrying...$i", true);
-          usleep(500000);//0.5 sec
-          if ($i === 10) {
+          if ($i === $retry) {
             throw new KrakenAPIException($e->getMessage());
           }
+          usleep(500000);//0.5 sec
         }
       }
       if(count($ret['error'])) {
