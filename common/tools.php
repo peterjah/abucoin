@@ -327,7 +327,7 @@ function getWsOrderbook($file) {
   fclose($fp);
   $update_timeout = 30;
   if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
-    throw new \Exception("$file orderbook not uptaded since $update_timeout sec. Switching to rest API");
+    throw new \Exception("$file orderbook not uptaded since $update_timeout sec");
   }
   return $orderbook;
 }

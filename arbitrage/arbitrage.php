@@ -60,17 +60,15 @@ while(true) {
             }
             try {
                 print "Testing $symbol trade\n";
-                for($i=0;$i++;$i<2) {
+                for($i=0; $i<2; $i++) {
                   while (true) {
                       $status = [];
                       $buy_market = $i % 2 ? $market2 : $market1;
                       $sell_market = $i % 2 ? $market1 : $market2;
-
                       $status = testSwap($symbol, $buy_market, $sell_market);
                       if (empty($status) || $status['final_gains']['base'] <= 0) {
                           break;
                       } else {
-                          print "second book refresh\n";
                           $base = $market1->products[$symbol]->base;
                           $profits[$base] += $status['final_gains']['base'];
                       }
@@ -168,6 +166,7 @@ function testSwap($symbol, $buy_market, $sell_market)
   $buy_order_price = truncate($buy_book['asks']['order_price'], $buy_product->price_decimals);
 
   $expected_gains = computeGains($buy_price, $buy_fees, $sell_price, $sell_fees, $trade_size);
+
   //swap conditions
   if ($expected_gains['percent'] > BUY_TRESHOLD ||
       ($get_base_market && ($expected_gains['base'] >= 0)) ) {
