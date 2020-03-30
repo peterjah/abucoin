@@ -14,7 +14,6 @@ function sig_handler($sig) {
 }
 pcntl_signal(SIGINT,  "sig_handler");
 pcntl_signal(SIGTERM, "sig_handler");
-$sig_stop = false;
 
 @define('GAINS_FILE', 'gains.json');
 if(!file_exists(GAINS_FILE))
@@ -45,6 +44,7 @@ foreach ([$market1, $market2] as $market) {
 
 $btc_start_cash = $market1->api->balances['BTC'] + $market2->api->balances['BTC'];
 
+$sig_stop = false;
 $last_update = time();
 $loop_begin = microtime(true);
 while(true) {

@@ -131,8 +131,8 @@ class BinanceApi
          }
        }
        if(isset($ret['error'])) {
-         print_dbg("Binance: Api method $method error: [{$ret['error'][0]}]", true);
-         throw new BinanceAPIException($ret['error'][0], $ret['error']);
+         print_dbg("Binance: Api method $method $path error: [{$ret['error']}]", true);
+         throw new BinanceAPIException($ret['error'], $ret);
        }
        return $ret;
     }
@@ -193,7 +193,7 @@ class BinanceApi
 
     function refreshTickers($symbol_list)
     {
-      if( !isset($this->ticker)) {
+      if(!isset($this->ticker)) {
         $tickers = $this->wrappedRequest('GET', 'v3/ticker/bookTicker');
 
         foreach($tickers as $ticker) {
