@@ -1,6 +1,11 @@
 <?php
 
 class BinanceAPIException extends ErrorException {
+  public function __construct($msg, $data = null)
+  {
+    parent::__construct($msg);
+    $this->data = $data;
+  }
   public function msg() {
     return "Binance error: {$this->getMessage()}";
   }
