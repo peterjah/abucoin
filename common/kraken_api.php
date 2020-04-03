@@ -202,11 +202,7 @@ class KrakenApi
       $base = $product->base;
       print("saving trade\n");
       $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price $base\n";
-      $fp = fopen(TRADE_FILE, "r");
-      flock($fp, LOCK_SH, $wouldblock);
-      file_put_contents(TRADE_FILE, $trade_str, FILE_APPEND);
-      flock($fp, LOCK_UN);
-      fclose($fp);
+      file_put_contents(TRADE_FILE, $trade_str, FILE_APPEND | LOCK_EX);
     }
 
     function getProductList($base = null)
@@ -268,7 +264,7 @@ class KrakenApi
       return substr($products_str, 0, strlen($products_str)-1);
     }
 
-    function place_order($product, $type, $side, $price, $size, $tradeId)
+    function place_order($product, $type, $side, $price, $size, $tradeId, $saveTrade = true)
     {
       $client = new Client(WSS_AUTH_URL, ['timeout' => 60]);
       $error = "";
@@ -313,7 +309,7 @@ class KrakenApi
             print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']} @ {$status['price']} $product->base");
             var_dump($status);
       
-            if($status['filled'] > 0) {
+            if($status['filled'] > 0 && $saveTrade) {
               $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
             } elseif ($order_canceled  || $status['status'] == 'expired') {
               return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];

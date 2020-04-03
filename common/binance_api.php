@@ -268,7 +268,7 @@ class BinanceApi
     }
 
 
-    function place_order($product, $type, $side, $price, $size, $tradeId)
+    function place_order($product, $type, $side, $price, $size, $tradeId, $saveTrade = true)
     {
       $alt = $product->alt;
       $base = $product->base;
@@ -337,7 +337,9 @@ class BinanceApi
           $price = $status['price'];
         }
         if ($filled_size > 0) {
-          $this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
+          if ($saveTrade) {
+            $this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
+          }
           return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $price*$filled_size, 'price' => $price];
         }
         elseif ($order_canceled) {
@@ -357,11 +359,7 @@ class BinanceApi
       $base = $product->base;
       print("saving trade\n");
       $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price $base\n";
-      $fp = fopen(TRADE_FILE, "r");
-      flock($fp, LOCK_SH, $wouldblock);
-      file_put_contents(TRADE_FILE, $trade_str, FILE_APPEND);
-      flock($fp, LOCK_UN);
-      fclose($fp);
+      file_put_contents(TRADE_FILE, $trade_str, FILE_APPEND | LOCK_EX);
     }
 
     function getOrderStatus($product, $orderId)

@@ -266,9 +266,9 @@ function markSolved($ids)
     $fp = fopen(TRADES_FILE, "r");
     flock($fp, LOCK_SH, $wouldblock);
     $data = file_get_contents(TRADES_FILE);
+    file_put_contents(TRADES_FILE, str_replace($id, 'solved', $data), LOCK_EX);
     flock($fp, LOCK_UN);
     fclose($fp);
-    file_put_contents(TRADES_FILE, str_replace($id, 'solved', $data), LOCK_EX);
   }
 }
 
