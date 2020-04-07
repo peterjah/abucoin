@@ -191,7 +191,7 @@ function processFailedTrades($markets, $symbol, $ops)
     foreach($ops as $id => $op) {
       if ($op['side'] != $side)
         continue;
-      if(isset($markets[$op['exchange']])){
+      if(isset($markets[strtolower($op['exchange'])])){
         $market = $markets[$op['exchange']];
         $product = @$market->products[$symbol];
         $fees = @$product->fees;
@@ -263,10 +263,9 @@ function markSolved($ids)
 {
   foreach($ids as $id ) {
     print "mark $id solved\n";
-    $fp = fopen(TRADES_FILE, "r");
-    flock($fp, LOCK_SH, $wouldblock);
-    $data = file_get_contents(TRADES_FILE);
-    file_put_contents(TRADES_FILE, str_replace($id, 'solved', $data), LOCK_EX);
+    $fp = fopen(TRADES_FILE, "r+");
+    flock($fp, LOCK_EX, $wouldblock);
+    file_put_contents(TRADES_FILE, str_replace($id, 'solved', file_get_contents(TRADES_FILE)));
     flock($fp, LOCK_UN);
     fclose($fp);
   }
@@ -281,13 +280,14 @@ function save_trade($alt, $base, $side, $size, $price)
 
 function save_gain($arbitrage_log)
 {
-  $fp = fopen(GAINS_FILE, "r");
-  flock($fp, LOCK_SH, $wouldblock);
+  $fp = fopen(GAINS_FILE, "r+");
+  flock($fp, LOCK_EX, $wouldblock);
   $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
+  $gains_logs['arbitrages'][] = $arbitrage_log;
+  file_put_contents(GAINS_FILE, json_encode($gains_logs));
   flock($fp, LOCK_UN);
   fclose($fp);
-  $gains_logs['arbitrages'][] = $arbitrage_log;
-  file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
+
 }
 
 function parseTradeFile()
@@ -301,7 +301,7 @@ function parseTradeFile()
       if(count($matches) == 10) {
         $date = $matches[1];
         $OpId = $matches[2];
-        $exchange = strtolower($matches[3]);
+        $exchange = $matches[3];
         $trade_id = $matches[4];
         $side = $matches[5];
         $size = floatval($matches[6]);
