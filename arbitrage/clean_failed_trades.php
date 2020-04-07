@@ -191,8 +191,9 @@ function processFailedTrades($markets, $symbol, $ops)
     foreach($ops as $id => $op) {
       if ($op['side'] != $side)
         continue;
-      if(isset($markets[strtolower($op['exchange'])])){
-        $market = $markets[$op['exchange']];
+      $exchange = strtolower($op['exchange']);
+      if(isset($markets[$exchange])){
+        $market = $markets[$exchange];
         $product = @$market->products[$symbol];
         $fees = @$product->fees;
       }
