@@ -10,12 +10,12 @@ $options =  getopt('', array(
 $gains = [];
 $nTx = [];
 $prices['EUR'] = 1;
-foreach (['BTC','ETH','USD','USDT','EUR'] as $base) {
+foreach (['BTC','ETH','USD','USDT','EUR','USDC'] as $base) {
   $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$base}&tsyms=EUR"), true);
   $prices[$base] = $price['EUR'];
   $nTx[$base] = 0;
 }
-$prices['USD'] = $prices['USDT'];
+$prices['USD'] = $prices['USDC'] = $prices['USDT'];
 
 $fp = fopen(GAINS_FILE, "r");
 flock($fp, LOCK_SH, $wouldblock);

@@ -1,6 +1,15 @@
 <?php
 
-class BinanceAPIException extends ErrorException {};
+class BinanceAPIException extends ErrorException {
+  public function __construct($msg, $data = null)
+  {
+    parent::__construct($msg);
+    $this->data = $data;
+  }
+  public function msg() {
+    return "Binance error: {$this->getMessage()}";
+  }
+};
 
 class BinanceApi
 {
@@ -17,7 +26,6 @@ class BinanceApi
     protected $products;
     public $balances;
     public $orderbook_file;
-    public $using_websockets;
     public $orderbook_depth;
     public $max_price_diff;
 
@@ -31,7 +39,7 @@ class BinanceApi
       CURLOPT_TIMEOUT        => 5
     ];
 
-    public function __construct($max_price_diff = null)
+    public function __construct()
     {
         $keys = json_decode(file_get_contents("../common/private.keys"));
         if (!isset($keys->binance))
@@ -43,10 +51,7 @@ class BinanceApi
         $this->name = 'Binance';
 
         $this->PriorityLevel = 1;
-        if (isset($max_price_diff))
-          $this->max_price_diff = $max_price_diff;
-        else
-          $this->max_price_diff = 0.01;//1%
+
         //App specifics
         $this->products = [];
         $this->balances = [];
@@ -57,7 +62,7 @@ class BinanceApi
         $this->orderbook_depth = 20;
     }
 
-    public function jsonRequest($method = null, $path, array $params = [])
+    public function jsonRequest($method, $path, $params = [])
     {
       $this->api_calls++;
       $now = time();
@@ -67,7 +72,7 @@ class BinanceApi
         $this->time = $now;
       }
 
-      $public_set = array( 'v3/depth', 'v3/exchangeInfo', 'v3/ping');
+      $public_set = array( 'v3/depth', 'v3/exchangeInfo', 'v3/ping', 'v3/ticker/bookTicker');
 
       $opt = $this->default_curl_opt;
       $url = self::API_URL . $path;
@@ -86,8 +91,7 @@ class BinanceApi
         $url .= '?' . $query;
       }
 
-      if ($method !== null)
-        $opt[CURLOPT_CUSTOMREQUEST] = $method;
+      $opt[CURLOPT_CUSTOMREQUEST] = $method;
 
       $ch = curl_init($url);
       curl_setopt($ch, CURLOPT_USERAGENT, "User-Agent: Mozilla/4.0 (compatible; PHP Binance API)");
@@ -97,7 +101,6 @@ class BinanceApi
       $content = curl_exec($ch);
       $errno   = curl_errno($ch);
       $errmsg  = curl_error($ch);
-      $header  = curl_getinfo($ch);
       curl_close($ch);
       if ($errno !== 0)
         return ["error" => $errmsg];
@@ -118,43 +121,44 @@ class BinanceApi
       return $content;
     }
 
-    function getBalance($alt = null)
+    function wrappedRequest($method, $path, $params = [])
+    {
+      $retry = 6;
+       for($i = 0; $i<=$retry; $i++) {
+         try {
+           $ret = $this->jsonRequest($method, $path, $params);
+           break;
+         }catch (Exception $e) {
+           if ($i === $retry) {
+            throw new BinanceAPIException($e->getMessage());
+           }
+            usleep(500000);//0.5 sec
+         }
+       }
+       if(isset($ret['error'])) {
+         print_dbg("Binance: Api method $method $path error: [{$ret['error']}]", true);
+         throw new BinanceAPIException($ret['error'], $ret);
+       }
+       return $ret;
+    }
+
+    function getBalance()
     {
       $res = [];
-      $i=0;
-      while (true) {
-        try {
-          $balances = $this->jsonRequest('GET', "v3/account");
-          if( isset($balances['balances']))
-            $balances = $balances['balances'];
-          else {
-            throw new BinanceAPIException('failed to get balances');
-          }
-          break;
-        }
-        catch (Exception $e) {
-          if($i > 8)
-            throw new BinanceAPIException("failed to get balances [{$e->getMessage()}]");
-          $i++;
-          print "{$this->name}: failed to get balances. retry $i...\n";
-          usleep(50000);
-        }
-      }
-
-      foreach($balances as $bal) {
+      $balances = $this->wrappedRequest('GET', "v3/account");
+      //var_dump($balances);
+      foreach($balances['balances'] as $bal) {
         $crypto = self::binance2crypto($bal['asset']);
         $res[$crypto] = $this->balances[$crypto] = floatval($bal['free']);
       }
 
-      if($alt != null)
-       return $res[$alt];
-      else return $res;
+      return $res;
     }
 
     function getProductList()
     {
       $list = [];
-      $products = $this->jsonRequest('GET','v3/exchangeInfo');
+      $products = $this->wrappedRequest('GET','v3/exchangeInfo');
 
       foreach($products['symbols'] as $product) {
         if ($product['status'] == 'TRADING') {
@@ -164,6 +168,7 @@ class BinanceApi
                       'alt' => $alt,
                       'base' => $base,
                       'fees' => 0.075,
+                      'exchange_symbol' => $product['symbol'],
                     ];
           foreach($product['filters'] as $filter) {
             if ($filter['filterType'] == 'PRICE_FILTER') {
@@ -191,33 +196,50 @@ class BinanceApi
       return $list;
     }
 
-    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
+    function refreshTickers($symbol_list)
     {
-      $file = $this->orderbook_file;
-      $this->using_websockets = false;
-      if (file_exists($file)) {
-        $book = getWsOrderbook($file, $product);
-        if ($book !== false)
-          $this->using_websockets = true;
-      }
-      if ($this->using_websockets === false) {
-        $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
-        $i=0;
-        while (true) {
-          try {
-            $book = $this->jsonRequest('GET', 'v3/depth', ['symbol' => $symbol, 'limit' => $this->orderbook_depth]);
-            break;
-          } catch (Exception $e) {
-            if($i > 8)
-              throw new BinanceAPIException("{$this->name}: failed to get order book [{$e->getMessage()}]");
-            $i++;
-            print "{$this->name}: failed to get order book. retry $i...\n";
-            usleep(50000);
+      if(!isset($this->ticker)) {
+        $tickers = $this->wrappedRequest('GET', 'v3/ticker/bookTicker');
+
+        foreach($tickers as $ticker) {
+          //price
+          $book['bids'][0] = $ticker['bidPrice'];
+          $book['asks'][0] = $ticker['askPrice'];
+          //vol
+          $book['bids'][1] = $ticker['bidQty'];
+          $book['asks'][1] = $ticker['askQty'];
+
+          $product = getProductByParam($this->products, "exchange_symbol", $ticker['symbol']);
+          if (isset($product)) {
+            $this->ticker[$product->symbol] = $book;
           }
         }
       }
-      if(!isset($book['asks'], $book['bids']))
-        throw new BinanceAPIException("{$this->name}: failed to get order book with " . ($this->using_websockets ? 'websocket' : 'rest api'));
+      $this->ticker = array_merge($this->ticker, getWsOrderbook($this->orderbook_file));
+      return $this->ticker;
+    }
+
+    function getTickerOrderBook($product)
+    {
+      foreach( ['asks', 'bids'] as $side) {
+        if (!isset($this->ticker[$product->symbol])) {
+          throw new BinanceAPIException("Unknown ticker {$product->symbol}");
+        }
+        $best[$side]['price'] = $best[$side]['order_price'] = floatval($this->ticker[$product->symbol][$side][0]);
+        $best[$side]['size'] = floatval($this->ticker[$product->symbol][$side][1]);
+      }
+      return $best;
+    }
+
+    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
+    {
+      $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
+
+      $book = $this->wrappedRequest('GET', 'v3/depth', ['symbol' => $symbol, 'limit' => $this->orderbook_depth]);
+
+      if(!isset($book['asks'], $book['bids'])) {
+        throw new BinanceAPIException("failed to get order book with rest api");
+      }
 
       foreach( ['asks', 'bids'] as $side)
       {
@@ -228,13 +250,16 @@ class BinanceApi
               || ($best[$side]['size'] < $depth_alt) )
               && $i < $this->orderbook_depth)
         {
-          if (!isset($book[$side][$i][0], $book[$side][$i][1]))
+
+          if (!isset($book[$side][$i]))
             break;
-          $size = floatval($book[$side][$i][1]);
+
           $price = floatval($book[$side][$i][0]);
+          $size = floatval($book[$side][$i][1]);
+
           $best[$side]['price'] = ($best[$side]['price']*$best[$side]['size'] + $price*$size) / ($size+$best[$side]['size']);
           $best[$side]['size'] += $size;
-          $best[$side]['order_price'] = floatval($book[$side][$i][0]);
+          $best[$side]['order_price'] = $price;
           //print "best price price={$best[$side]['price']} size={$best[$side]['size']}\n";
           $i++;
         }
@@ -243,7 +268,7 @@ class BinanceApi
     }
 
 
-    function place_order($product, $type, $side, $price, $size, $tradeId)
+    function place_order($product, $type, $side, $price, $size, $tradeId, $saveTrade = true)
     {
       $alt = $product->alt;
       $base = $product->base;
@@ -259,72 +284,69 @@ class BinanceApi
                 'type'=> $orderType,
                 ];
 
-      if($type == 'limit')
-      {
+      if($type == 'limit') {
         $order['price'] = number_format($price, $product->price_decimals, '.', '');
         $order['timeInForce'] = 'GTC';
       }
 
-      var_dump($order);
       $status = $this->jsonRequest('POST', 'v3/order', $order);
       print "{$this->name} trade says:\n";
       var_dump($status);
 
-      if( count($status) && !isset($status['code']))
-      {
+      if( count($status) && !isset($status['code'])) {
         $id = $status['orderId'];
         $filled_size = 0;
         $filled_base = 0;
         $order_canceled = false;
 
-        if($status['status'] == 'FILLED')
-        {
+        if($status['status'] == 'FILLED') {
           $filled_size = floatval($status['executedQty']);
           $filled_base = floatval($status['cummulativeQuoteQty']);
           /*real price*/
           $pond_price = 0;
-          foreach($status['fills'] as $fills)
-          {
+          foreach($status['fills'] as $fills) {
             $pond_price += $fills['price'] * $fills['qty'];
           }
           $price = $pond_price / $filled_size;
-          print_dbg("Directly filled: $filled_size $alt @ $price", true);
+          print_dbg("{$this->name}: trade $id closed: $filled_size $alt @ $price", true);
         }
-        else
-        {
+        else {
           //give server some time to handle order
           usleep(500000);//0.5 sec
           $status = [];
-          $timeout = 3;//sec
+          $timeout = 10;//sec
           $begin = microtime(true);
           while ( (@$status['status'] != 'closed') && ((microtime(true) - $begin) < $timeout)) {
             $status = $this->getOrderStatus($product, $id);
+            usleep(500000);//0.5 sec
           }
-          print_dbg("Check {$this->name} order $id status: {$status['status']} $side $alt filled:{$status['filled']} ");
+          print_dbg("Check {$this->name} order $id status: {$status['status']} $side $alt filled:{$status['filled']}", true);
 
           if(empty($status['status']) || $status['status'] == 'open') {
             $order_canceled = $this->cancelOrder($product, $id);
             $begin = microtime(true);
             while (empty($status['status']) && (microtime(true) - $begin) < $timeout) {
               $status = $this->getOrderStatus($product, $id);
+              usleep(50000);
             }
           }
 
-          print_dbg("Final check status: {$status['status']} $side $alt filled:{$status['filled']} ");
+          print_dbg("Final check status: {$status['status']} $side $alt filled:{$status['filled']}", true);
           var_dump($status);
           $filled_size = $status['filled'];
-          $filled_base = $status['filled_base'];
           $price = $status['price'];
         }
         if ($filled_size > 0) {
-          $this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
+          if ($saveTrade) {
+            $this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
+          }
           return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $price*$filled_size, 'price' => $price];
         }
         elseif ($order_canceled) {
           return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
         }
         else {
-          throw new Exception("Unable to locate order in history");
+          throw new BinanceAPIException("Unable to locate order in history");
         }
       }
       else
@@ -337,23 +359,16 @@ class BinanceApi
       $base = $product->base;
       print("saving trade\n");
       $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price $base\n";
-      file_put_contents('trades',$trade_str,FILE_APPEND);
+      file_put_contents(TRADE_FILE, $trade_str, FILE_APPEND | LOCK_EX);
     }
 
     function getOrderStatus($product, $orderId)
     {
-      print_dbg("get order status of $orderId");
-      $i=0;
       $alt = self::crypto2binance($product->alt);
       $base = self::crypto2binance($product->base);
       $symbol = "{$alt}{$base}";
-      while($i<5)
-      {
-        try{
-          $order = $this->jsonRequest('GET', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
-          break;
-        }catch (Exception $e){ $i++; usleep(500000); print ("{$this->name}: Failed to get status retrying...$i\n");}
-      }
+
+      $order = $this->wrappedRequest('GET', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
 
       if(isset($order))
       {
@@ -379,32 +394,15 @@ class BinanceApi
       $symbol = "{$alt}{$base}";
       print_dbg("canceling $symbol order $orderId", true);
 
-      $i=0;
-      while($i<10)
-      {
-        try{
-          $ret = $this->jsonRequest('DELETE', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
-          break;
-        }catch (Exception $e)
-        {
-          print_dbg("Failed to cancel order. [{$e->getMessage()}] retrying...$i");
-          if($e->getMessage() == 'UNKNOWN_ORDER')
-          {
-            return false;
-          }
-          $i++;
-          sleep(1);
+      try{
+        $this->wrappedRequest('DELETE', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
+      } catch (Exception $e) {
+        if($e->getMessage() == 'UNKNOWN_ORDER') {
+          return false;
         }
-      }
-
-      if(isset($ret['error']))
-      {
-        var_dump($ret);
-        print_dbg("Failed to cancel order. [{$ret['error']['msg']}]");
-        return false;
+        throw new BinanceAPIException($e->getMessage());
       }
       return true;
-
     }
 
     function ping()
@@ -415,10 +413,8 @@ class BinanceApi
 
     static function crypto2binance($crypto, $reverse = false)
     {
-      $table = ['BSV' => 'BCHSV',
-                'BCH' => 'BCHABC',
-                'USD' => 'PAX', //BIG HACK!
-                ];
+      $table = [
+               ];
       if($reverse)
         $table = array_flip($table);
       if(array_key_exists($crypto,$table))

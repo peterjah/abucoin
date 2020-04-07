@@ -8,21 +8,11 @@ require_once('../common/binance_api.php');
 require_once('../common/paymium_api.php');
 date_default_timezone_set("UTC");
 
+@define('LOSS_TRESHOLD', 0.3); //percent
+@define('TRADE_FILE', 'trades');
+
 class Product
 {
-  public $symbol;
-  public $alt;
-  public $base;
-  public $min_order_size;
-  public $lot_size_step;
-  public $size_decimals;
-  public $min_order_size_base;
-  public $price_decimals;
-  public $fees;
-  public $book;
-  public $api;
-  public $symbol_exchange;
-
   public function __construct($params) {
     $this->api = $params['api'];
     $this->alt = $params['alt'];
@@ -34,176 +24,224 @@ class Product
     $this->size_decimals = @$params['size_decimals'];
     $this->min_order_size_base = @$params['min_order_size_base'] ?: 0;
     $this->price_decimals = @$params['price_decimals'];
-    $this->symbol_exchange = @$params['symbol_exchange'];
-
-    $book = null;
+    $this->exchange_symbol = @$params['exchange_symbol'];
+    $this->ws_name = @$params['ws_name'];
+    $this->alt_symbol = @$params['alt_symbol'];
   }
 
-  function refreshBook($depth_base = 0, $depth_alt = 0)
+  function refreshBook($side, $depth_base = 0, $depth_alt = 0, $use_rest = true)
   {
     $depth_base = max($depth_base, $this->min_order_size_base);
     $depth_alt = max($depth_alt, $this->min_order_size);
-    return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
+    $book = $this->api->getTickerOrderBook($this);
+    if ($side == 'buy' &&
+      ($book['asks']['size'] < $depth_alt
+      || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {
+        print("ticker size is too low\n");
+        if ($use_rest) {
+            return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
+        }
+        return false;
+    }
+
+    if ($side == 'sell' &&
+    ($book['bids']['size'] < $depth_alt
+    || ($book['bids']['size'] * $book['bids']['price']) < $depth_base)) {
+      print("ticker size is too low\n");
+      if ($use_rest) {
+          return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
+      }
+      return false;
+    }
+
+    return $this->book = $book;
   }
 }
 
-function getProductBySymbol($api, $symbol)
+function getProductByParam($products, $param, $value)
 {
-  foreach($api->products as $product) {
-    if ($product->symbol == $symbol)
-      return $product;
+  foreach($products as $product) {
+    if (isset($product->$param)) {
+      if ($product->$param == $value) {
+        return $product;
+      }
+    } else {
+      new \Exception("Unknown market param\"$param\"");
     }
+  }
+  return null;
 }
 
 class Market
 {
-  public $api;
-  public $products;
-
   public function __construct($market_name)
   {
-    $market_table = [ 'cryptopia' => 'CryptopiaApi',
-                      'kraken' => 'KrakenApi',
-                      'cobinhood' => 'CobinhoodApi',
+    $market_table = [ 'kraken' => 'KrakenApi',
                       'binance' => 'BinanceApi',
                       'paymium' => 'PaymiumApi'
                       ];
     if( isset($market_table[$market_name]))
-      $this->api =  new $market_table[$market_name](0.01);
+      $this->api =  new $market_table[$market_name]();
     else throw new \Exception("Unknown market \"$market_name\"");
 
-    $this->products = $this->api->getProductList();
+    $this->updateProductList();
+
+    $this->getBalance();
   }
 
   function getBalance() {
-    return $this->api->getBalance(null, false);
+    return $this->api->getBalance();
   }
+
   function updateProductList() {
     $this->products = $this->api->getProductList();
   }
 }
 
-function do_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $trade_size, $arbId)
+function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $size, $arbId)
 {
   $sell_api = $sell_market->api;
   $buy_api = $buy_market->api;
   $buy_product = $buy_market->products[$symbol];
   $sell_product = $sell_market->products[$symbol];
   $alt = $buy_product->alt;
-  $base = $sell_product->base;
-  $alt_bal = $sell_api->balances[$alt];
-  $base_bal = $buy_api->balances[$base];
+  $base = $buy_product->base;
 
-  if($sell_api->PriorityLevel < $buy_api->PriorityLevel) {
-    $first_market = $sell_market;
-    $first_action = 'sell';
-    $second_market = $buy_market;
-    $second_action = 'buy';
+  $pid = pcntl_fork();
+  if ($pid == -1) {
+      throw new \Exception("unable to fork process");
+  } else if ($pid) {
+     // we are the parent
+     print "I am the father pid = $pid\n";
+     $status['sell'] = place_order($sell_market, 'limit', $symbol, 'sell', $sell_price, $size, $arbId);
+     print_dbg("SOLD {$status['sell']['filled_size']} $alt on {$sell_api->name} at {$status['sell']['price']}. expected {$sell_product->book['bids']['price']}\n",true);
+  } else {
+     // we are the child
+     print "I am the child pid = $pid\n";
+     $status['buy'] = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
+     print_dbg("BOUGHT {$status['buy']['filled_size']} $alt on {$buy_api->name} at {$status['buy']['price']}. expected {$buy_product->book['asks']['price']}\n",true);
+     exit();
   }
-  else {
-    $first_market = $buy_market;
-    $first_action = 'buy';
-    $second_market = $sell_market;
-    $second_action = 'sell';
+  pcntl_waitpid($pid, $stat);
+  var_dump($stat);
+  //get child status:
+  $grep = shell_exec("tail -n20 trades | grep \"{$arbId} " . ucfirst($buy_api->name) .'"' );
+  if (empty($grep)) {
+    print_dbg("failed to retrieve child trade status", true);
+    $status['buy'] = ['filled_size' => 0, 'price' => 0];
+  } else {
+    preg_match('/^(.*): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) ([.-E0-]+) ([A-Z]+) at ([.-E0-]+) ([A-Z]+)$/',$grep, $matches);
+    if (count($matches) !== 10) {
+      print_dbg("Invalid match count...",true);
+    }
+    $status['buy'] = ['filled_size' => $matches[6], 'price' => $matches[8]];
   }
 
-  print "start with= {$first_market->api->name} \n";
-  print "balances: $base_bal $base; $alt_bal $alt \n";
+  foreach(['buy','sell'] as $side) {
+    $toSell = $side == 'sell';
+    $opSide = $toSell ? 'buy' : 'sell';
+    $filled = $status[$opSide]['filled_size'];
+    $product = $toSell ? $sell_product : $buy_product;
+    $opProduct = $toSell ? $buy_product : $sell_product;
+    $market = $toSell ? $sell_market : $buy_market;
+    $newStatus = [];
+    if ($status[$side]['filled_size'] < $filled ) {
+      $size = $filled - $status[$side]['filled_size'];
+      $book = $market->api->getOrderBook($product, $product->min_order_size_base, $size);
+      if($toSell) {
+        $new_price = $book['bids']['price'];
+        $expected_gains = computeGains($status[$opSide]['price'], $opProduct->fees, $new_price, $product->fees, $size);
+      } else {
+        $new_price = $book['asks']['price'];
+        $expected_gains = computeGains($new_price, $product->fees, $status[$opSide]['price'], $opProduct->fees, $size);
+      }
+      $base_bal = $market->api->balances[$base];
+      $size = min(truncate($base_bal / ($new_price * (1 + $product->fees/100)) , $product->size_decimals), $size);
 
-  $buy_price = truncate($buy_price, $buy_product->price_decimals);
-  $sell_price = truncate($sell_price, $sell_product->price_decimals);
+      if (($size >= $product->min_order_size) && ($size * $new_price >= $product->min_order_size_base)) {
+        print_dbg("last chance to $side $size $alt at $new_price... expected gains: {$expected_gains["base"]} $base {$expected_gains["percent"]}%", true);
+        if ($expected_gains['percent'] >= (-1 * LOSS_TRESHOLD)) {
+          print_dbg("retrying to $side $alt at $new_price", true);
 
-  print "BUY $trade_size $alt on {$buy_api->name} at $buy_price $base = ".($buy_price*$trade_size)."$base\n";
-  print "SELL $trade_size $alt on {$sell_api->name} at $sell_price $base = ".($sell_price*$trade_size)."$base\n";
+          $isCompositeTrade = $status[$side]['filled_size'] > 0;
+          $newStatus = place_order($market, 'limit', $symbol, $side, $new_price, $size, $arbId, !$isCompositeTrade);
+          print "$side {$newStatus['filled_size']} $alt on {$market->api->name} at {$newStatus[$side]['price']}\n";
 
-  $price = $first_action == 'buy' ? $buy_price : $sell_price;
+          if ($isCompositeTrade) {
+            $status[$side]['price'] = (($status[$side]['price'] * $status[$side]['filled_size']) + ($newStatus['filled_size'] * $newStatus['price']) /
+            ($status[$side]['filled_size'] + $newStatus['filled_size']));
+              $status[$side]['filled_size'] += $newStatus['filled_size'];
 
+              //delete first pass trade and write new one
+              $fp = fopen(TRADES_FILE, "r+");
+              flock($fp, LOCK_EX, $wouldblock);
+              file_put_contents(TRADES_FILE, preg_replace ( '/.*'. $arbId .' '. $market->api->name . ' .*\n/' , '' , file_get_contents(TRADES_FILE) ));
+              flock($fp, LOCK_UN);
+              fclose($fp);
+              // save new trade
+              $market->api->save_trade('composite', $product, $side, $status[$side]['filled_size'], $status[$side]['price'], $arbId);
+          } else {
+            $status[$side] = $newStatus;
+          }
+
+        }
+      }
+      unlink($market->api->orderbook_file);
+      print_dbg("Restarting {$market->api->name} websockets", true);
+    }
+  }
+
+  return $status;
+}
+
+function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
+{
+  $product = $market->products[$symbol];
+  $alt = $product->alt;
+  $base = $product->base;
   $i=0;
-  while(true)
-  {
-    try{
-      $order_status = $first_market->api->place_order($first_market->products[$symbol], 'limit', $first_action, $price, $trade_size, $arbId);
-      break;
+  while(true) {
+    try {
+      return $market->api->place_order($product, $type, $side, $price, $size, $arbId);
     }
-    catch(Exception $e){
-       print ("unable to $first_action retrying...: $e\n");
-       $err = $e->getMessage();
-       // if( $err != 'no response from api' || $err != 'EAPI:Invalid nonce' )
-       //   print_dbg("unable to $first_action $alt (first action) [$err] on {$first_market->api->name}: tradeSize=$trade_size at $price. try $i");
+    catch(Exception $e) {
+       $err = $e->msg();
+       print_dbg("unable to $side retrying. $i ..: {$err}", true);
+       if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance' || $err == 'ERROR: Insufficient Funds.' ||
+          $err == 'Account has insufficient balance for requested action.' || $err == 'Order rejected')
+       {
+         $market->getBalance();
+         print_dbg("Insufficient funds to $side $size $alt @ $price , base_bal:{$market->api->balances[$base]} alt_bal:{$market->api->balances[$alt]}", true);
+         if($side == 'buy')
+         {
+           $base_bal = $market->api->balances[$base];
+           //price may be not relevant anymore. moreover we want a market order
+           $book = $product->refreshBook($side, 0, $size);
+           $size = min(truncate($base_bal / ($book['asks']['price'] * (1 + $product->fees/100)) , $product->size_decimals), $size);
+           $buy_price = $book['asks']['order_price'];
+           print_dbg("new tradesize: $size, new price $buy_price base_bal: $base_bal", true);
+         } else {
+           $alt_bal = $market->api->balances[$alt];
+           $size = truncate($alt_bal* (1 - $product->fees/100), $product->size_decimals);
+         }
+       }
 
-       if($i == 5 || $err == 'ERROR: Insufficient Funds.' || $err == 'Market is closed.' || $err == 'EOrder:Insufficient Funds.')
-         throw new \Exception("unable to $first_action. [$err]");
-       if ($err == 'Rest API trading is not enabled.')
+       if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size' ||
+           $err == 'Filter failure: MIN_NOTIONAL' || $err == 'balance_locked' || $err == 'try_again_later')
+       {
+         print_dbg("$err. giving up...");
+         break;
+       }
+       if ($err == 'Rest API trading is not enabled.' || $err == "Unable to locate order in history")
          throw new \Exception($err);
-       if ($err == "Unable to locate order in history")
-         throw new \Exception($err);
-       usleep(500000);
+       if($i == 8){
+         break;
+       }
        $i++;
+       usleep(500000);
     }
   }
-  $trade_size = $order_status['filled_size'];
-
-  $ret = [];
-  $ret[$first_action] = $order_status;
-  $ret[$first_action]['filled_size'] = $trade_size;
-
-  $second_status = [];
-  if($trade_size > 0)
-  {
-    $i=0;
-    while(true) {
-      try {
-        $price = $second_action == 'buy' ? $buy_price : $sell_price;
-        $second_status = $second_market->api->place_order($second_market->products[$symbol], 'market', $second_action, $price, $trade_size, $arbId);
-        break;
-      }
-      catch(Exception $e) {
-         print ("unable to $second_action retrying...: $e\n");
-         var_dump($second_status);
-         $err = $e->getMessage();
-         if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance'|| $err == 'ERROR: Insufficient Funds.' ||
-            $err == 'Account has insufficient balance for requested action.' || $err == 'Order rejected')
-         {
-           $second_market->getBalance();
-           print_dbg("Insufficient funds to $second_action $trade_size $alt @ $price , base_bal:{$second_market->api->balances[$base]} alt_bal:{$second_market->api->balances[$alt]}");
-           if($second_action == 'buy')
-           {
-             $base_bal = $second_market->api->balances[$base];
-             //price may be not relevant anymore. moreover we want a market order
-             $book = $buy_product->refreshBook($base_bal, $trade_size);
-             $trade_size = min(truncate($base_bal / ($book['asks']['order_price'] * (1 + $buy_product->fees/100)) , $buy_product->size_decimals), $trade_size);
-             $buy_price = $book['asks']['order_price'];
-             print_dbg("new tradesize: $trade_size, new price $buy_price base_bal: $base_bal");
-           } else {
-             $alt_bal = $second_market->api->balances[$alt];
-             $trade_size = truncate($alt_bal* (1 - $sell_product->fees/100), $sell_product->size_decimals);
-           }
-         }
-         if ($err == "Unable to locate order in history") {
-           print_dbg("$err. giving up...");
-           throw new \Exception($err);
-         }
-         if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size' ||
-             $err == 'Filter failure: MIN_NOTIONAL' || $err == 'balance_locked' || $err == 'try_again_later')
-         {
-           print_dbg("$err. giving up...");
-           $trade_size = 0;
-           break;
-         }
-         if ($err == 'Rest API trading is not enabled.')
-           throw new \Exception($err);
-         if($i == 8){
-           $trade_size = 0;
-           break;
-         }
-         $i++;
-         usleep(500000);
-      }
-    }
-  }
-
-  $ret[$second_action] = $second_status;
-  return $ret;
+  throw new \Exception($err);
 }
 
 function ceiling($number, $significance = 1)
@@ -245,7 +283,7 @@ function print_dbg($dbg_str, $print_stderr = false)
     print($str);
 }
 
-function check_tradesize($symbol, $sell_market, $sell_price, $buy_market, $buy_price, $trade_size)
+function get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book)
 {
   $buy_product = $buy_market->products[$symbol];
   $sell_product = $sell_market->products[$symbol];
@@ -257,19 +295,22 @@ function check_tradesize($symbol, $sell_market, $sell_price, $buy_market, $buy_p
   $min_trade_alt = max($buy_product->min_order_size, $sell_product->min_order_size);
   $size_decimals = min($buy_product->size_decimals, $sell_product->size_decimals);
 
+  // get first order size
+  $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);
+
+  $buy_order_price = $buy_book['asks']['price'];
+
+  // not enough founds
   if ($base_bal < $min_trade_base || $alt_bal < $min_trade_alt) {
     return 0;
   }
 
-  $buy_price = truncate($buy_price, $buy_product->price_decimals);
-  $sell_price = truncate($sell_price, $sell_product->price_decimals);
-
-  $base_to_spend_fee = ($buy_price * $trade_size * (1 + $buy_product->fees/100));
+  $base_to_spend_fee = ($buy_order_price * $trade_size * (1 + $buy_product->fees/100));
 
   if ($base_to_spend_fee > $base_bal) {
       $base_to_spend_fee = $base_bal;
       $base_amount = $base_to_spend_fee * (1 - $buy_product->fees/100);
-      $trade_size = $base_amount / $buy_price;
+      $trade_size = $base_amount / $buy_order_price;
   }
 
   if ($trade_size > $alt_bal) {
@@ -277,7 +318,7 @@ function check_tradesize($symbol, $sell_market, $sell_price, $buy_market, $buy_p
   }
 
   $trade_size = truncate($trade_size, $size_decimals);
-  $base_to_spend_fee = ($buy_price * $trade_size * (1 + $buy_product->fees/100));
+  $base_to_spend_fee = ($buy_order_price * $trade_size * (1 + $buy_product->fees/100));
   if ($base_to_spend_fee < $min_trade_base || $trade_size < $min_trade_alt) {
     return 0;
   }
@@ -285,44 +326,33 @@ function check_tradesize($symbol, $sell_market, $sell_price, $buy_market, $buy_p
   return $trade_size;
 }
 
-function subscribeWsOrderBook($market, $products_list, $suffix)
+function subscribeWsOrderBook($market_name, $symbol_list, $depth)
 {
-
-  $websocket_script = "../common/".strtolower($market->api->name)."_websockets.php";
+  $websocket_script = "../common/".strtolower($market_name)."_websockets.php";
   if (file_exists($websocket_script)) {
-    print ("Subscribing {$market->api->name} Orderbook WS feed\n");
-    $market->api->orderbook_file  = "{$market->api->name}_orderbook_{$suffix}.json";
-    $products_str = '';
-    $idx = 1;
-    foreach ($products_list as $symbol) {
-      $product = $market->products[$symbol];
-      $products_str .= $product->alt . "-" . $product->base;
-      if ($idx != count($products_list) )
-        $products_str .= ',';
-      $idx++;
-    }
-    $cmd = "nohup php ../common/".strtolower($market->api->name)."_websockets.php --file {$market->api->orderbook_file} --cmd getOrderBook \
-           --products {$products_str} --bookdepth {$market->api->orderbook_depth} >/dev/null 2>&1 &";
+    $suffix = getmypid();
+    print ("Subscribing {$market_name} Orderbook WS feed\n");
+    $orderbook_file  = "{$market_name}_orderbook_{$suffix}.json";
+    $products_str = implode(",", $symbol_list);
+
+    $cmd = "nohup php ../common/".strtolower($market_name)."_websockets.php --file {$orderbook_file} --cmd getOrderBook \
+           --products $products_str --bookdepth $depth >/dev/null 2>&1 &";
     print ("$cmd\n");
     shell_exec($cmd);
     sleep(1);
+    return $orderbook_file;
   }
 }
 
-function getWsOrderbook($file, $product) {
+function getWsOrderbook($file) {
   $fp = fopen($file, "r");
   flock($fp, LOCK_SH, $wouldblock);
   $orderbook = json_decode(file_get_contents($file), true);
   flock($fp, LOCK_UN);
   fclose($fp);
-  $update_timeout = 3;
+  $update_timeout = 30;
   if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
-    //print_dbg("$file orderbook not uptaded since $update_timeout sec. Switching to rest API");
-    return false;
+    throw new \Exception("$file orderbook not uptaded since $update_timeout sec");
   }
-  if (!isset($orderbook[$product->symbol])) {
-    print_dbg("$file: Unknown websocket stream $product->symbol", true);
-    return false;
-  }
-  return $orderbook[$product->symbol];
+  return $orderbook;
 }

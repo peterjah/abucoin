@@ -1,6 +1,7 @@
 <?php
 use WebSocket\Client;
 require_once('../common/tools.php');
+require_once('../common/websockets_tools.php');
 @define('WSS_URL','wss://stream.binance.com:9443');
 
 declare(ticks = 1);
@@ -57,109 +58,36 @@ function getOrderBook($products)
     $alts = explode ('-', $product);
     $symbol = BinanceApi::translate2marketName($alts[0]) . BinanceApi::translate2marketName($alts[1]);
     $app_symbols[$symbol] = $product;
-    $subscribe_str .= strtolower($symbol) . '@depth@100ms/';
+    $subscribe_str .= strtolower($symbol) . "@bookTicker/";
   }
+
   $subscribe_str = substr($subscribe_str, 0, strlen($subscribe_str)-1);
   $client = new Client(WSS_URL . $subscribe_str, ['timeout' => 60]);
-  foreach ($app_symbols as $symbol => $app_symbol) {
-    $snapshot = $rest_api->jsonRequest('GET', 'v3/depth', ['symbol' => $symbol, 'limit' => $options['bookdepth']]);
-    $orderbook[$app_symbol] = $snapshot;
-    $orderbook[$app_symbol]['isSnapshot'] = true;
-
-  }
-  file_put_contents($file, json_encode($orderbook), LOCK_EX);
-
-  $channel_ids = [];
-  $sync = true;
+  
   while (true) {
     try
     {
       $message = $client->receive();
       if ($message) {
         $msg = json_decode($message , true);
-        //var_dump($msg);
         if (isset($msg['data'])) {
-          if (!isset($msg['data']['e'])) {
-            print_dbg("unknown data received \"{$msg['data']}\"", true);
-            var_dump($$msg['data']);
-          }
-          switch ($msg['data']['e']) {
-            case 'depthUpdate':
-                $app_symbol = $app_symbols[$msg['data']['s']];
-                $lastUpdateId = $orderbook[$app_symbol]['lastUpdateId'];
-                if ( $msg['data']['u'] <= $lastUpdateId)
-                  break;
-                $u_1 = $lastUpdateId + 1;
-                if ($msg['data']['U'] <= $u_1 && $msg['data']['u'] >= $u_1) {
-                  $orderbook[$app_symbol]['isSnapshot'] = false;
-                }
-                if (!$orderbook[$app_symbol]['isSnapshot'] && $msg['data']['U'] != $u_1) {
-                  $sync = false;
-                  break;
-                }
-                $orderbook[$app_symbol]['lastUpdateId'] = $msg['data']['u'];
+          $app_symbol = $app_symbols[$msg['data']['s']];
+          //price
+          $orderbook[$app_symbol]['bids'][0] = $msg['data']['b'];
+          $orderbook[$app_symbol]['asks'][0] = $msg['data']['a'];
+          //vol
+          $orderbook[$app_symbol]['bids'][1] = $msg['data']['B'];
+          $orderbook[$app_symbol]['asks'][1] = $msg['data']['A'];
 
-                foreach (['bids', 'asks'] as $side) {
-                  $side_letter = substr($side,0,1);
-                  if (isset($msg['data'][$side_letter])) {
-                    foreach ($msg['data'][$side_letter] as $new_offer) {
-                      //remove offer
-                      $new_price = floatval($new_offer[0]);
-                      if (floatval($new_offer[1]) == 0) {
-                        foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                          if (floatval($offer[0]) != $new_price)
-                            continue;
-                          unset($orderbook[$app_symbol][$side][$key]);
-                          break;
-                        }
-                      }
-                      else {
-                        foreach ($orderbook[$app_symbol][$side] as $key => $offer) {
-                          if ($side == 'bids' && $new_price > floatval($offer[0]) ||
-                              $side == 'asks' && $new_price < floatval($offer[0]) ) {
-                            array_splice($orderbook[$app_symbol][$side], $key, 0, [0 => $new_offer]);
-                            break;
-                          } elseif ($new_price == floatval($offer[0])) {
-                            $orderbook[$app_symbol][$side][$key][0] = $new_offer[0];
-                            $orderbook[$app_symbol][$side][$key][1] = $new_offer[1];
-                            break;
-                          }
-                          if ($key == count($orderbook[$app_symbol][$side]) -1 ) {
-                            $orderbook[$app_symbol][$side][$key+1][0] = $new_offer[0];
-                            $orderbook[$app_symbol][$side][$key+1][1] = $new_offer[1];
-                          }
-                        }
-                      }
-                      $orderbook[$app_symbol][$side] = array_slice($orderbook[$app_symbol][$side], 0, intval($options['bookdepth']));
-                      $orderbook[$app_symbol][$side] = array_values($orderbook[$app_symbol][$side]);
-                    }
-                  }
-                }
-                break;
-            case 'ping':
-              //send pong
-              print_dbg('Ping. Send pong',true);
-              $msg['data']['e'] = 'pong';
-              $client->send(json_encode($msg));
-              break;
-            default:
-              print_dbg("$file unknown event received \"{$msg['data']['e']}\"", true);
-              var_dump($msg);
-              break;
+          $orderbook['last_update'] = microtime(true);
+          if (!file_exists($file)) {
+            print_dbg('Restarting Binance websocket',true);
+            break;
           }
+          file_put_contents($file, json_encode($orderbook), LOCK_EX);
         }
-        if(!$sync) {
-          print_dbg("{$msg['data']['s']} $app_symbol orderbook out of sync u={$msg['data']['u']} U={$msg['data']['U']} lastUpdateId + 1= $u_1",true);
-          //var_dump($msg);
-          break;
-        }
-        //var_dump($orderbook);
-        $orderbook['last_update'] = microtime(true);
-        file_put_contents($file, json_encode($orderbook), LOCK_EX);
       }
-    }
-    catch(Exception $e)
-    {
+    } catch(Exception $e) {
       print_dbg('Binance websocket error:' . $e->getMessage(),true);
       //print_dbg(var_dump($e),true);
       break;

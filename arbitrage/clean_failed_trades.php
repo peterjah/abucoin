@@ -15,7 +15,7 @@ require_once('../common/tools.php');
 if (@$argv[1] == '-solve' && isset($argv[2])) {
   $ret = str_replace($argv[2], 'solved', file_get_contents(TRADES_FILE), $count);
   if($count > 0) {
-    file_put_contents(TRADES_FILE, $ret);
+    file_put_contents(TRADES_FILE, $ret, LOCK_EX);
     print "Tx $argv[2] marked as solved\n";
   }
   else {
@@ -46,7 +46,8 @@ if(@$autoSolve) {
   }
   //init api
   $markets = [];
-  foreach( ['binance','kraken','cobinhood','paymium'] as $name) {
+  // Ordered by trade fee
+  foreach( ['binance', 'kraken', 'paymium'] as $name) {
     $i=0;
     while($i<6) {
       try{
@@ -110,7 +111,7 @@ function do_solve($markets, $symbol, $side, $traded)
     if($size < $product->min_order_size )
       continue;
     try {
-      $book = $product->refreshBook(0, $size);
+      $book = $market->api->getOrderBook($product, $product->min_order_size_base, $size);
     } catch (Exception $e) {
       print_dbg("{$e->getMessage()}: continue..", true);
       continue;
@@ -190,8 +191,9 @@ function processFailedTrades($markets, $symbol, $ops)
     foreach($ops as $id => $op) {
       if ($op['side'] != $side)
         continue;
-      if(isset($markets[$op['exchange']])){
-        $market = $markets[$op['exchange']];
+      $exchange = strtolower($op['exchange']);
+      if(isset($markets[$exchange])){
+        $market = $markets[$exchange];
         $product = @$market->products[$symbol];
         $fees = @$product->fees;
       }
@@ -239,7 +241,9 @@ function firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded)
     $op = array_values($buy['ids']);
     $alt = $op[0]['alt'];
     $base = $op[0]['base'];
-    save_trade($alt, $base, $res_side, $res_size, $res_price);
+    if($res_size > 0) {
+      save_trade($alt, $base, $res_side, $res_size, $res_price);
+    }
     $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
                    'alt' => $alt,
                    'base' => $base,
@@ -260,12 +264,11 @@ function markSolved($ids)
 {
   foreach($ids as $id ) {
     print "mark $id solved\n";
-    $fp = fopen(TRADES_FILE, "r");
-    flock($fp, LOCK_SH, $wouldblock);
-    $data = file_get_contents(TRADES_FILE);
+    $fp = fopen(TRADES_FILE, "r+");
+    flock($fp, LOCK_EX, $wouldblock);
+    file_put_contents(TRADES_FILE, str_replace($id, 'solved', file_get_contents(TRADES_FILE)));
     flock($fp, LOCK_UN);
     fclose($fp);
-    file_put_contents(TRADES_FILE, str_replace($id, 'solved', $data), LOCK_EX);
   }
 }
 
@@ -273,18 +276,19 @@ function save_trade($alt, $base, $side, $size, $price)
 {
   $timestamp = intval(microtime(true)*1000);
   $trade_str = date("Y-m-d H:i:s").": arbitrage: toSolve_" . $timestamp ." cleaner: trade cleanerTx: $side $size $alt at $price $base\n";
-  file_put_contents(TRADES_FILE, $trade_str,FILE_APPEND);
+  file_put_contents(TRADES_FILE, $trade_str,FILE_APPEND | LOCK_EX);
 }
 
 function save_gain($arbitrage_log)
 {
-  $fp = fopen(GAINS_FILE, "r");
-  flock($fp, LOCK_SH, $wouldblock);
+  $fp = fopen(GAINS_FILE, "r+");
+  flock($fp, LOCK_EX, $wouldblock);
   $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
+  $gains_logs['arbitrages'][] = $arbitrage_log;
+  file_put_contents(GAINS_FILE, json_encode($gains_logs));
   flock($fp, LOCK_UN);
   fclose($fp);
-  $gains_logs['arbitrages'][] = $arbitrage_log;
-  file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);
+
 }
 
 function parseTradeFile()
@@ -298,7 +302,7 @@ function parseTradeFile()
       if(count($matches) == 10) {
         $date = $matches[1];
         $OpId = $matches[2];
-        $exchange = strtolower($matches[3]);
+        $exchange = $matches[3];
         $trade_id = $matches[4];
         $side = $matches[5];
         $size = floatval($matches[6]);
@@ -309,16 +313,21 @@ function parseTradeFile()
 
         if($OpId != 'solved') {
           if( !isset($ledger[$symbol][$OpId]) ) {
-            $ledger[$symbol][$OpId] = ['date' => $date,
-                                            'side' =>$side,
-                                            'size' =>$size,
-                                            'price' =>$price,
-                                            'id' => $trade_id,
-                                            'exchange' => $exchange,
-                                            'line' => trim($line),
-                                            'alt' => $alt,
-                                            'base' => $base
-                                            ];
+            if ($size == 0) {
+              markSolved([$OpId]);
+            }
+            else {
+              $ledger[$symbol][$OpId] = ['date' => $date,
+                                              'side' =>$side,
+                                              'size' =>$size,
+                                              'price' =>$price,
+                                              'id' => $trade_id,
+                                              'exchange' => $exchange,
+                                              'line' => trim($line),
+                                              'alt' => $alt,
+                                              'base' => $base
+                                              ];
+            }
           }
           elseif (isset($ledger[$symbol]["{$OpId}_2"]) && $ledger[$symbol]["{$OpId}_2"]['size'] == $size) {
             unset($ledger[$symbol]["{$OpId}_2"]);

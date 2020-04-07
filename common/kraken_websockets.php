@@ -1,6 +1,7 @@
 <?php
 use WebSocket\Client;
 require_once('../common/tools.php');
+require_once('../common/websockets_tools.php');
 @define('WSS_URL','wss://ws.kraken.com');
 
 declare(ticks = 1);
@@ -61,7 +62,7 @@ function getOrderBook($products)
     $client->send(json_encode([
         "event" => "subscribe",
         "pair" => $kraken_products,
-        "subscription" => ['name' => 'book', 'depth' => intval($options['bookdepth'])]
+        "subscription" => ['name' => 'ticker']
     ]));
 
     $date = DateTime::createFromFormat('U.u', microtime(TRUE));
@@ -105,70 +106,23 @@ function getOrderBook($products)
                 break;
             }
           }
-          elseif (isset($msg[1]['as']) || isset($msg[1]['bs'])) {
-            $symbol = $channel_ids[$msg[0]];
-            if (count($msg[1]['as']))
-              $orderbook[$symbol]['asks'] = $msg[1]['as'];
-            if (count($msg[1]['bs']))
-              $orderbook[$symbol]['bids'] = $msg[1]['bs'];
-          }
           elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
             $symbol = $channel_ids[$msg[0]];
-            //var_dump($msg);
-            if (isset($msg[1]['a'])) {
-              $side = 'asks';
-              $kside = 'a';
-            }
-            elseif (isset($msg[1]['b'])) {
-              $side = 'bids';
-              $kside = 'b';
-            }
-            else {
-              print_dbg("$file unknown message received \"{$msg}\"", true);
-              var_dump($msg);
-            }
+            //price
+            $orderbook[$app_symbol]['bids'][0][0] = $msg[1]['b'][0];
+            $orderbook[$app_symbol]['asks'][0][0] = $msg[1]['a'][0];
+            //vol
+            $orderbook[$app_symbol]['bids'][0][1] = $msg[1]['b'][2];
+            $orderbook[$app_symbol]['asks'][0][1] = $msg[1]['a'][2];
 
-
-            var_dump($msg[1]);
-            foreach ($msg[1][$kside] as $new_offer) {
-              $new_price = floatval($new_offer[0]);
-              //delete message
-              if (floatval($new_offer[1]) == 0) {
-                foreach ($orderbook[$symbol][$side] as $key => $offer) {
-                  if (floatval($offer[0]) != $new_price)
-                    continue;
-                  print("delete offer level {$offer[0]}\n");
-                  unset($orderbook[$symbol][$side][$key]);
-                  break;
-                }
-                $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
-              } else {
-                foreach ($orderbook[$symbol][$side] as $key => $offer) {
-                  if ($side == 'bids' && $new_price > floatval($offer[0]) ||
-                      $side == 'asks' && $new_price < floatval($offer[0]) ) {
-                    print("new offer level {$new_offer[0]}  {$key}\n");
-                    array_splice($orderbook[$symbol][$side], $key, 0, [0 => $new_offer]);
-                    break;
-                  } elseif ($new_price == floatval($offer[0])) {
-                    print("update offer level {$offer[0]}  {$key}\n");
-                    $orderbook[$symbol][$side][$key][0] = $new_offer[0];
-                    $orderbook[$symbol][$side][$key][1] = $new_offer[1];
-                    break;
-                  }
-                  if ($key == count($orderbook[$symbol][$side]) -1 ) {
-                    print("new offer level at last level: {$new_offer[0]}  {$key}\n");
-                    $orderbook[$symbol][$side][$key+1][0] = $new_offer[0];
-                    $orderbook[$symbol][$side][$key+1][1] = $new_offer[1];
-                  }
-                }
-                $orderbook[$symbol][$side] = array_slice($orderbook[$symbol][$side], 0, intval($options['bookdepth']));
-                $orderbook[$symbol][$side] = array_values($orderbook[$symbol][$side]);
-              }
-            }
             $orderbook['last_update'] = microtime(true);
           } else {
             print_dbg("$file msg received", true);
             var_dump($msg);
+            break;
+          }
+          if (!file_exists($file)) {
+            print_dbg('Restarting Kraken websocket', true);
             break;
           }
           file_put_contents($file, json_encode($orderbook), LOCK_EX);
