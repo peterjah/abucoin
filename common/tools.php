@@ -171,11 +171,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
               $status[$side]['filled_size'] += $newStatus['filled_size'];
 
               //delete first pass trade and write new one
-              $fp = fopen(TRADES_FILE, "r+");
-              flock($fp, LOCK_EX, $wouldblock);
-              file_put_contents(TRADES_FILE, preg_replace ( '/.*'. $arbId .' '. $market->api->name . ' .*\n/' , '' , file_get_contents(TRADES_FILE) ));
-              flock($fp, LOCK_UN);
-              fclose($fp);
+              file_put_contents(TRADES_FILE, preg_replace ( '/.*'. $arbId .' '. $market->api->name . ':.*\n/' , '' , file_get_contents(TRADES_FILE) ), LOCK_EX);
               // save new trade
               $market->api->save_trade('composite', $product, $side, $status[$side]['filled_size'], $status[$side]['price'], $arbId);
           } else {

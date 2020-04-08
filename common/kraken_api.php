@@ -309,8 +309,10 @@ class KrakenApi
             print_dbg("{$this->name} trade $id status: {$status['status']}. filled: {$status['filled']} @ {$status['price']} $product->base");
             var_dump($status);
       
-            if($status['filled'] > 0 && $saveTrade) {
-              $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
+            if($status['filled'] > 0) {
+              if($saveTrade) {
+                $this->save_trade($id, $product, $side, $status['filled'], $status['price'], $tradeId);
+              }
             } elseif ($order_canceled  || $status['status'] == 'expired') {
               return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
             } else {
