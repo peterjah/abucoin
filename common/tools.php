@@ -162,18 +162,13 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
           print_dbg("retrying to $side $alt at $new_price", true);
 
           $isCompositeTrade = $status[$side]['filled_size'] > 0;
-          $newStatus = place_order($market, 'limit', $symbol, $side, $new_price, $size, $arbId, !$isCompositeTrade);
+          $newStatus = place_order($market, 'limit', $symbol, $side, $new_price, $size, $arbId);
           print "$side {$newStatus['filled_size']} $alt on {$market->api->name} at {$newStatus[$side]['price']}\n";
 
           if ($isCompositeTrade) {
-            $status[$side]['price'] = (($status[$side]['price'] * $status[$side]['filled_size']) + ($newStatus['filled_size'] * $newStatus['price']) /
-            ($status[$side]['filled_size'] + $newStatus['filled_size']));
+            $status[$side]['price'] = ((($status[$side]['price'] * $status[$side]['filled_size']) + ($newStatus['filled_size'] * $newStatus['price'])) /
+                                      ($status[$side]['filled_size'] + $newStatus['filled_size']));
               $status[$side]['filled_size'] += $newStatus['filled_size'];
-
-              //delete first pass trade and write new one
-              file_put_contents(TRADES_FILE, preg_replace ( '/.*'. $arbId .' '. $market->api->name . ':.*\n/' , '' , file_get_contents(TRADES_FILE) ), LOCK_EX);
-              // save new trade
-              $market->api->save_trade('composite', $product, $side, $status[$side]['filled_size'], $status[$side]['price'], $arbId);
           } else {
             $status[$side] = $newStatus;
           }
