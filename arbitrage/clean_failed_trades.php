@@ -300,54 +300,49 @@ function parseTradeFile()
       preg_match('/^(.*): arbitrage: (.*) ([a-zA-Z]+): trade (.*): ([a-z]+) ([.-E0-]+) ([A-Z]+) at ([.-E0-]+) ([A-Z]+)$/',$line, $matches);
 
       if(count($matches) == 10) {
-        $date = $matches[1];
+        $symbol = "{$matches[7]}-{$matches[9]}";
+        $tradeInfos = [
+          'date' => $matches[1],
+          'side' => $matches[5],
+          'size' => floatval($matches[6]),
+          'price' => $matches[8],
+          'id' => $matches[4],
+          'exchange' => $matches[3],
+          'line' => trim($line),
+          'alt' => $matches[7],
+          'base' => $matches[9],
+          'symbol' => $symbol,
+        ];
         $OpId = $matches[2];
-        $exchange = $matches[3];
-        $trade_id = $matches[4];
-        $side = $matches[5];
-        $size = floatval($matches[6]);
-        $alt = $matches[7];
-        $price = $matches[8];
-        $base = $matches[9];
-        $symbol = "{$alt}-{$base}";
-
+        
         if($OpId != 'solved') {
-          if( !isset($ledger[$symbol][$OpId]) ) {
-            if ($size == 0) {
+          $size = $tradeInfos['size'];
+          if( !isset($ledger[$symbol]) || !isset($ledger[$symbol][$OpId]['isFailed']) || $ledger[$symbol][$OpId]['isFailed'] === false) {
+            if ($size == 0) { //special for tradecleaner TX
               markSolved([$OpId]);
             }
             else {
-              $ledger[$symbol][$OpId] = ['date' => $date,
-                                              'side' =>$side,
-                                              'size' =>$size,
-                                              'price' =>$price,
-                                              'id' => $trade_id,
-                                              'exchange' => $exchange,
-                                              'line' => trim($line),
-                                              'alt' => $alt,
-                                              'base' => $base
-                                              ];
+              $ledger[$symbol][$OpId] = $tradeInfos;
             }
-          }
-          elseif (isset($ledger[$symbol]["{$OpId}_2"]) && $ledger[$symbol]["{$OpId}_2"]['size'] == $size) {
-            unset($ledger[$symbol]["{$OpId}_2"]);
+            $ledger[$symbol][$OpId]['isFailed'] = true;
           }
           else {
             if ($ledger[$symbol][$OpId]['size'] != $size) {
-              //print "$symbol Different size trade: {$ledger[$symbol][$OpId]['side']} {$ledger[$symbol][$OpId]['size']} != $side $size\n";
+              print "$symbol Different size trade: {$ledger[$symbol][$OpId]['side']} {$ledger[$symbol][$OpId]['size']} != {$tradeInfos['side']} $size\n";
               if($ledger[$symbol][$OpId]['size'] < $size) {
-                 $ledger[$symbol][$OpId]['side'] = $side;
-                 $ledger[$symbol][$OpId]['exchange'] = $exchange;
-                 $ledger[$symbol][$OpId]['price'] = $price;
+                 $ledger[$symbol][$OpId]['side'] = $tradeInfos['side'];
+                 $ledger[$symbol][$OpId]['exchange'] = $tradeInfos['exchange'];
+                 $ledger[$symbol][$OpId]['price'] = $tradeInfos['price'];
               }
               $ledger[$symbol][$OpId]['size'] = abs($ledger[$symbol][$OpId]['size'] - $size);
 
-              $new_line = "$date: arbitrage: $OpId {$ledger[$symbol][$OpId]['exchange']}: trade $trade_id: {$ledger[$symbol][$OpId]['side']} "
-                           ."{$ledger[$symbol][$OpId]['size']} $alt at {$ledger[$symbol][$OpId]['price']}";
+              $new_line = "{$tradeInfos['date']}: arbitrage: $OpId {$ledger[$symbol][$OpId]['exchange']}: trade {$tradeInfos['id']}: {$ledger[$symbol][$OpId]['side']} "
+                           ."{$ledger[$symbol][$OpId]['size']} {$tradeInfos['alt']} at {$ledger[$symbol][$OpId]['price']}";
               $ledger[$symbol][$OpId]['line'] = $new_line;
             }
-            else
-              unset($ledger[$symbol][$OpId]);
+            else {
+              $ledger[$symbol][$OpId]['isFailed'] = false;
+            }
           }
         }
       } else {
@@ -356,6 +351,13 @@ function parseTradeFile()
       }
     }
     fclose($handle);
+  }
+  foreach($ledger as $idx => $symb){
+    foreach($symb as $op => $trade){
+      if($trade['isFailed'] === false) {
+        unset($ledger[$idx][$op]);
+      }
+    }
   }
   return $ledger;
 }
