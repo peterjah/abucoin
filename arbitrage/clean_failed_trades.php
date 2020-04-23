@@ -80,7 +80,7 @@ foreach($ledger as $symbol => $trades) {
           try {
             do_solve($markets, $symbol, $side, $traded[$side]);
           } catch (Exception $e) {
-            print_dbg("failed to solve: {$e->getMessage()}", true);
+            print_dbg("failed to solve $side $symbol: {$e->getMessage()}", true);
           }
         }
       }
