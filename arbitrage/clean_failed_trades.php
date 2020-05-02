@@ -139,7 +139,7 @@ function do_solve($markets, $symbol, $side, $traded)
           print_dbg("Trade cleaner: filled: {$status['filled_size']}");
           break;
         } catch(Exception $e) {
-          print "{$api->name}: Unable to $action :  $e \n";
+          print_dbg("{$api->name}: Unable to $action :  $e");
           usleep(500000);
           $i++;
         }
