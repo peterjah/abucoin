@@ -230,6 +230,9 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
          print_dbg("$err. giving up...");
          break;
        }
+       if (strpos($err, 'EService:Unavailable token')) {
+         $market->api->renewWebsocketToken();
+       }
        if ($err == 'Rest API trading is not enabled.' || $err == "Unable to locate order in history")
          throw new \Exception($err);
        if($i == 8){
@@ -294,15 +297,14 @@ function get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book
   $min_trade_alt = max($buy_product->min_order_size, $sell_product->min_order_size);
   $size_decimals = min($buy_product->size_decimals, $sell_product->size_decimals);
 
-  // get first order size
-  $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);
-
-  $buy_order_price = $buy_book['asks']['price'];
-
   // not enough founds
   if ($base_bal < $min_trade_base || $alt_bal < $min_trade_alt) {
     return 0;
   }
+
+  // get first order size
+  $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);
+  $buy_order_price = $buy_book['asks']['price'];
 
   $base_to_spend_fee = ($buy_order_price * $trade_size * (1 + $buy_product->fees/100));
 
