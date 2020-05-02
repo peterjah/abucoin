@@ -31,7 +31,16 @@ class Product
   {
     $depth_base = max($depth_base, $this->min_order_size_base);
     $depth_alt = max($depth_alt, $this->min_order_size);
-    $book = $this->api->getTickerOrderBook($this);
+    try {
+      $book = $this->api->getTickerOrderBook($this);
+    } catch(Exception $e) {
+      print("Unable to fetch ticker\n");
+      if ($use_rest) {
+        print("using rest API\n");
+        return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
+      }
+    }
+
     if ($side == 'buy' &&
       ($book['asks']['size'] < $depth_alt
       || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {

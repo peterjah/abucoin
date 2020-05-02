@@ -33,9 +33,6 @@ if(@$autoSolve) {
   $ledger = parseTradeFile();
   print "$$$$$$$$$$$$$$$$$$ First pass $$$$$$$$$$$$$$$$$$\n";
   foreach($ledger as $symbol => $trades) {
-    $mean_sell_price = $sell_size = 0;
-    $mean_buy_price = $buy_size = 0;
-    $balance = 0;
     if(count($trades)) {
       print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
       $traded = processFailedTrades(@$markets, $symbol, $trades);
@@ -47,7 +44,7 @@ if(@$autoSolve) {
   //init api
   $markets = [];
   // Ordered by trade fee
-  foreach( ['binance', 'kraken', 'paymium'] as $name) {
+  foreach( ['binance', 'kraken'] as $name) {
     $i=0;
     while($i<6) {
       try{
@@ -66,15 +63,12 @@ if(@$autoSolve) {
 print "$$$$$$$$$$$$$$$$$$ Second pass $$$$$$$$$$$$$$$$$$\n";
 $ledger = parseTradeFile();
 foreach($ledger as $symbol => $trades) {
-  $mean_sell_price = $sell_size = 0;
-  $mean_buy_price = $buy_size = 0;
-  $balance = 0;
   if(count($trades)) {
     print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
     $traded = processFailedTrades(@$markets, $symbol, $trades);
     foreach (['buy','sell'] as $side ) {
-      if (($size = @$traded[$side]['size']) > 0) {
-        @$balance += $side == 'buy' ? $size : -1 * $size;
+      $size = @$traded[$side]['size'];
+      if ($size > 0) {
         print "$side: size= {$size} price= {$traded[$side]['price']} mean_fee= {$traded[$side]['mean_fees']}\n";
         if (@$autoSolve) {
           try {
@@ -111,7 +105,7 @@ function do_solve($markets, $symbol, $side, $traded)
     if($size < $product->min_order_size )
       continue;
     try {
-      $book = $market->api->getOrderBook($product, $product->min_order_size_base, $size);
+      $book = $product->refreshBook($side, 0, $size);
     } catch (Exception $e) {
       print_dbg("{$e->getMessage()}: continue..", true);
       continue;
