@@ -13,7 +13,10 @@ require_once('../common/tools.php');
 @define('GAINS_FILE', 'gains.json');
 
 if (@$argv[1] == '-solve' && isset($argv[2])) {
+  $fp = fopen(TRADES_FILE, "r");
+  flock($fp, LOCK_SH, $wouldblock);
   $ret = str_replace($argv[2], 'solved', file_get_contents(TRADES_FILE), $count);
+  fclose($fp);
   if($count > 0) {
     file_put_contents(TRADES_FILE, $ret, LOCK_EX);
     print "Tx $argv[2] marked as solved\n";
@@ -261,7 +264,6 @@ function markSolved($ids)
     $fp = fopen(TRADES_FILE, "r+");
     flock($fp, LOCK_EX, $wouldblock);
     file_put_contents(TRADES_FILE, str_replace($id, 'solved', file_get_contents(TRADES_FILE)));
-    flock($fp, LOCK_UN);
     fclose($fp);
   }
 }
@@ -280,7 +282,6 @@ function save_gain($arbitrage_log)
   $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
   $gains_logs['arbitrages'][] = $arbitrage_log;
   file_put_contents(GAINS_FILE, json_encode($gains_logs));
-  flock($fp, LOCK_UN);
   fclose($fp);
 
 }

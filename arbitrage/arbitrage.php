@@ -203,7 +203,6 @@ function testSwap($symbol, $buy_market, $sell_market)
         $fp = fopen(GAINS_FILE, "r");
         flock($fp, LOCK_SH, $wouldblock);
         $gains_logs = json_decode(file_get_contents(GAINS_FILE), true);
-        flock($fp, LOCK_UN);
         fclose($fp);
         $gains_logs['arbitrages'][] = $arbitrage_logs;
         file_put_contents(GAINS_FILE, json_encode($gains_logs), LOCK_EX);

@@ -37,19 +37,16 @@ $products = explode(',', $options['products']);
 switch($options['cmd']) {
   case 'getOrderBook':
       while(true) {
-      touch($file);
-      print_dbg ("Subscribing Binance Orderbook WS feed", true);
-      getOrderBook($products);
-      unlink($file);
-    }
-
+        touch($file);
+        print_dbg ("Subscribing Binance Orderbook WS feed", true);
+        getOrderBook($products);
+        unlink($file);
+      }
 }
 
 function getOrderBook($products)
 {
-  $rest_api = new BinanceApi();
   global $file;
-  global $options;
 
   $orderbook = [];
   $subscribe_str = '/stream?streams=';
@@ -65,8 +62,7 @@ function getOrderBook($products)
   $client = new Client(WSS_URL . $subscribe_str, ['timeout' => 60]);
   
   while (true) {
-    try
-    {
+    try {
       $message = $client->receive();
       if ($message) {
         $msg = json_decode($message , true);
@@ -89,7 +85,6 @@ function getOrderBook($products)
       }
     } catch(Exception $e) {
       print_dbg('Binance websocket error:' . $e->getMessage(),true);
-      //print_dbg(var_dump($e),true);
       break;
     }
   }

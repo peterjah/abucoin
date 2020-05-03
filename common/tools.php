@@ -347,13 +347,15 @@ function subscribeWsOrderBook($market_name, $symbol_list, $depth)
 
 function getWsOrderbook($file) {
   $fp = fopen($file, "r");
-  flock($fp, LOCK_SH, $wouldblock);
-  $orderbook = json_decode(file_get_contents($file), true);
-  flock($fp, LOCK_UN);
-  fclose($fp);
-  $update_timeout = 30;
-  if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
-    throw new \Exception("$file orderbook not uptaded since $update_timeout sec");
+  if (flock($fp, LOCK_SH, $wouldblock)) {
+    $orderbook = json_decode(file_get_contents($file), true);
+    fclose($fp);
+    $update_timeout = 30;
+    if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
+      throw new \Exception("$file orderbook not uptaded since $update_timeout sec");
+    }
+    return $orderbook;
+  } else {
+    throw new \Exception("Unable to read file: $file");
   }
-  return $orderbook;
 }

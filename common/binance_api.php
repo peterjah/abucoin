@@ -50,8 +50,6 @@ class BinanceApi
         $this->api_calls = 0;
         $this->name = 'Binance';
 
-        $this->PriorityLevel = 1;
-
         //App specifics
         $this->products = [];
         $this->balances = [];

@@ -35,7 +35,6 @@ class KrakenApi
       $this->secret = $keys->kraken->secret;
       $this->key = $keys->kraken->api_key;
       $this->name = 'Kraken';
-      $this->PriorityLevel = 9;
 
       $this->curl = curl_init();
       curl_setopt_array($this->curl, array(
