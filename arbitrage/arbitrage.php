@@ -71,6 +71,9 @@ while(true) {
                       } else {
                           $base = $market1->products[$symbol]->base;
                           $profits[$base] += $status['final_gains']['base'];
+                          foreach ([$market1, $market2] as $market) {
+                            $market->api->refreshTickers($symbol_list);
+                          }
                       }
                   }
                 }
