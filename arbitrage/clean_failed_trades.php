@@ -50,7 +50,7 @@ if(@$autoSolve) {
   foreach( ['binance', 'kraken'] as $name) {
     $i=0;
     while($i<6) {
-      try{
+      try {
         $markets[$name] = new Market($name);
         $markets[$name]->api->getBalance();
         break;
@@ -86,7 +86,7 @@ foreach($ledger as $symbol => $trades) {
 }
 
 if(@$autoSolve)
-  sleep(1800);
+  sleep(900); //15 min
 else
   break;
 }
