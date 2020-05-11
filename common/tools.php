@@ -152,7 +152,8 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
     $opProduct = $toSell ? $buy_product : $sell_product;
     $market = $toSell ? $sell_market : $buy_market;
     $newStatus = [];
-    if ($status[$side]['filled_size'] < $filled ) {
+    $tout = 0;
+    while ($status[$side]['filled_size'] < $filled && $tout < 3) {
       $size = $filled - $status[$side]['filled_size'];
       $book = $product->refreshBook($side, 0, $size);
       if($toSell) {
@@ -166,7 +167,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
       $size = min(truncate($base_bal / ($new_price * (1 + $product->fees/100)) , $product->size_decimals), $size);
 
       if (($size >= $product->min_order_size) && ($size * $new_price >= $product->min_order_size_base)) {
-        print_dbg("last chance to $side $size $alt at $new_price... expected gains: {$expected_gains["base"]} $base {$expected_gains["percent"]}%", true);
+        print_dbg("last chance to $side $size $alt at $new_price... expected gains: {$expected_gains["percent"]}%  try $tout...", true);
         if ($expected_gains['percent'] >= (-1 * LOSS_TRESHOLD)) {
           print_dbg("retrying to $side $alt at $new_price", true);
 
@@ -181,11 +182,15 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
           } else {
             $status[$side] = $newStatus;
           }
-
+          $tout++;
+        } else {
+          print_dbg("expected gain are insuficients", true);
+          break;
         }
+      } else {
+        print_dbg("left size is insuficients", true);
+        break;
       }
-      unlink($market->api->orderbook_file);
-      print_dbg("Restarting {$market->api->name} websockets", true);
     }
   }
 
