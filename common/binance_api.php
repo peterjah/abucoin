@@ -395,7 +395,7 @@ class BinanceApi
       try{
         $this->wrappedRequest('DELETE', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
       } catch (Exception $e) {
-        if($e->getMessage() == 'UNKNOWN_ORDER') {
+        if($e->getMessage() === 'Unknown order sent.') {
           return false;
         }
         throw new BinanceAPIException($e->getMessage());

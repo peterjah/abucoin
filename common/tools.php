@@ -209,7 +209,7 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
     }
     catch(Exception $e) {
        $err = $e->msg();
-       print_dbg("unable to $side retrying. $i ..: {$err}", true);
+       print_dbg("unable to $side retrying. $i : {$err}", true);
        if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance' || $err == 'ERROR: Insufficient Funds.' ||
           $err == 'Account has insufficient balance for requested action.' || $err == 'Order rejected')
        {
