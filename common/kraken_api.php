@@ -551,7 +551,7 @@ class KrakenApi
         $status = $this->getOrdersHistory(['id' => $id]);
         print_dbg("closed order check: {$status['status']}");
       }
-      usleep(500000);
+      usleep(2000000); // 2 sec
     }
     return $status;
   }

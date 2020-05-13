@@ -310,13 +310,13 @@ class BinanceApi
         }
         else {
           //give server some time to handle order
-          usleep(500000);//0.5 sec
+          usleep(500000);// 0.5 sec
           $status = [];
-          $timeout = 10;//sec
+          $timeout = 10;// sec
           $begin = microtime(true);
           while ( (@$status['status'] != 'closed') && ((microtime(true) - $begin) < $timeout)) {
             $status = $this->getOrderStatus($product, $id);
-            usleep(500000);//0.5 sec
+            usleep(1000000); // 1 sec
           }
           print_dbg("Check {$this->name} order $id status: {$status['status']} $side $alt filled:{$status['filled']}", true);
 
