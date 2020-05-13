@@ -169,7 +169,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
       if (($size >= $product->min_order_size) && ($size * $new_price >= $product->min_order_size_base)) {
         print_dbg("last chance to $side $size $alt at $new_price... expected gains: {$expected_gains["percent"]}%  try $tout...", true);
         if ($expected_gains['percent'] >= (-1 * LOSS_TRESHOLD)) {
-          print_dbg("retrying to $side $alt at $new_price", true);
+          print_dbg("retrying to $size $side $alt at $new_price", true);
 
           $isCompositeTrade = $status[$side]['filled_size'] > 0;
           $newStatus = place_order($market, 'limit', $symbol, $side, $new_price, $size, $arbId);
