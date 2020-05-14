@@ -150,7 +150,6 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
     while ($status[$side]['filled_size'] < $filled && $tout < 3) {
       $size = $filled - $status[$side]['filled_size'];
       $book = $product->refreshBook($side, 0, $size);
-      $this->api->getOrderBook($this, $depth_base, $depth_alt)
       if($toSell) {
         $new_price = $book['bids']['price'];
         $expected_gains = computeGains($status[$opSide]['price'], $opProduct->fees, $new_price, $product->fees, $size);
