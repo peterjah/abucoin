@@ -323,9 +323,9 @@ class BinanceApi
           if(empty($status['status']) || $status['status'] == 'open') {
             $order_canceled = $this->cancelOrder($product, $id);
             $begin = microtime(true);
-            while (empty($status['status']) && (microtime(true) - $begin) < $timeout) {
+            while ((!$order_canceled || empty($status['status'])) && (microtime(true) - $begin) < $timeout) {
               $status = $this->getOrderStatus($product, $id);
-              usleep(50000);
+              usleep(1000000);
             }
           }
 
@@ -340,11 +340,8 @@ class BinanceApi
           }
           return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $price*$filled_size, 'price' => $price];
         }
-        elseif ($order_canceled) {
-          return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
-        }
         else {
-          throw new BinanceAPIException("Unable to locate order in history");
+          return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
         }
       }
       else
@@ -396,6 +393,7 @@ class BinanceApi
         $this->wrappedRequest('DELETE', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
       } catch (Exception $e) {
         if($e->getMessage() === 'Unknown order sent.') {
+          print_dbg("Unknown order sent",true);
           return false;
         }
         throw new BinanceAPIException($e->getMessage());

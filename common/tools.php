@@ -34,9 +34,9 @@ class Product
     try {
       $book = $this->api->getTickerOrderBook($this);
     } catch(Exception $e) {
-      print("Unable to fetch ticker\n");
+      print("Unable to fetch ticker: {$e->getMessage()}\n");
       if ($use_rest) {
-        print("using rest API\n");
+        print_dbg("using rest API", true);
         return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
       }
     }
@@ -45,20 +45,14 @@ class Product
       ($book['asks']['size'] < $depth_alt
       || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {
         print("ticker size is too low\n");
-        if ($use_rest) {
-            return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
-        }
-        return false;
+        return $use_rest ? $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt) : false;
     }
 
     if ($side == 'sell' &&
     ($book['bids']['size'] < $depth_alt
     || ($book['bids']['size'] * $book['bids']['price']) < $depth_base)) {
       print("ticker size is too low\n");
-      if ($use_rest) {
-          return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
-      }
-      return false;
+      return $use_rest ? $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt) : false;
     }
 
     return $this->book = $book;
@@ -156,6 +150,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
     while ($status[$side]['filled_size'] < $filled && $tout < 3) {
       $size = $filled - $status[$side]['filled_size'];
       $book = $product->refreshBook($side, 0, $size);
+      $this->api->getOrderBook($this, $depth_base, $depth_alt)
       if($toSell) {
         $new_price = $book['bids']['price'];
         $expected_gains = computeGains($status[$opSide]['price'], $opProduct->fees, $new_price, $product->fees, $size);
