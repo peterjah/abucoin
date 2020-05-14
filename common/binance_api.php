@@ -323,7 +323,7 @@ class BinanceApi
           if(empty($status['status']) || $status['status'] == 'open') {
             $order_canceled = $this->cancelOrder($product, $id);
             $begin = microtime(true);
-            while ((!$order_canceled || empty($status['status'])) && (microtime(true) - $begin) < $timeout) {
+            while ((!$order_canceled || empty($status['status'])) && (microtime(true) - $begin) < $timeout) {
               $status = $this->getOrderStatus($product, $id);
               usleep(1000000);
             }
