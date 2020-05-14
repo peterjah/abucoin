@@ -36,7 +36,7 @@ class Product
     } catch(Exception $e) {
       print("Unable to fetch ticker: {$e->getMessage()}\n");
       if ($use_rest) {
-        print_dbg("using rest API", true);
+        print("using rest API\n");
         return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
       }
     }
