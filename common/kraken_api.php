@@ -506,6 +506,9 @@ class KrakenApi
 
    function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
    {
+        $depth_base = max($depth_base, $product->min_order_size_base);
+        $depth_alt = max($depth_alt, $product->min_order_size);
+
         $book = $this->wrappedRequest('Depth', ['pair' => $product->exchange_symbol, 'count' => $this->orderbook_depth]);
 
         $book = $book['result'][$product->exchange_symbol];

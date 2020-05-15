@@ -231,6 +231,9 @@ class BinanceApi
 
     function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
     {
+      $depth_base = max($depth_base, $product->min_order_size_base);
+      $depth_alt = max($depth_alt, $product->min_order_size);
+
       $symbol = self::crypto2binance($product->alt) . self::crypto2binance($product->base);
 
       $book = $this->wrappedRequest('GET', 'v3/depth', ['symbol' => $symbol, 'limit' => $this->orderbook_depth]);
