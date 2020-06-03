@@ -364,6 +364,7 @@ class KrakenApi
                 'USDC'=>5,
                 'TRX'=>500,
                 'ALGO'=>50,
+                'OXT'=>50,
               ];
 
     if(array_key_exists($crypto,$table))
