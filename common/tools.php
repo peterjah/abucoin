@@ -186,7 +186,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
           break;
         }
       } else {
-        print_dbg("left size is insuficients", true);
+        print_dbg("left size ($size) is insuficients. new price: $new_price min_order_size: $product->min_order_size min_order_size_base: $product->min_order_size_base", true);
         break;
       }
     }
