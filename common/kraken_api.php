@@ -365,6 +365,11 @@ class KrakenApi
                 'TRX'=>500,
                 'ALGO'=>50,
                 'OXT'=>50,
+                'KAVA'=>10,
+                'KNC'=>10,
+                'STORJ'=>50,
+                'AUD'=>10,
+                'COMP'=>0.025,
               ];
 
     if(array_key_exists($crypto,$table))

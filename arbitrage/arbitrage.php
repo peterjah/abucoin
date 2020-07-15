@@ -188,7 +188,6 @@ function testSwap($symbol, $buy_market, $sell_market)
 
         $trade_size = min($filled_buy , $filled_sell);
         $final_gains = computeGains($status['buy']['price'], $buy_fees, $status['sell']['price'], $sell_fees, $trade_size);
-        $profit += $final_gains['base'];
 
         $stats = ['buy_price_diff' => ($status['buy']['price'] * 100 / $buy_price) - 100,
                   'sell_price_diff' => ($status['sell']['price'] * 100 / $sell_price) - 100
