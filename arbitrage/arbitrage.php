@@ -1,6 +1,7 @@
 <?php
 
 require_once('../common/tools.php');
+$config = include('config.php');
 
 declare(ticks = 1);
 function sig_handler($sig) {
@@ -116,6 +117,9 @@ while(true) {
   // time recurent tasks
   if( time() - $last_update > 60/*sec*/) {
     try {
+      if(!empty($config['healthCheckId'])) {
+        file_get_contents("https://hc-ping.com/{$config['healthCheckId']}");
+      }
       foreach([$market1, $market2] as $market) {
         while($market->api->ping() === false) {
           print "Failed to ping {$market->api->name} api. Sleeping...\n";

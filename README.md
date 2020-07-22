@@ -21,7 +21,7 @@ create a json file "private.keys" in common folder and fill it with your api cre
 > }
 
 Test your setup by getting your portfolio:
-php arbitrage/balances.php7
+php arbitrage/balances.php
 
 
 todo:
