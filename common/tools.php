@@ -152,7 +152,9 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
       $book = $product->refreshBook($side, 0, $size);
       $op_price = $toSell ? $status[$opSide]['price'] : $status[$opSide]['price'];
       $new_price = $toSell ? $book['bids']['price'] : $book['asks']['price'];
-      if ($new_price == $op_price) {
+      // use rest api after first try
+      if ($tout) {
+        print_dbg("get book from rest api", true);
         $book =  $product->api->getOrderBook($product, 0, $size);
         $new_price = $toSell ? $book['bids']['price'] : $book['asks']['price'];
       }
@@ -186,7 +188,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
           break;
         }
       } else {
-        print_dbg("left size ($size) is insuficients. new price: $new_price min_order_size: $product->min_order_size min_order_size_base: $product->min_order_size_base", true);
+        print_dbg("insuficient size: $size min_size=$product->min_order_size. base size=". $new_price*$size." min_size_base=$product->min_order_size_base", true);
         break;
       }
     }
@@ -208,8 +210,11 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
     catch(Exception $e) {
        $err = $e->msg();
        print_dbg("unable to $side retrying. $i : {$err}", true);
-       if($err =='EOrder:Insufficient funds' || $err == 'insufficient_balance' || $err == 'ERROR: Insufficient Funds.' ||
-          $err == 'Account has insufficient balance for requested action.' || $err == 'Order rejected')
+       if ($err =='EOrder:Insufficient funds' ||
+           $err == 'insufficient_balance' ||
+           $err == 'ERROR: Insufficient Funds.' ||
+           $err == 'Binance error: Account has insufficient balance for requested action.' ||
+           $err == 'Order rejected')
        {
          $market->getBalance();
          print_dbg("Insufficient funds to $side $size $alt @ $price , base_bal:{$market->api->balances[$base]} alt_bal:{$market->api->balances[$alt]}", true);
