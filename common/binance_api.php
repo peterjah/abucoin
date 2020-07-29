@@ -366,7 +366,14 @@ class BinanceApi
       $base = self::crypto2binance($product->base);
       $symbol = "{$alt}{$base}";
 
-      $order = $this->wrappedRequest('GET', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
+
+      try {
+        $order = $this->wrappedRequest('GET', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
+      } catch (Exception $e) {
+        if($e->getMessage() === 'Order does not exist.') {
+          print_dbg("getOrderStatus failed for sym=$symbol id=:$orderId" . $e->getMessage(),true);
+        }
+      }
 
       if(isset($order))
       {
@@ -392,7 +399,7 @@ class BinanceApi
       $symbol = "{$alt}{$base}";
       print_dbg("canceling $symbol order $orderId", true);
 
-      try{
+      try {
         $this->wrappedRequest('DELETE', 'v3/order', ["symbol" => $symbol, "orderId" => $orderId]);
       } catch (Exception $e) {
         if($e->getMessage() === 'Unknown order sent.') {
