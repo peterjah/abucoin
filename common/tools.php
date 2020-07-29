@@ -158,9 +158,10 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
         $book =  $product->api->getOrderBook($product, 0, $size);
         $new_price = $toSell ? $book['bids']['price'] : $book['asks']['price'];
       }
-      $base_bal = $market->api->balances[$base];
-      $size = min(truncate($base_bal / ($new_price * (1 + $product->fees/100)) , $product->size_decimals), $size);
-
+      if (!$toSell) {
+          $base_bal = $market->api->balances[$base];
+          $size = min(truncate($base_bal / ($new_price * (1 + $product->fees/100)), $product->size_decimals), $size);
+      }
       if (($size >= $product->min_order_size) && ($size * $new_price >= $product->min_order_size_base)) {
         if($toSell) {
           $expected_gains = computeGains($op_price, $opProduct->fees, $new_price, $product->fees, $size);
