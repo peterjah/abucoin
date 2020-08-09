@@ -124,7 +124,7 @@ class KrakenApi
                 'XLM' => 'XXLM',
                 'ETH' => 'XETH',
                 'ETC' => 'XETC',
-                'REP' => 'XREP',
+                'REP' => 'REPV2',
                 'ZEC' => 'XZEC',
                 'XMR' => 'XXMR',
                 'EUR' => 'ZEUR',
@@ -155,6 +155,7 @@ class KrakenApi
     {
       $table = ['BTC' => 'XBT',
                 'DOGE' => 'XDG',
+                'REP' => 'REPV2',
                ];
       if($reverse)
         $table = array_flip($table);
