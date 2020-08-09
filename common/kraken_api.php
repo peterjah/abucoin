@@ -327,6 +327,7 @@ class KrakenApi
     static function minimumAltTrade($crypto)
     {
       $table = ['REP'=>0.3,
+                'REPV2'=>0.3,
                 'BTC'=>0.002,
                 'BCH'=>0.000002,
                 'DASH'=>0.03,
