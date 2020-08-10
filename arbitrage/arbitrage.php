@@ -181,8 +181,8 @@ function testSwap($symbol, $buy_market, $sell_market)
       $arbitrage_logs = [];
       $arbId = substr($sell_market->api->name, 0, 2) . substr($buy_market->api->name, 0, 2) . '_' . number_format(microtime(true) * 100, 0, '.', '');
       print_dbg("\n Arbitrage for {$symbol}. estimated gain: ".number_format($expected_gains['percent'], 3)."%");
-      print_dbg("SELL $trade_size $alt on {$sell_market->api->name} at $sell_price, orderPrice: $sell_order_price priceDecs: {$sell_product->price_decimals} ordersize: {$sell_book['bids']['size']}", true);
-      print_dbg("BUY $trade_size $alt on {$buy_market->api->name} at $buy_price, orderPrice: $buy_order_price priceDecs: {$buy_product->price_decimals} ordersize: {$buy_book['asks']['size']}", true);
+      print_dbg("SELL $trade_size $alt on {$sell_market->api->name} at $sell_price, orderPrice: $sell_order_price priceDecs: {$sell_product->price_decimals} volumeDecs: {$sell_product->size_decimals} ordersize: {$sell_book['bids']['size']}", true);
+      print_dbg("BUY $trade_size $alt on {$buy_market->api->name} at $buy_price, orderPrice: $buy_order_price priceDecs: {$buy_product->price_decimals} volumeDecs: {$buy_product->size_decimals} ordersize: {$buy_book['asks']['size']}", true);
       $status = async_arbitrage($symbol, $sell_market, $sell_order_price, $buy_market, $buy_order_price, $trade_size, $arbId);
       $filled_buy = $status['buy']['filled_size'];
       $filled_sell = $status['sell']['filled_size'];
