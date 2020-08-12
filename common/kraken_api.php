@@ -220,6 +220,9 @@ class KrakenApi
         $alt = $this->translate2marketName($symbols[0], true);
         $base = $this->translate2marketName($symbols[1], true);
 
+        if($symbols[0] === "REP") {
+          continue;
+        }
         //compute fee level
         foreach($product['fees'] as $feesLevel) {
           if ($tradedVolume > $feesLevel[0]) {
