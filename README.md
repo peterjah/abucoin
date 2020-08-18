@@ -25,4 +25,5 @@ php arbitrage/balances.php
 
 
 todo:
-Use a database to store transactions 
+Use a database to store transactions
+store trade fees

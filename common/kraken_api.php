@@ -374,6 +374,7 @@ class KrakenApi
                 'STORJ'=>50,
                 'AUD'=>10,
                 'COMP'=>0.025,
+                'DOT'=>1,
               ];
 
     if(array_key_exists($crypto,$table))
