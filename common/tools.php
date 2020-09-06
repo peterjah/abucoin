@@ -209,7 +209,7 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
       return $market->api->place_order($product, $type, $side, $price, $size, $arbId);
     }
     catch(Exception $e) {
-       $err = $e->msg();
+       $err = $e->getMessage();
        print_dbg("unable to $side retrying. $i : {$err}", true);
        if (strpos( $err, 'EOrder:Insufficient funds') ||
            strpos( $err, 'Account has insufficient balance for requested action.'))
