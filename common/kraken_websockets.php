@@ -109,11 +109,11 @@ function getOrderBook($products)
           elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
             $symbol = $channel_ids[$msg[0]];
             //price
-            $orderbook[$app_symbol]['bids'][0][0] = $msg[1]['b'][0];
-            $orderbook[$app_symbol]['asks'][0][0] = $msg[1]['a'][0];
+            $orderbook[$symbol]['bids'][0][0] = $msg[1]['b'][0];
+            $orderbook[$symbol]['asks'][0][0] = $msg[1]['a'][0];
             //vol
-            $orderbook[$app_symbol]['bids'][0][1] = $msg[1]['b'][2];
-            $orderbook[$app_symbol]['asks'][0][1] = $msg[1]['a'][2];
+            $orderbook[$symbol]['bids'][0][1] = $msg[1]['b'][2];
+            $orderbook[$symbol]['asks'][0][1] = $msg[1]['a'][2];
 
             $orderbook['last_update'] = microtime(true);
           } else {
