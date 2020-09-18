@@ -375,6 +375,10 @@ class KrakenApi
                 'AUD'=>10,
                 'COMP'=>0.025,
                 'DOT'=>1,
+                'BAL'=>0.1,
+                'CRV'=>1,
+                'KSM'=>0.1,
+                'SNX'=>1,
               ];
 
     if(array_key_exists($crypto,$table))
