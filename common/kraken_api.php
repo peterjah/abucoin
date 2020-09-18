@@ -1,19 +1,21 @@
 <?php
 use WebSocket\Client;
-@define('WSS_AUTH_URL','wss://ws-auth.kraken.com');
+
+@define('WSS_AUTH_URL', 'wss://ws-auth.kraken.com');
 
 require_once('../common/tools.php');
-class KrakenAPIException extends ErrorException {
+class KrakenAPIException extends ErrorException
+{
+    public function __construct($msg, $data = null)
+    {
+        parent::__construct($msg);
+        $this->data = $data;
+    }
 
-  public function __construct($msg, $data = null)
-  {
-    parent::__construct($msg);
-    $this->data = $data;
-  }
-
-  public function msg() {
-    return "Kraken error: {$this->getMessage()}";
-  }
+    public function msg()
+    {
+        return "Kraken error: {$this->getMessage()}";
+    }
 };
 
 class KrakenApi
@@ -29,96 +31,101 @@ class KrakenApi
 
     public function __construct()
     {
-      $keys = json_decode(file_get_contents("../common/private.keys"));
-      if (!isset($keys->kraken))
-        throw new KrakenAPIException("Unable to retrieve private keys");
-      $this->secret = $keys->kraken->secret;
-      $this->key = $keys->kraken->api_key;
-      $this->name = 'Kraken';
+        $keys = json_decode(file_get_contents("../common/private.keys"));
+        if (!isset($keys->kraken)) {
+            throw new KrakenAPIException("Unable to retrieve private keys");
+        }
+        $this->secret = $keys->kraken->secret;
+        $this->key = $keys->kraken->api_key;
+        $this->name = 'Kraken';
 
-      $this->curl = curl_init();
-      curl_setopt_array($this->curl, array(
+        $this->curl = curl_init();
+        curl_setopt_array(
+            $this->curl,
+            array(
           CURLOPT_SSL_VERIFYPEER => true,
           CURLOPT_SSL_VERIFYHOST => 2,
           CURLOPT_USERAGENT => 'Kraken PHP API Agent',
           CURLOPT_POST => true,
           CURLOPT_RETURNTRANSFER => true,
           CURLOPT_TIMEOUT => 8)
-      );
+        );
 
-      //App specifics
-      $this->products = [];
-      $this->balances = [];
-      $this->api_calls = 0;
-      $this->api_calls_rate = 0;
-      $this->time = time();
+        //App specifics
+        $this->products = [];
+        $this->balances = [];
+        $this->api_calls = 0;
+        $this->api_calls_rate = 0;
+        $this->time = time();
 
-      $this->orderbook_depth = 10;
-      $this->renewWebsocketToken();
+        $this->orderbook_depth = 10;
+        $this->renewWebsocketToken();
     }
 
-    function __destruct()
+    public function __destruct()
     {
         curl_close($this->curl);
     }
 
     public function jsonRequest($method, array $request = array())
     {
-      $this->api_calls++;
-      $now = time();
-      if (($now - $this->time) > 60) {
-        $this->api_calls_rate = $this->api_calls;
-        $this->api_calls = 0;
-        $this->time = $now;
-      }
-
-      $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs', 'Time');
-      if (!in_array($method, $public_set)) {
-        //private method
-        if(!isset($request['nonce'])) {
-          // generate a 64 bit nonce using a timestamp at microsecond resolution
-          // string functions are used to avoid problems on 32 bit systems
-          $nonce = explode(' ', microtime());
-          $request['nonce'] = $nonce[1] . str_pad(substr($nonce[0], 2, 6), 6, '0');
+        $this->api_calls++;
+        $now = time();
+        if (($now - $this->time) > 60) {
+            $this->api_calls_rate = $this->api_calls;
+            $this->api_calls = 0;
+            $this->time = $now;
         }
-        $postdata = http_build_query($request, '', '&');
-        // set API key and sign the message
-        $path = '/' . self::API_VERSION . '/private/' . $method;
-        $sign = hash_hmac('sha512', $path . hash('sha256', $request['nonce'] . $postdata, true), base64_decode($this->secret), true);
-        $headers = array(
+
+        $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs', 'Time');
+        if (!in_array($method, $public_set)) {
+            //private method
+            if (!isset($request['nonce'])) {
+                // generate a 64 bit nonce using a timestamp at microsecond resolution
+                // string functions are used to avoid problems on 32 bit systems
+                $nonce = explode(' ', microtime());
+                $request['nonce'] = $nonce[1] . str_pad(substr($nonce[0], 2, 6), 6, '0');
+            }
+            $postdata = http_build_query($request, '', '&');
+            // set API key and sign the message
+            $path = '/' . self::API_VERSION . '/private/' . $method;
+            $sign = hash_hmac('sha512', $path . hash('sha256', $request['nonce'] . $postdata, true), base64_decode($this->secret), true);
+            $headers = array(
             'API-Key: ' . $this->key,
             'API-Sign: ' . base64_encode($sign)
             );
-      } else {
-        $path = '/' . self::API_VERSION . '/public/' . $method;
-        $headers = array ();
-        $postdata = http_build_query($request, '', '&');
-      }
-      // make request
-      curl_setopt($this->curl, CURLOPT_URL, self::API_URL . $path);
-      curl_setopt($this->curl, CURLOPT_POSTFIELDS, $postdata);
-      curl_setopt($this->curl, CURLOPT_HTTPHEADER, $headers);
-      curl_setopt($this->curl, CURLOPT_CONNECTTIMEOUT, 5);
-      $result = curl_exec($this->curl);
-      if($result===false)
-          throw new KrakenAPIException('CURL error: ' . curl_error($this->curl));
+        } else {
+            $path = '/' . self::API_VERSION . '/public/' . $method;
+            $headers = array();
+            $postdata = http_build_query($request, '', '&');
+        }
+        // make request
+        curl_setopt($this->curl, CURLOPT_URL, self::API_URL . $path);
+        curl_setopt($this->curl, CURLOPT_POSTFIELDS, $postdata);
+        curl_setopt($this->curl, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($this->curl, CURLOPT_CONNECTTIMEOUT, 5);
+        $result = curl_exec($this->curl);
+        if ($result===false) {
+            throw new KrakenAPIException('CURL error: ' . curl_error($this->curl));
+        }
 
-      // decode results
-      $result = json_decode($result, true);
-      if(!is_array($result))
-          throw new KrakenAPIException('JSON decode error');
-      if(isset($result['error'][0]) && $result['error'][0] == 'EAPI:Rate limit exceeded') {
-        print_dbg("Kraken: api call limit reached", true);
-        sleep(15);
-        throw new KrakenAPIException($result['error'][0]);
-      }
+        // decode results
+        $result = json_decode($result, true);
+        if (!is_array($result)) {
+            throw new KrakenAPIException('JSON decode error');
+        }
+        if (isset($result['error'][0]) && $result['error'][0] == 'EAPI:Rate limit exceeded') {
+            print_dbg("Kraken: api call limit reached", true);
+            sleep(15);
+            throw new KrakenAPIException($result['error'][0]);
+        }
 
-      return $result;
+        return $result;
     }
 
-    static function crypto2kraken($crypto, $reverse = false)
+    public static function crypto2kraken($crypto, $reverse = false)
     {
-      $table = ['BTC' => 'XXBT',
+        $table = ['BTC' => 'XXBT',
                 'XRP' => 'XXRP',
                 'LTC' => 'XLTC',
                 'XLM' => 'XXLM',
@@ -136,108 +143,111 @@ class KrakenApi
                 'JPY' => "ZJPY",
                 'GBP' => "ZGBP",
                 ];
-      if($reverse)
-        $table = array_flip($table);
-      if(array_key_exists($crypto,$table))
-        return $table[$crypto];
-      else {
-        return $crypto;
-      }
+        if ($reverse) {
+            $table = array_flip($table);
+        }
+        if (array_key_exists($crypto, $table)) {
+            return $table[$crypto];
+        } else {
+            return $crypto;
+        }
     }
 
-    static function kraken2crypto($crypto)
+    public static function kraken2crypto($crypto)
     {
-      return self::crypto2kraken($crypto, true);
+        return self::crypto2kraken($crypto, true);
     }
 
     //Used in websockets
-    static function translate2marketName($crypto, $reverse = false)
+    public static function translate2marketName($crypto, $reverse = false)
     {
-      $table = ['BTC' => 'XBT',
+        $table = ['BTC' => 'XBT',
                 'DOGE' => 'XDG',
                 'REP' => 'REPV2',
                ];
-      if($reverse)
-        $table = array_flip($table);
-      if(array_key_exists($crypto,$table))
-        return $table[$crypto];
-      else {
-        return $crypto;
-      }
+        if ($reverse) {
+            $table = array_flip($table);
+        }
+        if (array_key_exists($crypto, $table)) {
+            return $table[$crypto];
+        } else {
+            return $crypto;
+        }
     }
 
-    function getBalance()
+    public function getBalance()
     {
-      $balances = $this->wrappedRequest('Balance');
-      $open_orders = $this->wrappedRequest('OpenOrders');
+        $balances = $this->wrappedRequest('Balance');
+        $open_orders = $this->wrappedRequest('OpenOrders');
       
-      $crypto_in_order = [];
-      if(isset($open_orders['result']['open'])) {
-        foreach($open_orders['result']['open'] as $openOrder) {
-          $product = getProductByParam($this->products, "exchange_symbol", $openOrder['descr']['pair']);
+        $crypto_in_order = [];
+        if (isset($open_orders['result']['open'])) {
+            foreach ($open_orders['result']['open'] as $openOrder) {
+                $product = getProductByParam($this->products, "exchange_symbol", $openOrder['descr']['pair']);
 
-          if($openOrder['descr']['type'] == 'sell') {
-            @$crypto_in_order[$product->alt] += $openOrder['vol'];
-          } else {
-            @$crypto_in_order[$product->base] += $openOrder['vol'] * $openOrder['descr']['price'];
-          }
+                if ($openOrder['descr']['type'] == 'sell') {
+                    @$crypto_in_order[$product->alt] += $openOrder['vol'];
+                } else {
+                    @$crypto_in_order[$product->base] += $openOrder['vol'] * $openOrder['descr']['price'];
+                }
+            }
         }
-      }
 
-      $assetBalances = [];
-      foreach($balances['result'] as $krakenAlt => $bal) {
-        $crypto = $this->kraken2crypto($krakenAlt);
-        $assetBalances[$crypto] = @$this->balances[$crypto] = floatval($bal - $crypto_in_order[$crypto]);
-      }
+        $assetBalances = [];
+        foreach ($balances['result'] as $krakenAlt => $bal) {
+            $crypto = $this->kraken2crypto($krakenAlt);
+            $assetBalances[$crypto] = @$this->balances[$crypto] = floatval($bal - $crypto_in_order[$crypto]);
+        }
 
-      if( !isset($assetBalances) )
-        throw new KrakenAPIException('failed to get balances');
+        if (!isset($assetBalances)) {
+            throw new KrakenAPIException('failed to get balances');
+        }
 
-      return $assetBalances;
+        return $assetBalances;
     }
 
-    function save_trade($id, $product, $side, $size, $price, $tradeId)
+    public function save_trade($id, $product, $side, $size, $price, $tradeId)
     {
-      $alt = $product->alt;
-      $base = $product->base;
-      print("saving trade\n");
-      $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price $base\n";
-      file_put_contents(TRADE_FILE, $trade_str, FILE_APPEND | LOCK_EX);
+        $alt = $product->alt;
+        $base = $product->base;
+        print("saving trade\n");
+        $trade_str = date("Y-m-d H:i:s").": arbitrage: $tradeId {$this->name}: trade $id: $side $size $alt at $price $base\n";
+        file_put_contents(TRADE_FILE, $trade_str, FILE_APPEND | LOCK_EX);
     }
 
-    function getProductList($base = null)
+    public function getProductList($base = null)
     {
-      $products = $this->wrappedRequest('AssetPairs');
-      $tradeVolume = $this->wrappedRequest('TradeVolume');
+        $products = $this->wrappedRequest('AssetPairs');
+        $tradeVolume = $this->wrappedRequest('TradeVolume');
 
-      $tradedVolume = $tradeVolume['result']['volume'];
-      foreach($products['result'] as $kraken_symbol => $product) {
+        $tradedVolume = $tradeVolume['result']['volume'];
+        foreach ($products['result'] as $kraken_symbol => $product) {
+            if (substr($kraken_symbol, -2) == '.d') {
+                continue;
+            }
 
-        if (substr($kraken_symbol, -2) == '.d')
-          continue;
+            $symbols = explode('/', $product['wsname']);
+            $alt = $this->translate2marketName($symbols[0], true);
+            $base = $this->translate2marketName($symbols[1], true);
 
-        $symbols = explode('/',$product['wsname']);
-        $alt = $this->translate2marketName($symbols[0], true);
-        $base = $this->translate2marketName($symbols[1], true);
+            if ($symbols[0] === "REP") {
+                continue;
+            }
+            //compute fee level
+            foreach ($product['fees'] as $feesLevel) {
+                if ($tradedVolume > $feesLevel[0]) {
+                    $fees = $feesLevel[1];
+                    continue;
+                }
+                break;
+            }
 
-        if($symbols[0] === "REP") {
-          continue;
-        }
-        //compute fee level
-        foreach($product['fees'] as $feesLevel) {
-          if ($tradedVolume > $feesLevel[0]) {
-            $fees = $feesLevel[1];
-            continue;
-          }
-          break;
-        }
-
-        $params = [ 'api' => $this,
+            $params = [ 'api' => $this,
                     'alt' => $alt,
                     'base' => $base,
                     'fees' => $fees,
                     'min_order_size' => self::minimumAltTrade($alt),
-                    'lot_size_step' => pow(10,-1*$product['lot_decimals']),
+                    'lot_size_step' => pow(10, -1*$product['lot_decimals']),
                     'size_decimals' => $product['lot_decimals'],
                     'min_order_size_base' => 0,//??
                     'price_decimals' => $product['pair_decimals'],
@@ -246,28 +256,31 @@ class KrakenApi
                     'ws_name' => $product['wsname'],
                   ];
 
-        $product = new Product($params);
-        $this->products[$product->symbol] = $product;
+            $product = new Product($params);
+            $this->products[$product->symbol] = $product;
 
-        if (!isset($this->balances[$alt]))
-          $this->balances[$alt] = 0;
-        if (!isset($this->balances[$base]))
-          $this->balances[$base] = 0;
-      }
+            if (!isset($this->balances[$alt])) {
+                $this->balances[$alt] = 0;
+            }
+            if (!isset($this->balances[$base])) {
+                $this->balances[$base] = 0;
+            }
+        }
 
-      return $this->products;
+        return $this->products;
     }
 
-    function getProductsStr($symbol_list) {
-      $products_str = "";
-      foreach ($symbol_list as $symbol) {
-        $products_str .= "{$this->products[$symbol]->alt_symbol},";
-      }
-      // remove last ,
-      return substr($products_str, 0, strlen($products_str)-1);
+    public function getProductsStr($symbol_list)
+    {
+        $products_str = "";
+        foreach ($symbol_list as $symbol) {
+            $products_str .= "{$this->products[$symbol]->alt_symbol},";
+        }
+        // remove last ,
+        return substr($products_str, 0, strlen($products_str)-1);
     }
 
-    function place_order($product, $type, $side, $price, $size, $tradeId, $saveTrade = true)
+    public function place_order($product, $type, $side, $price, $size, $tradeId, $saveTrade = true)
     {
         if (true/* use rest api*/) {
             $pair = $product->symbol_exchange;
@@ -399,9 +412,9 @@ class KrakenApi
         }
     }
 
-    static function minimumAltTrade($crypto)
+    public static function minimumAltTrade($crypto)
     {
-      $table = ['REP'=>0.3,
+        $table = ['REP'=>0.3,
                 'REPV2'=>0.3,
                 'BTC'=>0.001,
                 'BCH'=>0.025,
@@ -452,146 +465,144 @@ class KrakenApi
                 'SNX'=>1,
               ];
 
-    if(array_key_exists($crypto,$table))
-      return $table[$crypto];
-    else
-      print_dbg("Warning, unknown minimum order for $crypto", true);
-      return 0;
+        if (array_key_exists($crypto, $table)) {
+            return $table[$crypto];
+        } else {
+            print_dbg("Warning, unknown minimum order for $crypto", true);
+        }
+        return 0;
     }
 
-    function getOrderStatus($alt = null, $order_id)
+    public function getOrderStatus($alt = null, $order_id)
     {
-      $open_orders = $this->wrappedRequest('OpenOrders')['result']['open'];
-      if(count($open_orders)) {
-        foreach ($open_orders as $id => $open_order) {
-          if($id == $order_id) {
-            return  [ 'id' => $id,
+        $open_orders = $this->wrappedRequest('OpenOrders')['result']['open'];
+        if (count($open_orders)) {
+            foreach ($open_orders as $id => $open_order) {
+                if ($id == $order_id) {
+                    return  [ 'id' => $id,
                       'status' => 'open',
                       'filled' => $open_order['vol_exec'],
                       'filled_base' => $open_order['cost']
                     ];
-          }
+                }
+            }
         }
-      }
-   }
-   function renewWebsocketToken()
-   {
-      $token = $this->wrappedRequest('GetWebSocketsToken');
-      $this->websocket_token = $token['result']['token'];
-   }
+    }
+    public function renewWebsocketToken()
+    {
+        $token = $this->wrappedRequest('GetWebSocketsToken');
+        $this->websocket_token = $token['result']['token'];
+    }
 
-   function ping()
-   {
-      try {
-        $this->wrappedRequest('Time');
-      } catch(KrakenAPIException $e) {
-        if(count($e->data)) {
-          print_dbg($e->data[0], true);
-          return false;
+    public function ping()
+    {
+        try {
+            $this->wrappedRequest('Time');
+        } catch (KrakenAPIException $e) {
+            if (count($e->data)) {
+                print_dbg($e->data[0], true);
+                return false;
+            }
         }
-     }
-     return true;
-   }
+        return true;
+    }
 
-   function getOrdersHistory($filter = null)
-   {
-     $params = [];
-     if(isset($filter['id'])) {
-       $params['txid'] = $filter['id'];
-     }
+    public function getOrdersHistory($filter = null)
+    {
+        $params = [];
+        if (isset($filter['id'])) {
+            $params['txid'] = $filter['id'];
+        }
 
-     $trades = $this->wrappedRequest('QueryOrders', $params);
+        $trades = $this->wrappedRequest('QueryOrders', $params);
 
-     if(!empty($trades['result'])) {
-       foreach($trades['result'] as $idx => $order)
-       {
-         if ($filter['id'] == $idx) {
-           $status = [ 'id' => $idx,
+        if (!empty($trades['result'])) {
+            foreach ($trades['result'] as $idx => $order) {
+                if ($filter['id'] == $idx) {
+                    $status = [ 'id' => $idx,
                        'side' => $order['descr']['type'],
                        'status' => $order['status'],
                        'filled' => floatval($order['vol_exec']),
                        'filled_base' => floatval($order['cost']),
                        'price' => floatval($order['price'])
                      ];
-         }
-       }
-       return $status;
-     }
-   }
-
-   function cancelOrder($product, $orderId)
-   {
-      print_dbg($this->name . " canceling order $orderId", true);
-      try{
-        $this->wrappedRequest('CancelOrder', ['txid' => $orderId]);
-      }catch (Exception $e)
-      {
-        if($e->getMessage() == 'EOrder:Unknown order')
-        {
-          return false;
+                }
+            }
+            return $status;
         }
-        throw new KrakenAPIException($e->getMessage());
-      }
-      return true;
-   }
-
-   function wrappedRequest($method, $request = [])
-   {
-     $retry = 6;
-      for($i = 0; $i<=$retry; $i++) {
-        try {
-          $ret = $this->jsonRequest($method, $request);
-          break;
-        }catch (Exception $e) {
-          if ($i === $retry) {
-            throw new KrakenAPIException($e->getMessage());
-          }
-          usleep(500000);//0.5 sec
-        }
-      }
-      if(count($ret['error'])) {
-        print_dbg("Kraken: Api method $method error: [{$ret['error'][0]}]", true);
-        throw new KrakenAPIException($ret['error'][0], $ret['error']);
-      }
-      return $ret;
-   }
-
-   function refreshTickers($symbol_list)
-   {
-    $str = $this->getProductsStr($symbol_list);
-
-    $tickers = $this->wrappedRequest('Ticker',['pair' => $str]);
-
-    foreach($tickers['result'] as $symbol => $ticker) {
-      //price
-      $book['bids'][0] = $ticker['b'][0];
-      $book['asks'][0] = $ticker['a'][0];
-      //vol
-      $book['bids'][1] = $ticker['b'][2];
-      $book['asks'][1] = $ticker['a'][2];
-
-      $product = getProductByParam($this->products, "exchange_symbol", $symbol);
-      if (isset($product)) {
-        $this->ticker[$product->symbol] = $book;
-      }
     }
-    return $this->ticker;
-   }
 
-   function getTickerOrderBook($product)
-   {
-       foreach (['asks', 'bids'] as $side) {
-          if (!isset($this->ticker[$product->symbol])) {
-            throw new KrakenAPIException("Unknown ticker {$product->symbol}");
-          }
-          $best[$side]['price'] = $best[$side]['order_price'] = floatval($this->ticker[$product->symbol][$side][0]);
-          $best[$side]['size'] = floatval($this->ticker[$product->symbol][$side][1]);
-       }
-       return $best;
-   }
+    public function cancelOrder($product, $orderId)
+    {
+        print_dbg($this->name . " canceling order $orderId", true);
+        try {
+            $this->wrappedRequest('CancelOrder', ['txid' => $orderId]);
+        } catch (Exception $e) {
+            if ($e->getMessage() == 'EOrder:Unknown order') {
+                return false;
+            }
+            throw new KrakenAPIException($e->getMessage());
+        }
+        return true;
+    }
 
-   function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
-   {
+    public function wrappedRequest($method, $request = [])
+    {
+        $retry = 6;
+        for ($i = 0; $i<=$retry; $i++) {
+            try {
+                $ret = $this->jsonRequest($method, $request);
+                break;
+            } catch (Exception $e) {
+                if ($i === $retry) {
+                    throw new KrakenAPIException($e->getMessage());
+                }
+                usleep(500000);//0.5 sec
+            }
+        }
+        if (count($ret['error'])) {
+            print_dbg("Kraken: Api method $method error: [{$ret['error'][0]}]", true);
+            throw new KrakenAPIException($ret['error'][0], $ret['error']);
+        }
+        return $ret;
+    }
+
+    public function refreshTickers($symbol_list)
+    {
+        $str = $this->getProductsStr($symbol_list);
+
+        $tickers = $this->wrappedRequest('Ticker', ['pair' => $str]);
+
+        foreach ($tickers['result'] as $symbol => $ticker) {
+            //price
+            $book['bids'][0] = $ticker['b'][0];
+            $book['asks'][0] = $ticker['a'][0];
+            //vol
+            $book['bids'][1] = $ticker['b'][2];
+            $book['asks'][1] = $ticker['a'][2];
+
+            $product = getProductByParam($this->products, "exchange_symbol", $symbol);
+            if (isset($product)) {
+                $this->ticker[$product->symbol] = $book;
+            }
+        }
+        return $this->ticker;
+    }
+
+    public function getTickerOrderBook($product)
+    {
+        foreach (['asks', 'bids'] as $side) {
+            if (!isset($this->ticker[$product->symbol])) {
+                throw new KrakenAPIException("Unknown ticker {$product->symbol}");
+            }
+            $best[$side]['price'] = $best[$side]['order_price'] = floatval($this->ticker[$product->symbol][$side][0]);
+            $best[$side]['size'] = floatval($this->ticker[$product->symbol][$side][1]);
+        }
+        return $best;
+    }
+
+    public function getOrderBook($product, $depth_base = 0, $depth_alt = 0)
+    {
         $depth_base = max($depth_base, $product->min_order_size_base);
         $depth_alt = max($depth_alt, $product->min_order_size);
 
@@ -622,26 +633,28 @@ class KrakenApi
             }
         }
         return $best;
-   }
-
-   function toString($float, $prec) {
-    $pow = pow(10, $prec);
-    return number_format(floor($float*$pow)/$pow, $prec, '.', '');
-   }
-
-   function waitForStatus($id) {
-    $status = [];
-    $timeout = 10;//sec
-    $begin = microtime(true);
-    while ((@$status['status'] != 'closed') && (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
-      $status = $this->getOrderStatus(null, $id);
-
-      if(!isset($status)) {
-        $status = $this->getOrdersHistory(['id' => $id]);
-        print_dbg("closed order check: {$status['status']}");
-      }
-      usleep(2000000); // 2 sec
     }
-    return $status;
-  }
+
+    public function toString($float, $prec)
+    {
+        $pow = pow(10, $prec);
+        return number_format(floor($float*$pow)/$pow, $prec, '.', '');
+    }
+
+    public function waitForStatus($id)
+    {
+        $status = [];
+        $timeout = 10;//sec
+        $begin = microtime(true);
+        while ((@$status['status'] != 'closed') && (@$status['status'] != 'canceled') && (microtime(true) - $begin) < $timeout) {
+            $status = $this->getOrderStatus(null, $id);
+
+            if (!isset($status)) {
+                $status = $this->getOrdersHistory(['id' => $id]);
+                print_dbg("closed order check: {$status['status']}");
+            }
+            usleep(2000000); // 2 sec
+        }
+        return $status;
+    }
 }
