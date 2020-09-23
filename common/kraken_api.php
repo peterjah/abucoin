@@ -283,13 +283,14 @@ class KrakenApi
     public function place_order($product, $type, $side, $price, $size, $tradeId, $saveTrade = true)
     {
         if (true/* use rest api*/) {
-            $pair = $product->symbol_exchange;
+            $pair = $product->exchange_symbol;
             $order = ['pair' => $pair,
                   'type' => $side,
                   'ordertype' => $type,
                   'volume' => number_format($size, $product->size_decimals, '.', ''),
                   'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
                 ];
+
             if ($type == 'limit') {
                 $order['price'] = number_format($price, $product->price_decimals, '.', '');
             } else {
