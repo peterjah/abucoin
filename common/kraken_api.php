@@ -464,6 +464,9 @@ class KrakenApi
                 'CRV'=>1,
                 'KSM'=>0.1,
                 'SNX'=>1,
+                'YFI'=> 0.0001,
+                'FIL' => 0.125,
+                'UNI' => 0.25,
               ];
 
         if (array_key_exists($crypto, $table)) {
