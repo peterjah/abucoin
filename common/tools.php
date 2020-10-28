@@ -124,7 +124,12 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
     } else {
         // we are the child
         print "I am the child pid = $pid\n";
-        $status['buy'] = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
+        try {
+            $status['buy'] = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
+        } catch (Exception $e) {
+            $err = $e->getMessage();
+            print_dbg("child thread throwed: $err");
+        }
         print_dbg("BOUGHT {$status['buy']['filled_size']} $alt on {$buy_api->name} at {$status['buy']['price']}. expected {$buy_product->book['asks']['price']}\n", true);
         exit();
     }
