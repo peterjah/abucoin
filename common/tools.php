@@ -124,12 +124,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
     } else {
         // we are the child
         print "I am the child pid = $pid\n";
-        try {
-            $status['buy'] = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
-        } catch (Exception $e) {
-            $err = $e->getMessage();
-            print_dbg("child thread throwed: $err");
-        }
+        $status['buy'] = place_order($buy_market, 'limit', $symbol, 'buy', $buy_price, $size, $arbId);
         print_dbg("BOUGHT {$status['buy']['filled_size']} $alt on {$buy_api->name} at {$status['buy']['price']}. expected {$buy_product->book['asks']['price']}\n", true);
         exit();
     }
@@ -246,7 +241,7 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
                 $market->api->renewWebsocketToken();
             }
             if ($err == 'Rest API trading is not enabled.' || $err == "Unable to locate order in history") {
-                throw new \Exception($err);
+                break;
             }
             if ($i == 8) {
                 break;
@@ -255,7 +250,7 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
             usleep(500000);
         }
     }
-    throw new \Exception($err);
+    return ['filled_size' => 0, 'filled_base' => 0, 'price' => 0];
 }
 
 function ceiling($number, $significance = 1)
