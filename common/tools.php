@@ -215,8 +215,8 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
         } catch (Exception $e) {
             $err = $e->getMessage();
             print_dbg("unable to $side retrying. $i : {$err}", true);
-            if (strpos($err, 'EOrder:Insufficient funds') ||
-           strpos($err, 'Account has insufficient balance for requested action.')) {
+            if (strpos($err, 'EOrder:Insufficient funds') !== false ||
+           strpos($err, 'Account has insufficient balance for requested action.') !== false ) {
                 $market->getBalance();
                 print_dbg("Insufficient funds to $side $size $alt @ $price , base_bal:{$market->api->balances[$base]} alt_bal:{$market->api->balances[$alt]}", true);
                 if ($side == 'buy') {
@@ -237,7 +237,7 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
                 print_dbg("$err. giving up...");
                 break;
             }
-            if (strpos($err, 'EService:Unavailable token')) {
+            if (strpos($err, 'EService:Unavailable token') !== false) {
                 $market->api->renewWebsocketToken();
             }
             if ($err == 'Rest API trading is not enabled.' || $err == "Unable to locate order in history") {
