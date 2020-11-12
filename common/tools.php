@@ -165,7 +165,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
             }
             if (!$toSell) {
                 $base_bal = $market->api->balances[$base];
-                $size = min(truncate($base_bal / ($new_price * (1 + $product->fees/100)), $product->size_decimals), $size);
+                $size = min(truncate($base_bal / applyBuyFee($new_price,$product->fees), $product->size_decimals), $size);
             }
             if (($size >= $product->min_order_size) && ($size * $new_price >= $product->min_order_size_base)) {
                 if ($toSell) {
@@ -223,12 +223,12 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
                     $base_bal = $market->api->balances[$base];
                     //price may be not relevant anymore. moreover we want a market order
                     $book = $product->refreshBook($side, 0, $size);
-                    $size = min(truncate($base_bal / ($book['asks']['price'] * (1 + $product->fees/100)), $product->size_decimals), $size);
+                    $size = min(truncate($base_bal / (applyBuyFee($book['asks']['price'], $product->fees)), $product->size_decimals), $size);
                     $buy_price = $book['asks']['order_price'];
                     print_dbg("new tradesize: $size, new price $buy_price base_bal: $base_bal", true);
                 } else {
                     $alt_bal = $market->api->balances[$alt];
-                    $size = truncate($alt_bal* (1 - $product->fees/100), $product->size_decimals);
+                    $size = truncate(applySellFee($alt_bal, $product->fees), $product->size_decimals);
                 }
             }
 
@@ -276,8 +276,8 @@ function computeGains($buy_price, $fees1, $sell_price, $fees2, $trade_size)
     if (empty($buy_price) || empty($sell_price) || empty($trade_size)) {
         throw new \Exception("Unable to compute gains. buy price \"$buy_price\", sell price \"$sell_price\" , size \"$trade_size\"");
     }
-    $spend_base_unit = $buy_price*((100+$fees2)/100);
-    $sell_base_unit = $sell_price*((100-$fees1)/100);
+    $spend_base_unit = applyBuyFee($buy_price,$fees2);
+    $sell_base_unit = applySellFee($sell_price,$fees1);
     $gain_per_unit = $sell_base_unit - $spend_base_unit;
     $gain_percent = (($sell_base_unit / $spend_base_unit)-1)*100;
     $gain_base = $trade_size * $gain_per_unit;
@@ -315,11 +315,10 @@ function get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book
     $trade_size = min($sell_book['bids']['size'], $buy_book['asks']['size']);
     $buy_order_price = $buy_book['asks']['price'];
 
-    $base_to_spend_fee = ($buy_order_price * $trade_size * (1 + $buy_product->fees/100));
-
+    $base_to_spend_fee = applyBuyFee($buy_order_price * $trade_size, $buy_product->fees);
     if ($base_to_spend_fee > $base_bal) {
         $base_to_spend_fee = $base_bal;
-        $base_amount = $base_to_spend_fee * (1 - $buy_product->fees/100);
+        $base_amount = removeBuyFee($base_to_spend_fee, $buy_product->fees);
         $trade_size = $base_amount / $buy_order_price;
     }
 
@@ -328,7 +327,7 @@ function get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book
     }
 
     $trade_size = truncate($trade_size, $size_decimals);
-    $base_to_spend_fee = ($buy_order_price * $trade_size * (1 + $buy_product->fees/100));
+    $base_to_spend_fee = applyBuyFee($buy_order_price * $trade_size, $buy_product->fees);
     if ($base_to_spend_fee < $min_trade_base || $trade_size < $min_trade_alt) {
         return 0;
     }
@@ -368,4 +367,19 @@ function getWsOrderbook($file)
     } else {
         throw new \Exception("Unable to read file: $file");
     }
+}
+
+function applyBuyFee($amount, $fee)
+{
+    return $amount * (1 + $fee/100);
+}
+
+function applySellFee($amount, $fee)
+{
+    return $amount * (1 - $fee/100);
+}
+
+function removeBuyFee($amount, $fee)
+{
+    return $amount / (1 + $fee/100);
 }
