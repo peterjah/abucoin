@@ -467,6 +467,9 @@ class KrakenApi
                 'YFI'=> 0.0001,
                 'FIL' => 0.125,
                 'UNI' => 0.25,
+                'ANT' => 1,
+                'TBTC' => 0.001,
+                'KEEP' => 10,
               ];
 
         if (array_key_exists($crypto, $table)) {
