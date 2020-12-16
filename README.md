@@ -25,5 +25,7 @@ php arbitrage/balances.php
 
 
 todo:
+factorize trade save and gains logs functions
 Use a database to store transactions
 store trade fees
+compute lock trade treshlold size in fiat equivalent

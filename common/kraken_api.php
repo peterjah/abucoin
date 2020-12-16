@@ -219,10 +219,9 @@ class KrakenApi
     {
         $products = $this->wrappedRequest('AssetPairs');
         $tradeVolume = $this->wrappedRequest('TradeVolume');
-
         $tradedVolume = $tradeVolume['result']['volume'];
         foreach ($products['result'] as $kraken_symbol => $product) {
-            if (substr($kraken_symbol, -2) == '.d') {
+            if (strpos($kraken_symbol, ".") !== false ) {
                 continue;
             }
 
@@ -470,6 +469,8 @@ class KrakenApi
                 'ANT' => 1,
                 'TBTC' => 0.001,
                 'KEEP' => 10,
+                'AAVE' => 0.1,
+                'MANA' => 50,
               ];
 
         if (array_key_exists($crypto, $table)) {
