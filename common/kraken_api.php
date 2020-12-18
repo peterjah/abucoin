@@ -471,6 +471,7 @@ class KrakenApi
                 'KEEP' => 10,
                 'AAVE' => 0.1,
                 'MANA' => 50,
+                'GRT' => 50,
               ];
 
         if (array_key_exists($crypto, $table)) {
