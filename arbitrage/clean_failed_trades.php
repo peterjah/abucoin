@@ -266,7 +266,7 @@ function firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded)
 function markSolved($ids)
 {
     foreach ($ids as $id) {
-        print "mark $id solved\n";
+        print_dbg("mark $id solved");
         $fp = fopen(TRADES_FILE, "r+");
         flock($fp, LOCK_EX, $wouldblock);
         file_put_contents(TRADES_FILE, str_replace($id, 'solved', file_get_contents(TRADES_FILE)));
