@@ -149,7 +149,7 @@ function do_solve($markets, $symbol, $side, $traded)
             while ($i<6) {
                 try {
                     print_dbg("Trade cleaner: $action $size $product->alt @ {$price} $product->base");
-                    $status = $api->place_order($product, 'market', $action, $order_price, $size, 'solved');
+                    $status = $api->place_order($product, 'market', $action, $order_price, $size, $stopLoss ? 'Stop_loss' : 'solved');
                     print_dbg("Trade cleaner: filled: {$status['filled_size']}");
                     break;
                 } catch (Exception $e) {
@@ -178,7 +178,7 @@ function do_solve($markets, $symbol, $side, $traded)
                 }
                 $arbitrage_log['final_gains'] = $gains;
                 $arbitrage_log['stats'] = $stats;
-                print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, mean_price:{$traded['price']}, mean_fees:{$traded['mean_fees']}, price:{$status['price']} $product->base");
+                print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, price:{$status['price']} $product->base");
 
                 save_gain($arbitrage_log);
 
