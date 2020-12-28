@@ -11,6 +11,7 @@ require_once('../common/tools.php');
 
 @define('TRADES_FILE', "trades");
 @define('GAINS_FILE', 'gains.json');
+@define('STOP_LOSS', '5'); //%
 
 if (@$argv[1] == '-solve' && isset($argv[2])) {
     $fp = fopen(TRADES_FILE, "r");
@@ -137,7 +138,13 @@ function do_solve($markets, $symbol, $side, $traded)
             continue;
         }
 
-        if ($expected_gains['base'] > 0) {
+        $stopLoss = $expected_gains['percent'] <= -1 * STOP_LOSS;
+
+        if (($expected_gains['base'] > 0) || $stopLoss) {
+            if($stopLoss) {
+                print_dbg("Triggering STOP LOSS... expected loss: {$expected_gains['base']} {$product->base}");
+            }
+
             $i=0;
             while ($i<6) {
                 try {
