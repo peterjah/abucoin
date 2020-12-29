@@ -169,7 +169,7 @@ function do_solve($markets, $symbol, $side, $traded)
                 }
             }
             if (@$status['filled_size'] > 0) {
-                markSolved(array_keys($traded['ids']));
+                markSolved(array_keys($traded['ids']), $stopLoss);
                 $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
                        'alt' => $product->alt,
                        'base' => $product->base,
@@ -280,13 +280,13 @@ function firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded)
     }
 }
 
-function markSolved($ids)
+function markSolved($ids, $stopLoss = false)
 {
     foreach ($ids as $id) {
-        print_dbg("mark $id solved");
+        print_dbg("mark $id " . $stopLoss ? 'stop_loss' : 'solved');
         $fp = fopen(TRADES_FILE, "r+");
         flock($fp, LOCK_EX, $wouldblock);
-        file_put_contents(TRADES_FILE, str_replace($id, 'solved', file_get_contents(TRADES_FILE)));
+        file_put_contents(TRADES_FILE, str_replace($id, $stopLoss ? 'stop_loss' : 'solved', file_get_contents(TRADES_FILE)));
         fclose($fp);
     }
 }
