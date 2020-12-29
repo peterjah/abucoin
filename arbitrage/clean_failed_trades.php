@@ -148,11 +148,14 @@ function do_solve($markets, $symbol, $side, $traded)
 
 
         if (($expected_gains['base'] > 0) || $stopLoss) {
-            if($stopLoss && ($bestMarket->api->name !== $api->name)) {
-                $api = $bestMarket->api;
-                $order_price = $$bestGain;
-                $product = $market->products[$symbol];
+            if($stopLoss) {
                 print_dbg("Triggering STOP LOSS... expected loss: {$expected_gains['percent']}%", true);
+                if($bestMarket->api->name !== $api->name) {
+                    $api = $bestMarket->api;
+                    $order_price = $$bestGain;
+                    $product = $market->products[$symbol];
+                    print_dbg("Switch to best offer market: {$api->name}", true);
+                }
             }
 
             $i=0;
