@@ -96,6 +96,8 @@ function do_solve($markets, $symbol, $side, $traded)
 {
     print "trying to solve tx..\n";
     $size = $traded['size'];
+    $bestGain = 0;
+    $bestMarket = null;
     foreach ($markets as $market) {
         $api = $market->api;
         print "try with {$api->name}\n";
@@ -139,16 +141,24 @@ function do_solve($markets, $symbol, $side, $traded)
         }
 
         $stopLoss = $expected_gains['percent'] <= -1 * STOP_LOSS;
+        if($stopLoss && $expected_gains['percent'] > $$bestGain) {
+                $$bestGain = $expected_gains['percent'];
+                $bestMarket = $market;
+        }
+
 
         if (($expected_gains['base'] > 0) || $stopLoss) {
-            if($stopLoss) {
-                print_dbg("Triggering STOP LOSS... expected loss: {$expected_gains['base']} {$product->base}", true);
+            if($stopLoss && ($bestMarket->api->name !== $api->name)) {
+                $api = $bestMarket->api;
+                $order_price = $$bestGain;
+                $product = $market->products[$symbol];
+                print_dbg("Triggering STOP LOSS... expected loss: {$expected_gains['percent']}%", true);
             }
 
             $i=0;
             while ($i<6) {
                 try {
-                    print_dbg("Trade cleaner: $action $size $product->alt @ {$price} $product->base");
+                    print_dbg("Trade cleaner: {$api->name}: $action $size $product->alt @ {$price} $product->base");
                     $status = $api->place_order($product, 'market', $action, $order_price, $size, $stopLoss ? 'stop_loss' : 'solved');
                     print_dbg("Trade cleaner: filled: {$status['filled_size']}");
                     break;
