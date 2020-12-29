@@ -149,7 +149,7 @@ function do_solve($markets, $symbol, $side, $traded)
             while ($i<6) {
                 try {
                     print_dbg("Trade cleaner: $action $size $product->alt @ {$price} $product->base");
-                    $status = $api->place_order($product, 'market', $action, $order_price, $size, $stopLoss ? 'Stop_loss' : 'solved');
+                    $status = $api->place_order($product, 'market', $action, $order_price, $size, $stopLoss ? 'stop_loss' : 'solved');
                     print_dbg("Trade cleaner: filled: {$status['filled_size']}");
                     break;
                 } catch (Exception $e) {
@@ -163,7 +163,7 @@ function do_solve($markets, $symbol, $side, $traded)
                 $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
                        'alt' => $product->alt,
                        'base' => $product->base,
-                       'id' => 'solved',
+                       'id' => $stopLoss ? 'stop_loss' : 'solved',
                        'expected_gains' => $expected_gains,
                      ];
 
@@ -322,7 +322,7 @@ function parseTradeFile()
         ];
                 $OpId = $matches[2];
         
-                if ($OpId != 'solved') {
+                if ($OpId != 'solved' && $OpId != 'stop_loss') {
                     $size = $tradeInfos['size'];
                     if (!isset($ledger[$symbol]) || !isset($ledger[$symbol][$OpId]['isFailed']) || $ledger[$symbol][$OpId]['isFailed'] === false) {
                         if ($size == 0) { //special for tradecleaner TX
