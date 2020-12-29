@@ -142,7 +142,7 @@ function do_solve($markets, $symbol, $side, $traded)
 
         if (($expected_gains['base'] > 0) || $stopLoss) {
             if($stopLoss) {
-                print_dbg("Triggering STOP LOSS... expected loss: {$expected_gains['base']} {$product->base}");
+                print_dbg("Triggering STOP LOSS... expected loss: {$expected_gains['base']} {$product->base}", true);
             }
 
             $i=0;

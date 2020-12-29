@@ -294,15 +294,20 @@ class KrakenApi
                 $order['price'] = number_format($price, $product->price_decimals, '.', '');
             } else {
                 $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
+                $price_diff_pct = 0;
                 if ($side == 'buy') {
                     $new_price = $book['asks']['order_price'];
-                    $price_diff = ($new_price / $price) - 1;
+                    if($new_price > $price) {
+                        $price_diff_pct =  (($new_price - $price)/$price)*100;
+                    }
                 } else {
                     $new_price = $book['bids']['order_price'];
-                    $price_diff = 1 - ($new_price / $price);
+                    if ($new_price < $price) {
+                        $price_diff_pct =  (($price - $new_price)/$price)*100;
+                    }
                 }
-                print_dbg("{$this->name}: market offer: $new_price orig price: $price ; diff: $price_diff");
-                if ($price_diff > 0) {
+                print_dbg("{$this->name}: market offer: $new_price orig price: $price ; diff: {$price_diff_pct} %");
+                if ($price_diff_pct > 0) {
                     print_dbg("{$this->name}: market order failed: real order price is too different from the expected price", true);
                     throw new KrakenAPIException('market order failed: real order price is too different from the expected price');
                 }
