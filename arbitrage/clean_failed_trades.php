@@ -141,19 +141,21 @@ function do_solve($markets, $symbol, $side, $traded)
             continue;
         }
         $eurPrice = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$product->base}&tsyms=EUR"), true)['EUR'];
-        $stopLoss = ($expected_gains['percent'] <= -1 * STOP_LOSS_PERCENT) || ($eurPrice * $expected_gains['base'] <= -1 * STOP_LOSS_EUR);
-        if($stopLoss && $expected_gains['percent'] > $$bestGain) {
-                $$bestGain = $expected_gains['percent'];
+        $gainEur = $eurPrice * $expected_gains['base'];
+        $stopLoss = ($expected_gains['percent'] <= -1 * STOP_LOSS_PERCENT) || ( $gainEur <= -1 * STOP_LOSS_EUR);
+        if($stopLoss && $expected_gains['percent'] > $bestGain) {
+                $bestGain = $expected_gains['percent'];
                 $bestMarket = $market;
         }
 
+        print_dbg("expected gain/loss: {$gainEur}EUR", true);
 
         if (($expected_gains['base'] > 0) || $stopLoss) {
             if($stopLoss) {
                 print_dbg("Triggering STOP LOSS... expected loss: {$expected_gains['percent']}%", true);
-                if($bestMarket->api->name !== $api->name) {
+                if($bestMarket && $bestMarket->api->name !== $api->name) {
                     $api = $bestMarket->api;
-                    $order_price = $$bestGain;
+                    $order_price = $bestGain;
                     $product = $market->products[$symbol];
                     print_dbg("Switch to best offer market: {$api->name}", true);
                 }
