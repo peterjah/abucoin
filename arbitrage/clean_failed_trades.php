@@ -11,7 +11,8 @@ require_once('../common/tools.php');
 
 @define('TRADES_FILE', "trades");
 @define('GAINS_FILE', 'gains.json');
-@define('STOP_LOSS', '5'); //%
+@define('STOP_LOSS_PERCENT', '5');
+@define('STOP_LOSS_EUR', '5');
 
 if (@$argv[1] == '-solve' && isset($argv[2])) {
     $fp = fopen(TRADES_FILE, "r");
@@ -139,8 +140,8 @@ function do_solve($markets, $symbol, $side, $traded)
         if ($size * $price < $product->min_order_size_base) {
             continue;
         }
-
-        $stopLoss = $expected_gains['percent'] <= -1 * STOP_LOSS;
+        $eurPrice = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$product->base}&tsyms=EUR"), true)['EUR'];
+        $stopLoss = ($expected_gains['percent'] <= -1 * STOP_LOSS_PERCENT) || ($eurPrice * $expected_gains['base'] <= -1 * STOP_LOSS_EUR);
         if($stopLoss && $expected_gains['percent'] > $$bestGain) {
                 $$bestGain = $expected_gains['percent'];
                 $bestMarket = $market;
@@ -286,7 +287,7 @@ function firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded)
 function markSolved($ids, $stopLoss = false)
 {
     foreach ($ids as $id) {
-        print_dbg("mark $id " . $stopLoss ? 'stop_loss' : 'solved');
+        print_dbg("mark $id " . ($stopLoss ? 'stop_loss' : 'solved'));
         $fp = fopen(TRADES_FILE, "r+");
         flock($fp, LOCK_EX, $wouldblock);
         file_put_contents(TRADES_FILE, str_replace($id, $stopLoss ? 'stop_loss' : 'solved', file_get_contents(TRADES_FILE)));
