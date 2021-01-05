@@ -11,8 +11,10 @@ require_once('../common/tools.php');
 
 @define('TRADES_FILE', "trades");
 @define('GAINS_FILE', 'gains.json');
-@define('STOP_LOSS_PERCENT', '5');
-@define('STOP_LOSS_EUR', '5');
+@define('STOP_LOSS_PERCENT', '-2');
+@define('STOP_LOSS_EUR', '-5');
+@define('TAKE_PROFIT_PERCENT', '2');
+@define('TAKE_PROFIT_EUR', '5');
 
 if (@$argv[1] == '-solve' && isset($argv[2])) {
     $fp = fopen(TRADES_FILE, "r");
@@ -142,7 +144,9 @@ function do_solve($markets, $symbol, $side, $traded)
         }
         $eurPrice = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$product->base}&tsyms=EUR"), true)['EUR'];
         $gainEur = $eurPrice * $expected_gains['base'];
-        $stopLoss = ($expected_gains['percent'] <= -1 * STOP_LOSS_PERCENT) || ( $gainEur <= -1 * STOP_LOSS_EUR);
+        $takeProfit = ($expected_gains['percent'] >= TAKE_PROFIT_PERCENT) || ( $gainEur >= TAKE_PROFIT_EUR);
+        $stopLoss = ($expected_gains['percent'] <= STOP_LOSS_PERCENT) || ( $gainEur <= STOP_LOSS_EUR);
+
         if($stopLoss && $expected_gains['percent'] > $bestGain) {
                 $bestGain = $expected_gains['percent'];
                 $bestMarket = $market;
@@ -150,7 +154,7 @@ function do_solve($markets, $symbol, $side, $traded)
 
         print_dbg("expected gain/loss: {$gainEur}EUR", true);
 
-        if (($expected_gains['base'] > 0) || $stopLoss) {
+        if ($takeProfit || $stopLoss) {
             if($stopLoss) {
                 print_dbg("Triggering STOP LOSS... expected loss: {$expected_gains['percent']}%", true);
                 if($bestMarket && $bestMarket->api->name !== $api->name) {
