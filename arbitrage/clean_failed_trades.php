@@ -152,7 +152,7 @@ function do_solve($markets, $symbol, $side, $traded)
                 $bestMarket = $market;
         }
 
-        print_dbg("expected gain/loss: {$gainEur}EUR", true);
+        print_dbg("expected gain/loss: {$gainEur}EUR {$expected_gains['percent']}%", true);
 
         if ($takeProfit || $stopLoss) {
             if($stopLoss) {
