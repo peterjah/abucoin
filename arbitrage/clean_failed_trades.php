@@ -154,7 +154,7 @@ function do_solve($markets, $symbol, $side, $traded)
             $bestMarket = $market;
             $bestPrice = $price;
         }
-        print_dbg("{$market->api->name}: $action $symbol: expected gain/loss: {$gainEur}EUR {$bestGain['percent']}%", true);
+        print_dbg("{$market->api->name}: $action $symbol: expected gain/loss: {$gainEur}EUR {$expected_gains['percent']}%", true);
     }
 
     if ($takeProfit || $stopLoss) {
