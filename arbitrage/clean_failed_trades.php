@@ -125,7 +125,6 @@ function do_solve($markets, $symbol, $side, $traded)
         }
         if ($side == 'buy') {
             $price = $book['bids']['price'];
-            $order_price = $book['bids']['order_price'];
             $action = 'sell';
             $expected_gains = computeGains($traded['price'], $traded['mean_fees'], $price, $product->fees, $size);
             if ($alt_bal < $size) {
@@ -134,7 +133,6 @@ function do_solve($markets, $symbol, $side, $traded)
         } else {
             $action = 'buy';
             $price = $book['asks']['price'];
-            $order_price = $book['asks']['order_price'];
             $expected_gains = computeGains($price, $product->fees, $traded['price'], $traded['mean_fees'], $size);
             if ($base_bal < $size * $price) {
                 continue;
@@ -154,9 +152,8 @@ function do_solve($markets, $symbol, $side, $traded)
             $bestMarket = $market;
             $bestPrice = $price;
         }
-
+        print_dbg("{$market->api->name}: $action $symbol: expected gain/loss: {$gainEur}EUR {$bestGain['percent']}%", true);
     }
-    print_dbg("$action $symbol: expected gain/loss: {$gainEur}EUR {$bestGain['percent']}%", true);
 
     if ($takeProfit || $stopLoss) {
         $api = $bestMarket->api;

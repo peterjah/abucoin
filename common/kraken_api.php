@@ -296,12 +296,12 @@ class KrakenApi
                 $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
                 $price_diff_pct = 0;
                 if ($side == 'buy') {
-                    $new_price = $book['asks']['order_price'];
+                    $new_price = $book['asks']['price'];
                     if($new_price > $price) {
                         $price_diff_pct =  (($new_price - $price)/$price)*100;
                     }
                 } else {
-                    $new_price = $book['bids']['order_price'];
+                    $new_price = $book['bids']['price'];
                     if ($new_price < $price) {
                         $price_diff_pct =  (($price - $new_price)/$price)*100;
                     }
