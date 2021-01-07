@@ -103,6 +103,8 @@ function do_solve($markets, $symbol, $side, $traded)
     $bestGain = null;
     $bestMarket = null;
     $bestPrice = null;
+    $takeProfit = false;
+    $stopLoss = false;
     foreach ($markets as $market) {
         $api = $market->api;
         print "try with {$api->name}\n";
