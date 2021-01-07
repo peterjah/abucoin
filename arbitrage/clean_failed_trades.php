@@ -146,8 +146,8 @@ function do_solve($markets, $symbol, $side, $traded)
         }
         $eurPrice = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$product->base}&tsyms=EUR"), true)['EUR'];
         $gainEur = $eurPrice * $expected_gains['base'];
-        $takeProfit = ($expected_gains['percent'] >= TAKE_PROFIT_PERCENT) || ($gainEur >= TAKE_PROFIT_EUR);
-        $stopLoss = ($expected_gains['percent'] <= STOP_LOSS_PERCENT) || ($gainEur <= STOP_LOSS_EUR);
+        $takeProfit = $takeProfit || ($expected_gains['percent'] >= TAKE_PROFIT_PERCENT) || ($gainEur >= TAKE_PROFIT_EUR);
+        $stopLoss = $stopLoss || ($expected_gains['percent'] <= STOP_LOSS_PERCENT) || ($gainEur <= STOP_LOSS_EUR);
 
         if ($bestGain === null || $expected_gains['percent'] > $bestGain['percent']) {
             $bestGain = $expected_gains;
