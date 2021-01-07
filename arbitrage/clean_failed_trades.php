@@ -100,8 +100,9 @@ function do_solve($markets, $symbol, $side, $traded)
 {
     print "trying to solve tx..\n";
     $size = $traded['size'];
-    $bestGain = 0;
+    $bestGain = null;
     $bestMarket = null;
+    $bestPrice = null;
     foreach ($markets as $market) {
         $api = $market->api;
         print "try with {$api->name}\n";
@@ -145,67 +146,60 @@ function do_solve($markets, $symbol, $side, $traded)
         }
         $eurPrice = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$product->base}&tsyms=EUR"), true)['EUR'];
         $gainEur = $eurPrice * $expected_gains['base'];
-        $takeProfit = ($expected_gains['percent'] >= TAKE_PROFIT_PERCENT) || ( $gainEur >= TAKE_PROFIT_EUR);
-        $stopLoss = ($expected_gains['percent'] <= STOP_LOSS_PERCENT) || ( $gainEur <= STOP_LOSS_EUR);
+        $takeProfit = ($expected_gains['percent'] >= TAKE_PROFIT_PERCENT) || ($gainEur >= TAKE_PROFIT_EUR);
+        $stopLoss = ($expected_gains['percent'] <= STOP_LOSS_PERCENT) || ($gainEur <= STOP_LOSS_EUR);
 
-        if($stopLoss && $expected_gains['percent'] > $bestGain) {
-                $bestGain = $expected_gains['percent'];
-                $bestMarket = $market;
+        if ($bestGain === null || $expected_gains['percent'] > $bestGain['percent']) {
+            $bestGain = $expected_gains;
+            $bestMarket = $market;
+            $bestPrice = $price;
         }
 
-        print_dbg("$action $symbol: expected gain/loss: {$gainEur}EUR {$expected_gains['percent']}%", true);
+    }
+    print_dbg("$action $symbol: expected gain/loss: {$gainEur}EUR {$bestGain['percent']}%", true);
 
-        if ($takeProfit || $stopLoss) {
-            if($stopLoss) {
-                print_dbg("Triggering STOP LOSS... expected loss: {$expected_gains['percent']}%", true);
-                if($bestMarket && $bestMarket->api->name !== $api->name) {
-                    $api = $bestMarket->api;
-                    $order_price = $bestGain;
-                    $product = $market->products[$symbol];
-                    print_dbg("Switch to best offer market: {$api->name}", true);
-                }
-            }
+    if ($takeProfit || $stopLoss) {
+        $api = $bestMarket->api;
+        $product = $market->products[$symbol];
 
-            $i=0;
-            while ($i<6) {
-                try {
-                    print_dbg("Trade cleaner: {$api->name}: $action $size $product->alt @ {$price} $product->base");
-                    $status = $api->place_order($product, 'market', $action, $order_price, $size, $stopLoss ? 'stop_loss' : 'solved');
-                    print_dbg("Trade cleaner: filled: {$status['filled_size']}");
-                    break;
-                } catch (Exception $e) {
-                    print_dbg("{$api->name}: Unable to $action :  $e");
-                    usleep(500000);
-                    $i++;
-                }
-            }
-            if (@$status['filled_size'] > 0) {
-                markSolved(array_keys($traded['ids']), $stopLoss);
-                $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
-                       'alt' => $product->alt,
-                       'base' => $product->base,
-                       'id' => $stopLoss ? 'stop_loss' : 'solved',
-                       'expected_gains' => $expected_gains,
-                     ];
-
-                if ($action == 'buy') {
-                    $gains = computeGains($status['price'], $product->fees, $traded['price'], $traded['mean_fees'], $status['filled_size']);
-                    $stats = ['buy_price_diff' => ($status['price'] * 100 / $price) - 100];
-                    $arbitrage_log['buy_market'] = $api->name;
-                } else {
-                    $gains = computeGains($traded['price'], $traded['mean_fees'], $status['price'], $product->fees, $status['filled_size']);
-                    $stats = ['sell_price_diff' => ($status['price'] * 100 / $price) - 100];
-                    $arbitrage_log['sell_market'] = $api->name;
-                }
-                $arbitrage_log['final_gains'] = $gains;
-                $arbitrage_log['stats'] = $stats;
-                print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, price:{$status['price']} $product->base");
-
-                save_gain($arbitrage_log);
-
-                $market->api->getBalance();
+        $i=0;
+        while ($i<6) {
+            try {
+                print_dbg("Trade cleaner: {$api->name}: $action $size $product->alt @ {$price} $product->base");
+                $status = $api->place_order($product, 'market', $action, $bestPrice, $size, $stopLoss ? 'stop_loss' : 'solved');
+                print_dbg("Trade cleaner: filled: {$status['filled_size']}");
                 break;
+            } catch (Exception $e) {
+                print_dbg("{$api->name}: Unable to $action :  $e");
+                usleep(500000);
+                $i++;
             }
+        }
+        if (@$status['filled_size'] > 0) {
+            markSolved(array_keys($traded['ids']), $stopLoss);
+            $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
+                    'alt' => $product->alt,
+                    'base' => $product->base,
+                    'id' => $stopLoss ? 'stop_loss' : 'solved',
+                    'expected_gains' => $bestGain,
+                    ];
+
+            if ($action == 'buy') {
+                $gains = computeGains($status['price'], $product->fees, $traded['price'], $traded['mean_fees'], $status['filled_size']);
+                $stats = ['buy_price_diff' => ($status['price'] * 100 / $price) - 100];
+                $arbitrage_log['buy_market'] = $api->name;
+            } else {
+                $gains = computeGains($traded['price'], $traded['mean_fees'], $status['price'], $product->fees, $status['filled_size']);
+                $stats = ['sell_price_diff' => ($status['price'] * 100 / $price) - 100];
+                $arbitrage_log['sell_market'] = $api->name;
+            }
+            $arbitrage_log['final_gains'] = $gains;
+            $arbitrage_log['stats'] = $stats;
+            print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, price:{$status['price']} $product->base");
+
+            save_gain($arbitrage_log);
+
+            $market->api->getBalance();
         }
     }
 }
