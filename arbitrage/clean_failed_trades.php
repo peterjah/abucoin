@@ -99,7 +99,6 @@ while (1) {
 function do_solve($markets, $symbol, $side, $traded)
 {
     print "trying to solve tx..\n";
-    $size = $traded['size'];
     $bestGain = null;
     $bestMarket = null;
     $bestPrice = null;
@@ -116,6 +115,7 @@ function do_solve($markets, $symbol, $side, $traded)
         $alt_bal = $api->balances[$product->alt];
         $base_bal = $api->balances[$product->base];
 
+        $size = truncate($traded['size'], $product->size_decimals);
         if ($size < $product->min_order_size) {
             continue;
         }
