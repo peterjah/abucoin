@@ -160,6 +160,7 @@ function do_solve($markets, $symbol, $side, $traded)
     if ($takeProfit || $stopLoss) {
         $api = $bestMarket->api;
         $product = $market->products[$symbol];
+        $size = truncate($traded['size'], $product->size_decimals);
 
         $i=0;
         while ($i<6) {
