@@ -36,17 +36,6 @@ if (@$argv[1] == '-auto-solve') {
 
 while (1) {
     if (@$autoSolve) {
-        $ledger = parseTradeFile();
-        print "$$$$$$$$$$$$$$$$$$ First pass $$$$$$$$$$$$$$$$$$\n";
-        foreach ($ledger as $symbol => $trades) {
-            if (count($trades)) {
-                print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
-                $traded = processFailedTrades(@$markets, $symbol, $trades);
-                if (!empty($traded)) {
-                    firstPassSolve($traded);
-                }
-            }
-        }
         //init api
         $markets = [];
         // Ordered by trade fee
@@ -64,6 +53,18 @@ while (1) {
                 }
             }
         }
+
+        $ledger = parseTradeFile();
+        print "$$$$$$$$$$$$$$$$$$ First pass $$$$$$$$$$$$$$$$$$\n";
+        foreach ($ledger as $symbol => $trades) {
+            if (count($trades)) {
+                print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
+                $traded = processFailedTrades($markets, $symbol, $trades);
+                if (!empty($traded)) {
+                    firstPassSolve($traded);
+                }
+            }
+        }
     }
 
     print "$$$$$$$$$$$$$$$$$$ Second pass $$$$$$$$$$$$$$$$$$\n";
@@ -71,9 +72,9 @@ while (1) {
     foreach ($ledger as $symbol => $trades) {
         if (count($trades)) {
             print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
-            $traded = processFailedTrades(@$markets, $symbol, $trades);
+            $traded = processFailedTrades($markets, $symbol, $trades);
             foreach (['buy','sell'] as $side) {
-                $size = @$traded[$side]['size'];
+                $size = $traded[$side]['size'];
                 if ($size > 0) {
                     print "$side: size= {$size} price= {$traded[$side]['price']} mean_fee= {$traded[$side]['mean_fees']}\n";
                     if (@$autoSolve) {
@@ -175,7 +176,7 @@ function do_solve($markets, $symbol, $side, $traded)
                 $i++;
             }
         }
-        if (@$status['filled_size'] > 0) {
+        if ($status['filled_size'] > 0) {
             markSolved(array_keys($traded['ids']), $stopLoss);
             $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
                     'alt' => $product->alt,
@@ -199,6 +200,7 @@ function do_solve($markets, $symbol, $side, $traded)
             save_gain($arbitrage_log);
 
             if($status['filled_size'] < $size) {
+                print_dbg("partial solved, creating tosolve trade", true);
                 save_trade($product->alt, $product->base, $side, $size - $status['filled_size'], $traded['price'], "partialSolve");
             }
         }
@@ -217,14 +219,15 @@ function processFailedTrades($markets, $symbol, $ops)
                 continue;
             }
             $exchange = strtolower($op['exchange']);
+            $fees = 0;
             if (isset($markets[$exchange])) {
                 $market = $markets[$exchange];
-                $product = @$market->products[$symbol];
-                $fees = @$product->fees;
+                $product = $market->products[$symbol];
+                $fees = $product->fees;
             }
 
             $ret[$side]['price'] = ($ret[$side]['price'] * $ret[$side]['size'] + $op['price'] * $op['size']) / ($ret[$side]['size'] + $op['size']);
-            $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + @$fees * $op['size']) / ($ret[$side]['size'] + $op['size']);
+            $ret[$side]['mean_fees'] = ($ret[$side]['mean_fees'] * $ret[$side]['size'] + $fees * $op['size']) / ($ret[$side]['size'] + $op['size']);
             $ret[$side]['size'] += $op['size'];
             $ret[$side]['ids'][$id] = $op;
             print("{$op['line']}\n");
@@ -249,40 +252,33 @@ function firstPassSolve($traded)
             $res_side = 'sell';
             $res_price = $sell['price'];
         }
-        firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded);
-    }
-}
-
-function firstPassSolveSide($size, $res_size, $res_side, $res_price, $traded)
-{
-    $buy = $traded['buy'];
-    $sell = $traded['sell'];
-    $gains = computeGains($buy['price'], $buy['mean_fees'], $sell['price'], $sell['mean_fees'], $size);
-    if ($gains['base'] > 0) {
-        //solve all trade
-        markSolved(array_keys($buy['ids']));
-        markSolved(array_keys($sell['ids']));
-        //generate new trade to solve
-        $op = array_values($buy['ids']);
-        $alt = $op[0]['alt'];
-        $base = $op[0]['base'];
-        if ($res_size > 0) {
-            save_trade($alt, $base, $res_side, $res_size, $res_price);
+        $gains = computeGains($buy['price'], $buy['mean_fees'], $sell['price'], $sell['mean_fees'], $res_size);
+        if ($gains['base'] > 0) {
+            //solve all trade
+            markSolved(array_keys($buy['ids']));
+            markSolved(array_keys($sell['ids']));
+            //generate new trade to solve
+            $op = array_values($buy['ids']);
+            $alt = $op[0]['alt'];
+            $base = $op[0]['base'];
+            if ($res_size > 0) {
+                save_trade($alt, $base, $res_side, $res_size, $res_price, "toSolve");
+            }
+            $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
+                        'alt' => $alt,
+                        'base' => $base,
+                        'id' => 'solved',
+                        'expected_gains' => $gains,
+                        'final_gains' => $gains,
+                        ];
+            if ($res_side == 'buy') {
+                $arbitrage_log['buy_market'] = 'Trade Cleaner';
+            } else {
+                $arbitrage_log['sell_market'] = 'Trade Cleaner';
+            }
+            print_dbg("first pass solved: size:$size $alt, gain:{$gains['base']} $base");
+            save_gain($arbitrage_log);
         }
-        $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
-                   'alt' => $alt,
-                   'base' => $base,
-                   'id' => 'solved',
-                   'expected_gains' => $gains,
-                   'final_gains' => $gains,
-                 ];
-        if ($res_side == 'buy') {
-            $arbitrage_log['buy_market'] = 'Trade Cleaner';
-        } else {
-            $arbitrage_log['sell_market'] = 'Trade Cleaner';
-        }
-        print_dbg("first pass solved: size:$size $alt, gain:{$gains['base']} $base");
-        save_gain($arbitrage_log);
     }
 }
 
@@ -297,7 +293,7 @@ function markSolved($ids, $stopLoss = false)
     }
 }
 
-function save_trade($alt, $base, $side, $size, $price, $id = "toSolve")
+function save_trade($alt, $base, $side, $size, $price, $id)
 {
     $timestamp = intval(microtime(true)*1000);
     $trade_str = date("Y-m-d H:i:s").": arbitrage: {$id}_" . $timestamp ." cleaner: trade cleanerTx: $side $size $alt at $price $base\n";
