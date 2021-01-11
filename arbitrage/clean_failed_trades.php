@@ -196,10 +196,11 @@ function do_solve($markets, $symbol, $side, $traded)
             $arbitrage_log['final_gains'] = $gains;
             $arbitrage_log['stats'] = $stats;
             print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, price:{$status['price']} $product->base");
-
             save_gain($arbitrage_log);
 
-            $market->api->getBalance();
+            if($status['filled_size'] < $size) {
+                save_trade($product->alt, $product->base, $side, $size - $status['filled_size'], $traded['price'], "partialSolve");
+            }
         }
     }
 }
@@ -296,10 +297,10 @@ function markSolved($ids, $stopLoss = false)
     }
 }
 
-function save_trade($alt, $base, $side, $size, $price)
+function save_trade($alt, $base, $side, $size, $price, $id = "toSolve")
 {
     $timestamp = intval(microtime(true)*1000);
-    $trade_str = date("Y-m-d H:i:s").": arbitrage: toSolve_" . $timestamp ." cleaner: trade cleanerTx: $side $size $alt at $price $base\n";
+    $trade_str = date("Y-m-d H:i:s").": arbitrage: {$id}_" . $timestamp ." cleaner: trade cleanerTx: $side $size $alt at $price $base\n";
     file_put_contents(TRADES_FILE, $trade_str, FILE_APPEND | LOCK_EX);
 }
 
