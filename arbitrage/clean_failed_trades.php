@@ -258,7 +258,7 @@ function firstPassSolve($traded)
             $res_side = 'sell';
             $res_price = $sell['price'];
         }
-        $gains = computeGains($buy['price'], $buy['mean_fees'], $sell['price'], $sell['mean_fees'], $res_size);
+        $gains = computeGains($buy['price'], $buy['mean_fees'], $sell['price'], $sell['mean_fees'], min($buy['size'], $sell['size']));
         if ($gains['base'] > 0) {
             //solve all trade
             markSolved(array_keys($buy['ids']));
