@@ -72,7 +72,7 @@ while (1) {
     foreach ($ledger as $symbol => $trades) {
         if (count($trades)) {
             print "$$$$$$$$$$$$$$$$$$ $symbol $$$$$$$$$$$$$$$$$$\n";
-            $traded = processFailedTrades($markets, $symbol, $trades);
+            $traded = processFailedTrades(@$markets, $symbol, $trades);
             foreach (['buy','sell'] as $side) {
                 $size = $traded[$side]['size'];
                 if ($size > 0) {
@@ -117,6 +117,7 @@ function do_solve($markets, $symbol, $side, $traded)
         $base_bal = $api->balances[$product->base];
 
         $size = truncate($traded['size'], $product->size_decimals);
+
         if ($size < $product->min_order_size) {
             continue;
         }
@@ -160,7 +161,7 @@ function do_solve($markets, $symbol, $side, $traded)
 
     if ($takeProfit || $stopLoss) {
         $api = $bestMarket->api;
-        $product = $market->products[$symbol];
+        $product = $bestMarket->products[$symbol];
         $size = truncate($traded['size'], $product->size_decimals);
 
         $i=0;
@@ -321,17 +322,17 @@ function parseTradeFile()
             if (count($matches) == 10) {
                 $symbol = "{$matches[7]}-{$matches[9]}";
                 $tradeInfos = [
-          'date' => $matches[1],
-          'side' => $matches[5],
-          'size' => floatval($matches[6]),
-          'price' => $matches[8],
-          'id' => $matches[4],
-          'exchange' => $matches[3],
-          'line' => trim($line),
-          'alt' => $matches[7],
-          'base' => $matches[9],
-          'symbol' => $symbol,
-        ];
+                'date' => $matches[1],
+                'side' => $matches[5],
+                'size' => floatval($matches[6]),
+                'price' => $matches[8],
+                'id' => $matches[4],
+                'exchange' => $matches[3],
+                'line' => trim($line),
+                'alt' => $matches[7],
+                'base' => $matches[9],
+                'symbol' => $symbol,
+                ];
                 $OpId = $matches[2];
         
                 if ($OpId != 'solved' && $OpId != 'stop_loss') {
@@ -367,11 +368,12 @@ function parseTradeFile()
             }
         }
         fclose($handle);
-    }
-    foreach ($ledger as $idx => $symb) {
-        foreach ($symb as $op => $trade) {
-            if ($trade['isFailed'] === false) {
-                unset($ledger[$idx][$op]);
+
+        foreach ($ledger as $symbol => $ops) {
+            foreach ($ops as $OpId => $trade) {
+                if ($trade['isFailed'] === false) {
+                    unset($ledger[$symbol][$OpId]);
+                }
             }
         }
     }
