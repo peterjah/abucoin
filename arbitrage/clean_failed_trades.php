@@ -200,7 +200,7 @@ function do_solve($markets, $symbol, $side, $traded)
             print_dbg("solved on $api->name: size:{$status['filled_size']} $product->alt, price:{$status['price']} $product->base");
             save_gain($arbitrage_log);
 
-            if($status['filled_size'] < $size) {
+            if($status['filled_size'] < $traded['size']) {
                 print_dbg("partial solved, creating tosolve trade", true);
                 save_trade($product->alt, $product->base, $side, $size - $status['filled_size'], $traded['price'], "partialSolve");
             }
