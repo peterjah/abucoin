@@ -225,10 +225,11 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
                     $book = $product->refreshBook($side, 0, $size);
                     $size = min(truncate($base_bal / (applyBuyFee($book['asks']['price'], $product->fees)), $product->size_decimals), $size);
                     $buy_price = $book['asks']['order_price'];
-                    print_dbg("new tradesize: $size, new price $buy_price base_bal: $base_bal", true);
+                    print_dbg("new price $buy_price", true);
                 } else {
-                    $size = $market->api->balances[$alt];
+                    $size = min($market->api->balances[$alt], $size);
                 }
+                print_dbg("new tradesize: $size base_bal: $base_bal", true);
             }
 
             if ($err == 'EGeneral:Invalid arguments:volume' || $err == 'Invalid quantity.' || $err == 'invalid_order_size' ||
