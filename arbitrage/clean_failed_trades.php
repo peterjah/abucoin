@@ -201,8 +201,9 @@ function do_solve($markets, $symbol, $side, $traded)
             save_gain($arbitrage_log);
 
             if($status['filled_size'] < $traded['size']) {
+                $leftSize = $$traded['size'] - $status['filled_size'];
                 print_dbg("partial solved, creating tosolve trade", true);
-                save_trade($product->alt, $product->base, $side, $size - $status['filled_size'], $traded['price'], "partialSolve");
+                save_trade($product->alt, $product->base, $side, $leftSize, $traded['price'], "partialSolve");
             }
         }
     }
