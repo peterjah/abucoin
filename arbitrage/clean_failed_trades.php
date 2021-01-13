@@ -207,10 +207,10 @@ function do_solve($markets, $symbol, $side, $traded)
             // update balances
             if($side === "buy") {
                 $api->balances[$product->alt] += $status['filled_size'];
-                $api->balances[$product->base] -= $status['filled_size'] * $status['price'];
+                $api->balances[$product->base] -= $status['filled_base'];
             }else {
                 $api->balances[$product->alt] -= $status['filled_size'];
-                $api->balances[$product->base] += $status['filled_size'] * $status['price'];
+                $api->balances[$product->base] += $status['filled_base'];
             }
 
         }

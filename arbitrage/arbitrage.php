@@ -220,10 +220,10 @@ function testSwap($symbol, $buy_market, $sell_market)
 
         if ($filled_buy > 0) {
             $buy_market->api->balances[$alt] += $filled_buy;
-            $buy_market->api->balances[$base] -= $filled_buy * $status['buy']['price'];
+            $buy_market->api->balances[$base] -= $status['buy']['filled_base'];
         }
         if ($filled_sell > 0) {
-            $sell_market->api->balances[$base] += $filled_sell * $status['sell']['price'];
+            $sell_market->api->balances[$base] += $status['sell']['filled_base'];
             $sell_market->api->balances[$alt] -= $filled_sell;
         }
         return $arbitrage_logs;

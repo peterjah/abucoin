@@ -354,7 +354,7 @@ class KrakenApi
                 } else {
                     throw new Exception("Unable to locate order in history");
                 }
-                return ['filled_size' => $status['filled'], 'id' => $id, 'price' => $status['price']];
+                return ['filled_size' => $status['filled'], 'filled_base' => $status['filled_base'], 'id' => $id, 'price' => $status['price']];
             }
         } else {
             $client = new Client(WSS_AUTH_URL, ['timeout' => 60]);
@@ -495,8 +495,8 @@ class KrakenApi
                 if ($id == $order_id) {
                     return  [ 'id' => $id,
                       'status' => 'open',
-                      'filled' => $open_order['vol_exec'],
-                      'filled_base' => $open_order['cost']
+                      'filled' => floatval($open_order['vol_exec']),
+                      'filled_base' => floatval($open_order['cost'])
                     ];
                 }
             }

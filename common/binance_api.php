@@ -312,8 +312,8 @@ class BinanceApi
                 print_dbg("{$this->name}: trade $id closed: $filled_size $alt @ $price", true);
             } else {
                 //give server some time to handle order
-          usleep(500000);// 0.5 sec
-          $status = [];
+                usleep(500000);// 0.5 sec
+                $status = [];
                 $timeout = 10;// sec
                 $begin = microtime(true);
                 while ((@$status['status'] != 'closed') && ((microtime(true) - $begin) < $timeout)) {
@@ -334,13 +334,14 @@ class BinanceApi
                 print_dbg("Final check status: {$status['status']} $side $alt filled:{$status['filled']}", true);
                 var_dump($status);
                 $filled_size = $status['filled'];
+                $filled_base = floatval($status['filled_base']);
                 $price = $status['price'];
             }
             if ($filled_size > 0) {
                 if ($saveTrade) {
                     $this->save_trade($id, $product, $side, $filled_size, $price, $tradeId);
                 }
-                return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $price*$filled_size, 'price' => $price];
+                return ['filled_size' => $filled_size, 'id' => $id, 'filled_base' => $filled_base, 'price' => $price];
             } else {
                 return ['filled_size' => 0, 'id' => $id, 'filled_base' => 0, 'price' => 0];
             }
@@ -379,13 +380,15 @@ class BinanceApi
             } else {
                 $status = 'open';
             }
-
+            $filled_base = floatval($order['cummulativeQuoteQty']);
+            $filled = floatval($order['executedQty']);
+            $price = floatval($order['price']);
             return  $status = [ 'id' => $orderId,
                             'side' => strtolower($order['side']),
                             'status' => $status,
-                            'filled' => floatval($order['executedQty']),
-                            'filled_base' => floatval($order['executedQty']) * $order['price'],
-                            'price' => $order['price']
+                            'filled' => $filled,
+                            'filled_base' => $filled_base > 0 ? $filled_base : $filled * $price,
+                            'price' => $price
                           ];
         }
     }
