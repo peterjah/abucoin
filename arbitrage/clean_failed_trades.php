@@ -91,8 +91,7 @@ while (1) {
 
     if (@$autoSolve) {
         sleep(LOOP_TIME_MIN * 60);
-    }
-    else {
+    } else {
         break;
     }
 }
@@ -201,14 +200,13 @@ function do_solve($markets, $symbol, $side, $traded)
             save_gain($arbitrage_log);
 
             $leftSize = $traded['size'] - $status['filled_size'];
-            if($leftSize > 1E-8) {
+            if ($leftSize > 1E-8) {
                 print_dbg("partial solved, creating tosolve trade", true);
                 save_trade($product->alt, $product->base, $side, $leftSize, $traded['price'], "partialSolve");
             }
             // update balances
             $api->balances[$product->alt] += $status['filled_size'];
             $api->balances[$product->base] -= $status['filled_size'] * $status['price'];
-
         }
     }
 }
@@ -350,8 +348,12 @@ function parseTradeFile()
                         }
                         $ledger[$symbol][$OpId]['isFailed'] = true;
                     } else {
-                        if ($ledger[$symbol][$OpId]['size'] != $size) {
+                        if ($ledger[$symbol][$OpId]['side'] === $tradeInfos['side']) {
+                            $ledger[$symbol][$OpId]['price'] = ($ledger[$symbol][$OpId]['size'] * $ledger[$symbol][$OpId]['price'] + $size * $tradeInfos['price']) / ($size + $ledger[$symbol][$OpId]['size']);
+                            $ledger[$symbol][$OpId]['size'] += $size;
+                        } elseif ($ledger[$symbol][$OpId]['size'] != $size) {
                             print "$symbol Different size trade: {$ledger[$symbol][$OpId]['side']} {$ledger[$symbol][$OpId]['size']} != {$tradeInfos['side']} $size\n";
+
                             if ($ledger[$symbol][$OpId]['size'] < $size) {
                                 $ledger[$symbol][$OpId]['side'] = $tradeInfos['side'];
                                 $ledger[$symbol][$OpId]['exchange'] = $tradeInfos['exchange'];
@@ -360,7 +362,8 @@ function parseTradeFile()
                             $ledger[$symbol][$OpId]['size'] = abs($ledger[$symbol][$OpId]['size'] - $size);
 
                             $new_line = "{$tradeInfos['date']}: arbitrage: $OpId {$ledger[$symbol][$OpId]['exchange']}: trade {$tradeInfos['id']}: {$ledger[$symbol][$OpId]['side']} "
-                           ."{$ledger[$symbol][$OpId]['size']} {$tradeInfos['alt']} at {$ledger[$symbol][$OpId]['price']}";
+                            ."{$ledger[$symbol][$OpId]['size']} {$tradeInfos['alt']} at {$ledger[$symbol][$OpId]['price']}";
+
                             $ledger[$symbol][$OpId]['line'] = $new_line;
                         } else {
                             $ledger[$symbol][$OpId]['isFailed'] = false;
