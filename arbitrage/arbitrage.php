@@ -22,7 +22,7 @@ if (!file_exists(GAINS_FILE)) {
     touch(GAINS_FILE);
 }
 
-@define('BUY_TRESHOLD', 0.01); //percent
+@define('BUY_TRESHOLD', 0.03); //percent
 
 $market1 = new Market($argv[1]);
 $market2 = new Market($argv[2]);
