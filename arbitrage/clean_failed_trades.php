@@ -205,8 +205,14 @@ function do_solve($markets, $symbol, $side, $traded)
                 save_trade($product->alt, $product->base, $side, $leftSize, $traded['price'], "partialSolve");
             }
             // update balances
-            $api->balances[$product->alt] += $status['filled_size'];
-            $api->balances[$product->base] -= $status['filled_size'] * $status['price'];
+            if($side === "buy") {
+                $api->balances[$product->alt] += $status['filled_size'];
+                $api->balances[$product->base] -= $status['filled_size'] * $status['price'];
+            }else {
+                $api->balances[$product->alt] -= $status['filled_size'];
+                $api->balances[$product->base] += $status['filled_size'] * $status['price'];
+            }
+
         }
     }
 }
