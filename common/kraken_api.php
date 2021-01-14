@@ -142,6 +142,7 @@ class KrakenApi
                 'CAD' => "ZCAD",
                 'JPY' => "ZJPY",
                 'GBP' => "ZGBP",
+                'AUD' => "ZAUD",
                 ];
         if ($reverse) {
             $table = array_flip($table);
