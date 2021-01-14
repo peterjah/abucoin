@@ -271,13 +271,13 @@ function getCommonProducts($market1, $market2)
     return array_values(array_intersect($symbols1, $symbols2));
 }
 
-function computeGains($buy_price, $fees1, $sell_price, $fees2, $trade_size)
+function computeGains($buy_price, $buy_fee, $sell_price, $sell_fee, $trade_size)
 {
     if (empty($buy_price) || empty($sell_price) || empty($trade_size)) {
         throw new \Exception("Unable to compute gains. buy price \"$buy_price\", sell price \"$sell_price\" , size \"$trade_size\"");
     }
-    $spend_base_unit = applyBuyFee($buy_price, $fees2);
-    $sell_base_unit = applySellFee($sell_price, $fees1);
+    $spend_base_unit = applyBuyFee($buy_price, $buy_fee);
+    $sell_base_unit = applySellFee($sell_price, $sell_fee);
     $gain_per_unit = $sell_base_unit - $spend_base_unit;
     $gain_percent = (($sell_base_unit / $spend_base_unit)-1)*100;
     $gain_base = $trade_size * $gain_per_unit;
