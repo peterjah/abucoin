@@ -3,7 +3,7 @@ require_once('../common/tools.php');
 
 @define('GAINS_FILE', 'gains.json');
 
-$options =  getopt('', array(
+$options =  getopt('a', array(
    'exchange:',
  ));
 
@@ -36,6 +36,9 @@ foreach ($data['arbitrages'] as $arbitrage) {
 
     $op_str = "{$arbitrage['date']}: ";
     if ($arbitrage['id'] == 'solved' || $arbitrage['id'] == 'stop_loss') {
+        if(isset($options['a'])) {
+            continue;
+        }
         $op_str .= "{$arbitrage['id']}: " . (isset($arbitrage['buy_market']) ? "buy $alt on {$arbitrage['buy_market']}" :
                             (isset($arbitrage['sell_market']) ? "sell $alt on {$arbitrage['sell_market']}" : "solved "));
     } else {
