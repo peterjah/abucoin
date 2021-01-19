@@ -202,7 +202,7 @@ function do_solve($markets, $symbol, $side, $traded)
             $leftSize = $traded['size'] - $status['filled_size'];
             if ($leftSize > 1E-8) {
                 print_dbg("partial solved, creating tosolve trade", true);
-                save_trade($product->alt, $product->base, $side, $leftSize, $traded['price'], "partialSolve");
+                save_trade($traded['exchange'], $product->alt, $product->base, $side, $leftSize, $traded['price'], "partialSolve");
             }
             // update balances
             if($side === "buy") {
@@ -272,7 +272,8 @@ function firstPassSolve($traded)
             $alt = $op[0]['alt'];
             $base = $op[0]['base'];
             if ($res_size > 0) {
-                save_trade($alt, $base, $res_side, $res_size, $res_price, "toSolve");
+                $exchange = $res_side === 'buy' ? $buy['exchange'] : $sell['exchange'];
+                save_trade($exchange, $alt, $base, $res_side, $res_size, $res_price, "toSolve");
             }
             $arbitrage_log = [ 'date' => date("Y-m-d H:i:s"),
                         'alt' => $alt,
@@ -303,10 +304,10 @@ function markSolved($ids, $stopLoss = false)
     }
 }
 
-function save_trade($alt, $base, $side, $size, $price, $id)
+function save_trade($exchange, $alt, $base, $side, $size, $price, $id)
 {
     $timestamp = intval(microtime(true)*1000);
-    $trade_str = date("Y-m-d H:i:s").": arbitrage: {$id}_" . $timestamp ." cleaner: trade cleanerTx: $side $size $alt at $price $base\n";
+    $trade_str = date("Y-m-d H:i:s").": arbitrage: {$id}_" . $timestamp ." " . ucfirst($exchange) . ": trade cleanerTx: $side $size $alt at $price $base\n";
     file_put_contents(TRADES_FILE, $trade_str, FILE_APPEND | LOCK_EX);
 }
 
