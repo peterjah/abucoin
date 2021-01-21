@@ -50,6 +50,8 @@ $btc_start_cash = $market1->api->balances['BTC'] + $market2->api->balances['BTC'
 $sig_stop = false;
 $last_update = time();
 $loop_begin = microtime(true);
+$loop_cnt = 0;
+$loop_min = 0;
 while (true) {
     if (!$sig_stop) {
         try {
@@ -110,13 +112,18 @@ while (true) {
 
     //avoid useless cpu usage
     $loop_time = microtime(true) - $loop_begin;
-    $min_loop_time = 0.3;//sec
+    $min_loop_time = 5;//ms
     if ($loop_time < $min_loop_time) {
-        usleep(($min_loop_time-$loop_time)*1000000);
+        $sleepTimeMs = $min_loop_time-$loop_time;
+        print "~~~~Loop too fast sleeping {$sleepTimeMs}ms\n";
+        usleep($sleepTimeMs*1000);
     }
+    print "~~~~Loop time (ms): {$loop_time} ~~~~ {$loop_min}/min~~~~\n\n";
+
     $loop_begin = microtime(true);
 
     // time recurent tasks
+    $loop_cnt++;
     if (time() - $last_update > 60/*sec*/) {
         try {
             if (!empty($config['healthCheckId'])) {
@@ -140,6 +147,8 @@ while (true) {
             handleExeption($e);
         }
         $last_update = time();
+        $loop_min = $loop_cnt;
+        $loop_cnt = 0;
     }
 }
 
