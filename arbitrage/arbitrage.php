@@ -71,14 +71,16 @@ while (true) {
                             $buy_market = $i % 2 ? $market2 : $market1;
                             $sell_market = $i % 2 ? $market1 : $market2;
                             $status = testSwap($symbol, $buy_market, $sell_market);
-                            if (empty($status) || $status['final_gains']['base'] <= 0) {
+                            if (empty($status)) {
                                 break;
-                            } else {
-                                $base = $market1->products[$symbol]->base;
-                                $profits[$base] += $status['final_gains']['base'];
-                                foreach ([$market1, $market2] as $market) {
-                                    $market->api->refreshTickers($symbol_list);
-                                }
+                            }
+                            $base = $market1->products[$symbol]->base;
+                            $profits[$base] += $status['final_gains']['base'];
+                            foreach ([$market1, $market2] as $market) {
+                                $market->api->refreshTickers($symbol_list);
+                            }
+                            if ($status['final_gains']['base'] < 0) {
+                                break;
                             }
                         }
                     }
