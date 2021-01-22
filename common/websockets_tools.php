@@ -6,7 +6,7 @@ function handle_offers($stack, $offers, $side, $stackSize)
         $new_price = floatval($new_offer[0]);
         $new_vol = floatval($new_offer[1]);
         foreach ($stack as $key => $offer) {
-            if (is_better($new_price, floatval($offer[0]), $side) && $new_vol > 0) {
+            if (isBetter($new_price, floatval($offer[0]), $side) && $new_vol > 0) {
                 array_splice($stack, $key, 0, [$new_offer]);
                 break;
             }
@@ -30,11 +30,25 @@ function handle_offers($stack, $offers, $side, $stackSize)
 }
 
 
-function is_better($price, $ref, $side)
+function isBetter($price, $ref, $side)
 {
-    if ($side === 'asks') {
+    if (isAsk($side)) {
         return $price < $ref;
     } else {
         return $price > $ref;
     }
+}
+
+function isAsk($side)
+{
+    return $side === 'asks';
+}
+
+function parseBook($file) {
+    $fd = fopen($file, "r");
+    flock($fd, LOCK_SH, $w);
+    $res = json_decode(file_get_contents($file), true);
+    flock($fd, LOCK_UN);
+    fclose($fd);
+    return $res;
 }

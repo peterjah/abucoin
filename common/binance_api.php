@@ -268,7 +268,7 @@ class BinanceApi
         return $best;
     }
 
-
+    // found issue of order filled and not retrieved...
     public function place_order($product, $type, $side, $price, $size, $tradeId, $saveTrade = true)
     {
         $alt = $product->alt;

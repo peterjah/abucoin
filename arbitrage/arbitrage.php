@@ -36,7 +36,7 @@ foreach ([$market1, $market2] as $market) {
         try {
             $name = $market->api->name;
             if ($name === "Binance") {
-                $market->api->orderbook_file = subscribeWsOrderBook($name, $symbol_list, $market->api->orderbook_depth);
+                $market->api->orderbook_file = subscribeWsOrderBook($name, $symbol_list);
             }
             break;
         } catch (Exception $e) {

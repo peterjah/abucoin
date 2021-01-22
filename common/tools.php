@@ -335,7 +335,7 @@ function get_tradesize($symbol, $sell_market, $sell_book, $buy_market, $buy_book
     return $trade_size;
 }
 
-function subscribeWsOrderBook($market_name, $symbol_list, $depth)
+function subscribeWsOrderBook($market_name, $symbol_list)
 {
     $websocket_script = "../common/".strtolower($market_name)."_websockets.php";
     if (file_exists($websocket_script)) {
@@ -344,8 +344,8 @@ function subscribeWsOrderBook($market_name, $symbol_list, $depth)
         $orderbook_file  = "{$market_name}_orderbook_{$suffix}.json";
         $products_str = implode(",", $symbol_list);
 
-        $cmd = "nohup php ../common/".strtolower($market_name)."_websockets.php --file {$orderbook_file} --cmd getOrderBook \
-           --products $products_str --bookdepth $depth >/dev/null 2>&1 &";
+        $cmd = "nohup php ../common/".strtolower($market_name)."_websockets.php --file {$orderbook_file} \
+           --products $products_str >/dev/null 2>&1 &";
         print("$cmd\n");
         shell_exec($cmd);
         sleep(1);

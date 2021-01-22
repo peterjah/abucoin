@@ -6,49 +6,29 @@ require_once('../common/websockets_tools.php');
 @define('WSS_URL', 'wss://stream.binance.com:9443');
 
 declare(ticks = 1);
-function sig_handler($sig)
-{
-    global $file;
-    switch ($sig) {
-        case SIGINT:
-        case SIGTERM:
-          print_dbg("Binance WS: signal $sig catched! Exiting...", true);
-          unlink($file);
-          exit();
-    }
-}
 pcntl_signal(SIGINT, "sig_handler");
 pcntl_signal(SIGTERM, "sig_handler");
 
 $options =  getopt('', array(
    'file:',
-   'cmd:',
    'products:',
-   'bookdepth:'
  ));
 
-if (!isset($options['cmd'])) {
-    print_dbg("No websocket method provided", true);
-}
 if (!isset($options['file'])) {
     print_dbg("No output file provided", true);
 }
 $file = $options['file'];
 $products = explode(',', $options['products']);
-
-switch ($options['cmd']) {
-  case 'getOrderBook':
-      while (true) {
-          touch($file);
-          print_dbg("Subscribing Binance Orderbook WS feed", true);
-          getOrderBook($products);
-          unlink($file);
-      }
+while (true) {
+    touch($file);
+    print_dbg("Subscribing Binance Orderbook WS feed", true);
+    getOrderBook($products, $file);
+    unlink($file);
 }
 
-function getOrderBook($products)
+
+function getOrderBook($products, $file)
 {
-    global $file;
 
     $orderbook = [];
     $subscribe_str = '/stream?streams=';
@@ -89,5 +69,17 @@ function getOrderBook($products)
             print_dbg('Binance websocket error:' . $e->getMessage(), true);
             break;
         }
+    }
+}
+
+function sig_handler($sig)
+{
+    switch ($sig) {
+        case SIGINT:
+        case SIGTERM:
+        case SIGKILL:
+          print_dbg("Kraken WS: signal $sig catched! Exiting...", true);
+          unlink($GLOBALS['file']);
+          exit();
     }
 }
