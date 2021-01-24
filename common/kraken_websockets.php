@@ -1,9 +1,10 @@
 <?php
-use WebSocket\Client;
+use Wrench\Client;
 
 require_once('../common/tools.php');
 require_once('../common/websockets_tools.php');
-@define('WSS_URL', 'wss://ws.kraken.com');
+
+@define('WSS_URL', 'wss://ws.kraken.com/:443');
 
 declare(ticks = 1);
 pcntl_signal(SIGINT, "sig_handler");
@@ -28,7 +29,10 @@ while (true) {
 
 function getOrderBook($products)
 {
-    $client = new Client(WSS_URL, ['timeout' => 60, 'filter' => ['text', 'ping', 'pong', 'close']]);
+    $origin = exec('curl -s http://ipecho.net/plain');
+    $client = new Client(WSS_URL, "http://" . $origin);
+    $client->connect();
+
     global $file;
 
     $streams = [];
@@ -39,7 +43,7 @@ function getOrderBook($products)
         $streams[$symbol]['app_symbol'] = $product;
         $kraken_products[] = $symbol;
     }
-    $client->send(json_encode([
+    $client->sendData(json_encode([
         "event" => "subscribe",
         "pair" => $kraken_products,
         "subscription" => ['name' => 'ticker']
@@ -50,19 +54,25 @@ function getOrderBook($products)
 
     $channel_ids = [];
     $orderbook = [];
+    $frameIdx = 0;
     while (true) {
         try {
-            $message = $client->receive();
-            if ($message) {
+            if(isset($message[$frameIdx++])) {
+                $frame = $message[$frameIdx]->getPayload();
+            } else {
+                $frameIdx = 0;
+                $frame = $client->receive()[0]->getPayload();
+            }
+            if ($frame) {
                 if ($date < DateTime::createFromFormat('U.u', microtime(true))) {
-                    $client->send(json_encode(["event"=>"ping"]));
+                    $client->sendData(json_encode(["event"=>"ping"]));
                     $date->add(new DateInterval('PT' . 5 . 'S'));
                 }
-                $msg = json_decode($message, true);
+                var_dump($frame);
+                $msg = json_decode($frame, true);
                 if ($msg == null) {
-                    print_dbg("$file failed to decode json: \"{$message}\"", true);
-                    var_dump($message);
-                    break;
+                    print_dbg("$file failed to decode json: \"{$frame}\"", true);
+                    continue;
                 }
 
                 if (isset($msg['event'])) {

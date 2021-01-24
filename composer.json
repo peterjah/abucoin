@@ -12,7 +12,8 @@
         }
     ],
     "require": {
-        "textalk/websocket": "master"
+        "textalk/websocket": "master",
+        "wrench/wrench": "~3.0"
     },
     "minimum-stability": "dev"
-} 
+}
