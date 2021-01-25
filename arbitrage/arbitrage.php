@@ -48,10 +48,11 @@ $btc_start_cash = $market1->api->balances['BTC'] + $market2->api->balances['BTC'
 
 $sig_stop = false;
 $last_update = time();
-$loop_begin = microtime(true);
 $loop_cnt = 0;
 $loop_min = 0;
 while (true) {
+    $loop_begin = microtime(true);
+
     if (!$sig_stop) {
         try {
             foreach ([$market1, $market2] as $market) {
