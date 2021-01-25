@@ -5,6 +5,7 @@ require_once('../common/tools.php');
 require_once('../common/websockets_tools.php');
 
 @define('WSS_URL', 'wss://ws.kraken.com/:443');
+@define('DEPTH', 10);
 
 declare(ticks = 1);
 pcntl_signal(SIGINT, "sig_handler");
@@ -27,13 +28,13 @@ while (true) {
     unlink($file);
 }
 
-function getOrderBook($products)
+
+function getOrderBook($products, $file)
 {
     $origin = exec('curl -s http://ipecho.net/plain');
+
     $client = new Client(WSS_URL, "http://" . $origin);
     $client->connect();
-
-    global $file;
 
     $streams = [];
     $kraken_products = [];
@@ -46,7 +47,7 @@ function getOrderBook($products)
     $client->sendData(json_encode([
         "event" => "subscribe",
         "pair" => $kraken_products,
-        "subscription" => ['name' => 'ticker']
+        "subscription" => ['name' => 'book']
     ]));
 
     $date = DateTime::createFromFormat('U.u', microtime(true));
@@ -54,21 +55,22 @@ function getOrderBook($products)
 
     $channel_ids = [];
     $orderbook = [];
-    $frameIdx = 0;
+    $frameIdx = null;
     while (true) {
         try {
-            if(isset($message[$frameIdx++])) {
+            if(isset($message[$frameIdx])) {
                 $frame = $message[$frameIdx]->getPayload();
             } else {
+                $message = $client->receive();
                 $frameIdx = 0;
-                $frame = $client->receive()[0]->getPayload();
+                $frame = $message[0]->getPayload();
             }
+            $frameIdx++;
             if ($frame) {
                 if ($date < DateTime::createFromFormat('U.u', microtime(true))) {
                     $client->sendData(json_encode(["event"=>"ping"]));
                     $date->add(new DateInterval('PT' . 5 . 'S'));
                 }
-                var_dump($frame);
                 $msg = json_decode($frame, true);
                 if ($msg == null) {
                     print_dbg("$file failed to decode json: \"{$frame}\"", true);
@@ -83,11 +85,24 @@ function getOrderBook($products)
                             }
                             break;
                         case 'subscriptionStatus':
-                            if ($msg['status'] != 'subscribed') {
+                            if ($msg['status'] === 'error') {
                                 throw new \Exception("Kraken WS subsscription failed: {$msg['errorMessage']}");
                             }
                             $app_symbol = $streams[$msg['pair']]['app_symbol'];
-                            $channel_ids[$msg['channelID']] = $app_symbol;
+
+                            if ($msg['status'] === 'unsubscribed') {
+                                print("unsubscribed from: $app_symbol channelID: {$msg['channelID']}\n");
+                                $alts = explode('-', $app_symbol);
+                                $kraken_symbol = KrakenApi::translate2marketName($alts[0]) .'/'. KrakenApi::translate2marketName($alts[1]);
+                                $client->sendData(json_encode([
+                                    "event" => "subscribe",
+                                    "pair" => [$kraken_symbol],
+                                    "subscription" => ['name' => 'book']
+                                ]));
+                            } else {
+                                print("new channel subscription id: $app_symbol {$msg['channelID']}\n");
+                                $channel_ids[$msg['channelID']] = $app_symbol;
+                            }
                             break;
                         case 'pong':
                         case 'heartbeat': break;
@@ -96,16 +111,37 @@ function getOrderBook($products)
                             var_dump($msg);
                             break;
                         }
-                } elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
+                } elseif (isset($msg[1]['as']) || isset($msg[1]['bs'])) {
+                    print("snapshot received \n");
                     $symbol = $channel_ids[$msg[0]];
-                    //price
-                    $orderbook[$symbol]['bids'][0][0] = $msg[1]['b'][0];
-                    $orderbook[$symbol]['asks'][0][0] = $msg[1]['a'][0];
-                    //vol
-                    $orderbook[$symbol]['bids'][0][1] = $msg[1]['b'][2];
-                    $orderbook[$symbol]['asks'][0][1] = $msg[1]['a'][2];
-
-                    $orderbook['last_update'] = microtime(true);
+                    if (count($msg[1]['as'])) {
+                        $orderbook[$symbol]['asks'] = $msg[1]['as'];
+                    }
+                    if (count($msg[1]['bs'])) {
+                        $orderbook[$symbol]['bids'] = $msg[1]['bs'];
+                    }
+                }  elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
+                    $symbol = $channel_ids[$msg[0]];
+                    foreach (['bids', 'asks'] as $side) {
+                        $side_letter = substr($side, 0, 1);
+                        if (isset($msg[1][$side_letter])) {
+                            $offers = $msg[1][$side_letter];
+                            $orderbook[$symbol][$side] =
+                          handle_offers($orderbook[$symbol], $offers, $side, DEPTH);
+                          if(isset($offers[3])){
+                            print_dbg("$file replica frame!!!", true);
+                          }
+                        }
+                    }
+                    if(isset($msg[1]["c"])) {
+                        if(!checkSumValid($orderbook[$symbol], $msg[1]["c"])) {
+                            print_dbg("$file $symbol invalid checksum. Restarting...", true);
+                            $client->sendData(json_encode([
+                                "event" => "unsubscribe",
+                                "channelID" => $msg[0],
+                            ]));
+                        }
+                    }
                 } else {
                     print_dbg("$file msg received", true);
                     var_dump($msg);
@@ -115,6 +151,7 @@ function getOrderBook($products)
                     print_dbg('Restarting Kraken websocket', true);
                     break;
                 }
+                $orderbook['last_update'] = microtime(true);
                 file_put_contents($file, json_encode($orderbook), LOCK_EX);
             }
         } catch (Exception $e) {
@@ -123,6 +160,16 @@ function getOrderBook($products)
     }
 }
 
+function checkSumValid($book, $checksum) {
+    $str = "";
+    foreach (['asks', 'bids' ] as $side) {
+        foreach ($book[$side] as $offer) {
+            $str .= ltrim(str_replace(".", "", $offer[0]), "0");
+            $str .= ltrim(str_replace(".", "", $offer[1]), "0");
+        }
+    }
+    return crc32($str) == $checksum;
+}
 
 function sig_handler($sig)
 {

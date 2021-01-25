@@ -3,22 +3,23 @@ function handle_offers($stack, $offers, $side, $stackSize)
 {
     $stack = $stack[$side];
     foreach ($offers as $new_offer) {
-        $new_price = floatval($new_offer[0]);
-        $new_vol = floatval($new_offer[1]);
+        $new_price = $new_offer[0];
+        $new_vol = $new_offer[1];
+        $float_vol = floatval($new_vol);
         foreach ($stack as $key => $offer) {
-            if (isBetter($new_price, floatval($offer[0]), $side) && $new_vol > 0) {
+            if (isBetter(floatval($new_price), floatval($offer[0]), $side) && $float_vol > 0) {
                 array_splice($stack, $key, 0, [$new_offer]);
                 break;
             }
-            if ($new_price == floatval($offer[0])) {
-                if ($new_vol == 0) {
+            if ($new_price == $offer[0]) {
+                if ($float_vol == 0) {
                     unset($stack[$key]);//ok
                 } else {
                     $stack[$key] = $new_offer;
                 }
                 break;
             }
-            if ($key < ($stackSize -1) && !isset($stack[$key+1]) && $new_vol > 0) {
+            if ($key < ($stackSize -1) && !isset($stack[$key+1]) && $float_vol > 0) {
                 $stack[$key+1] = $new_offer;
                 break;
             }

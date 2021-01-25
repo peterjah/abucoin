@@ -9,8 +9,8 @@ $symbol = 'BTC-USDT';
 $kraken_symbol = 'BTCUSDT';
 $symbol_list = getCommonProducts($binance, $kraken);
 $symbol_list = [$symbol];
-$tickerFile = getcwd() . "/" . subscribeWsOrderBook('kraken', $symbol_list, 1);
-$bookFile = getcwd() . "/" . subscribeWsOrderBook('krakenbook', $symbol_list, 1);
+$tickerFile = getcwd() . "/" . subscribeWsOrderBook('krakenticker', $symbol_list, 1);
+$bookFile = getcwd() . "/" . subscribeWsOrderBook('kraken', $symbol_list, 1);
 
 print "tickerFile: $tickerFile\n";
 print "bookFile: $bookFile\n";

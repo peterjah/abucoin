@@ -28,6 +28,7 @@ class KrakenApi
     protected $api_calls;
     protected $time;
     protected $products;
+    public $orderbook_file;
 
     public function __construct()
     {
@@ -584,24 +585,28 @@ class KrakenApi
 
     public function refreshTickers($symbol_list)
     {
-        $str = $this->getProductsStr($symbol_list);
 
-        $tickers = $this->wrappedRequest('Ticker', ['pair' => $str]);
-
-        foreach ($tickers['result'] as $symbol => $ticker) {
-            //price
-            $book['bids'][0] = $ticker['b'][0];
-            $book['asks'][0] = $ticker['a'][0];
-            //vol
-            $book['bids'][1] = $ticker['b'][2];
-            $book['asks'][1] = $ticker['a'][2];
-
-            $product = getProductByParam($this->products, "exchange_symbol", $symbol);
-            if (isset($product)) {
-                $this->ticker[$product->symbol] = $book;
+        if (file_exists(($this->orderbook_file))) {
+            $this->ticker = getWsOrderbook($this->orderbook_file);
+            return $this->ticker;
+        } else {
+            $str = $this->getProductsStr($symbol_list);
+            $tickers = $this->wrappedRequest('Ticker', ['pair' => $str]);
+            foreach ($tickers['result'] as $symbol => $ticker) {
+                //price
+                $book['bids'][0] = $ticker['b'][0];
+                $book['asks'][0] = $ticker['a'][0];
+                //vol
+                $book['bids'][1] = $ticker['b'][2];
+                $book['asks'][1] = $ticker['a'][2];
+    
+                $product = getProductByParam($this->products, "exchange_symbol", $symbol);
+                if (isset($product)) {
+                    $this->ticker[$product->symbol] = $book;
+                }
             }
+            return $this->ticker;
         }
-        return $this->ticker;
     }
 
     public function getTickerOrderBook($product)
@@ -628,6 +633,21 @@ class KrakenApi
             throw new KrakenAPIException("failed to get order book with rest api");
         }
 
+        return $this->handleOrderBook($book, $depth_base, $depth_alt);
+    }
+
+    public function handleWsOrderBook($product, $depth_base = 0, $depth_alt = 0)
+    {
+        $depth_base = max($depth_base, $product->min_order_size_base);
+        $depth_alt = max($depth_alt, $product->min_order_size);
+
+        if (!isset($this->ticker[$product->symbol], $this->ticker[$product->symbol]['asks'], $this->ticker[$product->symbol]['bids'])) {
+            throw new KrakenAPIException("failed to get order book with rest api");
+        }
+        return $this->handleOrderBook($this->ticker[$product->symbol], $depth_base, $depth_alt);
+    }
+
+    public function handleOrderBook($book, $depth_base = 0, $depth_alt = 0) {
         foreach (['asks', 'bids'] as $side) {
             $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
             $best[$side]['size'] = floatval($book[$side][0][1]);

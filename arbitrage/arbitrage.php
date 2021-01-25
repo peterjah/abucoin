@@ -23,6 +23,7 @@ if (!file_exists(GAINS_FILE)) {
 }
 
 @define('BUY_TRESHOLD', 0.03); //percent
+@define('LOOP_TIME_MS', 100);
 
 $market1 = new Market($argv[1]);
 $market2 = new Market($argv[2]);
@@ -35,9 +36,7 @@ foreach ([$market1, $market2] as $market) {
     while (true) {
         try {
             $name = $market->api->name;
-            if ($name === "Binance") {
-                $market->api->orderbook_file = subscribeWsOrderBook($name, $symbol_list);
-            }
+            $market->api->orderbook_file = subscribeWsOrderBook($name, $symbol_list);
             break;
         } catch (Exception $e) {
             handleExeption($e);
@@ -113,16 +112,13 @@ while (true) {
     print "~~~~Api call stats: {$market2->api->name}: {$market2->api->api_calls_rate}/min , {$market1->api->name}: {$market1->api->api_calls_rate}/min~~~~\n\n";
 
     //avoid useless cpu usage
-    $loop_time = microtime(true) - $loop_begin;
-    $min_loop_time = 5;//ms
-    if ($loop_time < $min_loop_time) {
-        $sleepTimeMs = $min_loop_time-$loop_time;
+    $loop_time_ms = (microtime(true) - $loop_begin) / 1000;
+    print "~~~~Loop time: {$loop_time_ms}ms ~~~~ {$loop_min}/min~~~~\n\n";
+    if ($loop_time_ms < LOOP_TIME_MS) {
+        $sleepTimeMs = LOOP_TIME_MS - $loop_time_ms;
         print "~~~~Loop too fast sleeping {$sleepTimeMs}ms\n";
         usleep($sleepTimeMs*1000);
     }
-    print "~~~~Loop time (ms): {$loop_time} ~~~~ {$loop_min}/min~~~~\n\n";
-
-    $loop_begin = microtime(true);
 
     // time recurent tasks
     $loop_cnt++;

@@ -5,7 +5,6 @@ require_once('../common/tools.php');
 require_once('../common/websockets_tools.php');
 
 @define('WSS_URL', 'wss://ws.kraken.com/:443');
-@define('DEPTH', 10);
 
 declare(ticks = 1);
 pcntl_signal(SIGINT, "sig_handler");
@@ -28,13 +27,13 @@ while (true) {
     unlink($file);
 }
 
-
-function getOrderBook($products, $file)
+function getOrderBook($products)
 {
     $origin = exec('curl -s http://ipecho.net/plain');
-
     $client = new Client(WSS_URL, "http://" . $origin);
     $client->connect();
+
+    global $file;
 
     $streams = [];
     $kraken_products = [];
@@ -47,7 +46,7 @@ function getOrderBook($products, $file)
     $client->sendData(json_encode([
         "event" => "subscribe",
         "pair" => $kraken_products,
-        "subscription" => ['name' => 'book']
+        "subscription" => ['name' => 'ticker']
     ]));
 
     $date = DateTime::createFromFormat('U.u', microtime(true));
@@ -69,6 +68,7 @@ function getOrderBook($products, $file)
                     $client->sendData(json_encode(["event"=>"ping"]));
                     $date->add(new DateInterval('PT' . 5 . 'S'));
                 }
+                var_dump($frame);
                 $msg = json_decode($frame, true);
                 if ($msg == null) {
                     print_dbg("$file failed to decode json: \"{$frame}\"", true);
@@ -96,25 +96,16 @@ function getOrderBook($products, $file)
                             var_dump($msg);
                             break;
                         }
-                } elseif (isset($msg[1]['as']) || isset($msg[1]['bs'])) {
-                    print("snapshot received \n");
+                } elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
                     $symbol = $channel_ids[$msg[0]];
-                    if (count($msg[1]['as'])) {
-                        $orderbook[$symbol]['asks'] = $msg[1]['as'];
-                    }
-                    if (count($msg[1]['bs'])) {
-                        $orderbook[$symbol]['bids'] = $msg[1]['bs'];
-                    }
-                }  elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
-                    $symbol = $channel_ids[$msg[0]];
-                    foreach (['bids', 'asks'] as $side) {
-                      $side_letter = substr($side,0,1);
-                      if (isset($msg[1][$side_letter])) {
-                        $offers = $msg[1][$side_letter];
-                        $orderbook[$symbol][$side] =
-                          handle_offers($orderbook[$symbol], $offers, $side, DEPTH);
-                      }
-                    }
+                    //price
+                    $orderbook[$symbol]['bids'][0][0] = $msg[1]['b'][0];
+                    $orderbook[$symbol]['asks'][0][0] = $msg[1]['a'][0];
+                    //vol
+                    $orderbook[$symbol]['bids'][0][1] = $msg[1]['b'][2];
+                    $orderbook[$symbol]['asks'][0][1] = $msg[1]['a'][2];
+
+                    $orderbook['last_update'] = microtime(true);
                 } else {
                     print_dbg("$file msg received", true);
                     var_dump($msg);
@@ -131,6 +122,7 @@ function getOrderBook($products, $file)
         }
     }
 }
+
 
 function sig_handler($sig)
 {

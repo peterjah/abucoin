@@ -33,27 +33,32 @@ class Product
         $depth_base = max($depth_base, $this->min_order_size_base);
         $depth_alt = max($depth_alt, $this->min_order_size);
         try {
-            $book = $this->api->getTickerOrderBook($this);
+            if($this->api->name === "Binance") {
+                $book = $this->api->getTickerOrderBook($this);
+            } else {
+                $book = $this->api->handleWsOrderBook($this, $depth_base, $depth_alt);
+            }
         } catch (Exception $e) {
-            print("Unable to fetch ticker: {$e->getMessage()}\n");
+            print("{$this->api->name}: Unable to fetch ticker: {$e->getMessage()}\n");
             if ($use_rest) {
                 print("using rest API\n");
                 return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
+            } else {
+                throw $e;
             }
         }
 
-        if ($side == 'buy' &&
-      ($book['asks']['size'] < $depth_alt
-      || ($book['asks']['size'] * $book['asks']['price']) < $depth_base)) {
-            print("ticker size is too low\n");
-            return $use_rest ? $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt) : false;
-        }
-
-        if ($side == 'sell' &&
-    ($book['bids']['size'] < $depth_alt
-    || ($book['bids']['size'] * $book['bids']['price']) < $depth_base)) {
-            print("ticker size is too low\n");
-            return $use_rest ? $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt) : false;
+        if ($side == 'buy') { 
+            if($book['asks']['size'] < $depth_alt || ($book['asks']['size'] * $book['asks']['price']) < $depth_base) {
+                print("ticker size is too low\n");
+                return $use_rest ? $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt) : false;
+            }
+        } else {
+            if($book['bids']['size'] < $depth_alt || ($book['bids']['size'] * $book['bids']['price']) < $depth_base) {
+                print("ticker size is too low\n");
+                return $use_rest ? $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt) : false;
+            }
+            
         }
 
         return $this->book = $book;
@@ -165,7 +170,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
             }
             if (!$toSell) {
                 $base_bal = $market->api->balances[$base];
-                $size = min(truncate($base_bal / applyBuyFee($new_price,$product->fees), $product->size_decimals), $size);
+                $size = min(truncate($base_bal / applyBuyFee($new_price, $product->fees), $product->size_decimals), $size);
             }
             if (($size >= $product->min_order_size) && ($size * $new_price >= $product->min_order_size_base)) {
                 if ($toSell) {
@@ -216,7 +221,7 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
             $err = $e->getMessage();
             print_dbg("unable to $side retrying. $i : {$err}", true);
             if (strpos($err, 'EOrder:Insufficient funds') !== false ||
-           strpos($err, 'Account has insufficient balance for requested action.') !== false ) {
+           strpos($err, 'Account has insufficient balance for requested action.') !== false) {
                 $market->getBalance();
                 print_dbg("Insufficient funds to $side $size $alt @ $price , base_bal:{$market->api->balances[$base]} alt_bal:{$market->api->balances[$alt]}", true);
                 if ($side == 'buy') {
@@ -360,7 +365,7 @@ function getWsOrderbook($file)
         $orderbook = json_decode(file_get_contents($file), true);
         fclose($fp);
         $update_timeout = 30;
-        if (microtime(true) - $orderbook['last_update'] > $update_timeout) {
+        if (!isset($orderbook['last_update']) || (microtime(true) - $orderbook['last_update'] > $update_timeout)) {
             throw new \Exception("$file orderbook not uptaded since $update_timeout sec");
         }
         return $orderbook;
