@@ -120,26 +120,30 @@ function getOrderBook($products, $file)
                     if (count($msg[1]['bs'])) {
                         $orderbook[$symbol]['bids'] = $msg[1]['bs'];
                     }
+                    $orderbook[$symbol]["restarting"] = false;
                 }  elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
                     $symbol = $channel_ids[$msg[0]];
-                    foreach (['bids', 'asks'] as $side) {
-                        $side_letter = substr($side, 0, 1);
-                        if (isset($msg[1][$side_letter])) {
-                            $offers = $msg[1][$side_letter];
-                            $orderbook[$symbol][$side] =
+                    if (!$orderbook[$symbol]["restarting"]) {
+                        foreach (['bids', 'asks'] as $side) {
+                            $side_letter = substr($side, 0, 1);
+                            if (isset($msg[1][$side_letter])) {
+                                $offers = $msg[1][$side_letter];
+                                $orderbook[$symbol][$side] =
                           handle_offers($orderbook[$symbol], $offers, $side, DEPTH);
-                          if(isset($offers[3])){
-                            print_dbg("$file replica frame!!!", true);
-                          }
+                                if (isset($offers[3])) {
+                                    print_dbg("$file replica frame!!!", true);
+                                }
+                            }
                         }
-                    }
-                    if(isset($msg[1]["c"])) {
-                        if(!checkSumValid($orderbook[$symbol], $msg[1]["c"])) {
-                            print_dbg("$file $symbol invalid checksum. Restarting...", true);
-                            $client->sendData(json_encode([
+                        if (isset($msg[1]["c"])) {
+                            if (!checkSumValid($orderbook[$symbol], $msg[1]["c"])) {
+                                print_dbg("$file $symbol invalid checksum. Restarting...", true);
+                                $orderbook[$symbol]["restarting"] = true;
+                                $client->sendData(json_encode([
                                 "event" => "unsubscribe",
                                 "channelID" => $msg[0],
                             ]));
+                            }
                         }
                     }
                 } else {

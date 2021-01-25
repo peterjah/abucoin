@@ -184,7 +184,7 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
 
                     $isCompositeTrade = $status[$side]['filled_size'] > 0;
                     $newStatus = place_order($market, 'limit', $symbol, $side, $new_price, $size, $arbId);
-                    print "$side {$newStatus['filled_size']} $alt on {$market->api->name} at {$newStatus[$side]['price']}\n";
+                    print "$side {$newStatus['filled_size']} $alt on {$market->api->name} at {$newStatus['price']}\n";
 
                     if ($isCompositeTrade) {
                         $status[$side]['price'] = ((($status[$side]['price'] * $status[$side]['filled_size']) + ($newStatus['filled_size'] * $newStatus['price'])) /
@@ -223,9 +223,9 @@ function place_order($market, $type, $symbol, $side, $price, $size, $arbId)
             if (strpos($err, 'EOrder:Insufficient funds') !== false ||
            strpos($err, 'Account has insufficient balance for requested action.') !== false) {
                 $market->getBalance();
-                print_dbg("Insufficient funds to $side $size $alt @ $price , base_bal:{$market->api->balances[$base]} alt_bal:{$market->api->balances[$alt]}", true);
+                $base_bal = $market->api->balances[$base];
+                print_dbg("Insufficient funds to $side $size $alt @ $price , base_bal:{$base_bal} alt_bal:{$market->api->balances[$alt]}", true);
                 if ($side == 'buy') {
-                    $base_bal = $market->api->balances[$base];
                     //price may be not relevant anymore. moreover we want a market order
                     $book = $product->refreshBook($side, 0, $size);
                     $size = min(truncate($base_bal / (applyBuyFee($book['asks']['price'], $product->fees)), $product->size_decimals), $size);
