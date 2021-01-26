@@ -275,20 +275,15 @@ class BinanceApi
     {
         $alt = $product->alt;
         $base = $product->base;
-        $table = ['sell' => 'SELL', 'buy' => 'BUY'];
-        $table2 = ['market' => 'MARKET', 'limit' => 'LIMIT'];
-        $orderSide = $table[$side];
-        $orderType = $table2[$type];
 
-        $size_str = number_format($size, $product->size_decimals, '.', '');
         $order = ['symbol' =>  self::crypto2binance($alt) . self::crypto2binance($base),
-                'quantity'=>  $size_str,
-                'side'=> $orderSide,
-                'type'=> $orderType,
+                'quantity'=>  formatString($size, $product->size_decimals),
+                'side'=> strtoupper($side),
+                'type'=> strtoupper($type),
                 ];
 
         if ($type == 'limit') {
-            $order['price'] = number_format($price, $product->price_decimals, '.', '');
+            $order['price'] = formatString($price, $product->price_decimals);
             $order['timeInForce'] = 'GTC';
         }
 

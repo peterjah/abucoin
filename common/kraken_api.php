@@ -81,12 +81,11 @@ class KrakenApi
         $public_set = array( 'Ticker', 'Assets', 'Depth', 'AssetPairs', 'Time');
         if (!in_array($method, $public_set)) {
             //private method
-            if (!isset($request['nonce'])) {
-                // generate a 64 bit nonce using a timestamp at microsecond resolution
-                // string functions are used to avoid problems on 32 bit systems
-                $nonce = explode(' ', microtime());
-                $request['nonce'] = $nonce[1] . str_pad(substr($nonce[0], 2, 6), 6, '0');
-            }
+            // generate a 64 bit nonce using a timestamp at microsecond resolution
+            // string functions are used to avoid problems on 32 bit systems
+            $nonce = explode(' ', microtime());
+            $request['nonce'] = $nonce[1] . str_pad(substr($nonce[0], 2, 6), 6, '0');
+
             $postdata = http_build_query($request, '', '&');
             // set API key and sign the message
             $path = '/' . self::API_VERSION . '/private/' . $method;
@@ -281,6 +280,7 @@ class KrakenApi
         return substr($products_str, 0, strlen($products_str)-1);
     }
 
+    // possibly trade passed with EAPI:Invalid nonce
     public function place_order($product, $type, $side, $price, $size, $tradeId, $saveTrade = true)
     {
         if (true/* use rest api*/) {
@@ -288,12 +288,12 @@ class KrakenApi
             $order = ['pair' => $pair,
                   'type' => $side,
                   'ordertype' => $type,
-                  'volume' => number_format($size, $product->size_decimals, '.', ''),
+                  'volume' => formatString($size, $product->size_decimals),
                   'expiretm' => '+20' //todo: compute working expire time...(unix timestamp)
                 ];
 
             if ($type == 'limit') {
-                $order['price'] = number_format($price, $product->price_decimals, '.', '');
+                $order['price'] = formatString($price, $product->price_decimals);
             } else {
                 $book = $this->getOrderBook($product, $product->min_order_size_base, $size, false);
                 $price_diff_pct = 0;
@@ -367,8 +367,8 @@ class KrakenApi
         'pair' => $product->ws_name,
         'type' => $side,
         'ordertype' => $type,
-        'volume' => $this->toString($size, $product->size_decimals),
-        'price' => $this->toString($price, $product->price_decimals),
+        'volume' => formatString($size, $product->size_decimals)($size, $product->size_decimals),
+        'price' => formatString($size, $product->size_decimals)($price, $product->price_decimals),
         'expiretm' => '+20',
       ];
             var_dump($order);
@@ -641,7 +641,10 @@ class KrakenApi
         $depth_alt = max($depth_alt, $product->min_order_size);
 
         if (!isset($this->ticker[$product->symbol], $this->ticker[$product->symbol]['asks'], $this->ticker[$product->symbol]['bids'])) {
-            throw new KrakenAPIException("failed to get order book with rest api");
+            throw new KrakenAPIException("Unable to find {$product->symbol} ticker");
+        }
+        if ($this->ticker[$product->symbol]["restarting"]) {
+            throw new KrakenAPIException("{$product->symbol} ws stream restarting");
         }
         return $this->handleOrderBook($this->ticker[$product->symbol], $depth_base, $depth_alt);
     }
@@ -667,12 +670,6 @@ class KrakenApi
             }
         }
         return $best;
-    }
-
-    public function toString($float, $prec)
-    {
-        $pow = pow(10, $prec);
-        return number_format(floor($float*$pow)/$pow, $prec, '.', '');
     }
 
     public function waitForStatus($id)

@@ -398,3 +398,9 @@ function getEurPrices($binance)
     $prices['AUD'] = $prices['BTC'] / $btcAud;
     return $prices;
 }
+
+function formatString($float, $prec)
+{
+    $pow = pow(10, $prec);
+    return number_format(floor($float*$pow)/$pow, $prec, '.', '');
+}
