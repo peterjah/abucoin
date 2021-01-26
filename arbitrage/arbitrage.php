@@ -137,10 +137,10 @@ while (true) {
                 //refresh product infos
                 $market->updateProductList();
 
-                if ($market->api instanceof KrakenApi) {
-                    print "Renew kraken websocket auth token\n";
-                    $market->api->renewWebsocketToken();
-                }
+                // if ($market->api instanceof KrakenApi) {
+                //     print "Renew kraken websocket auth token\n";
+                //     $market->api->renewWebsocketToken();
+                // }
             }
         } catch (Exception $e) {
             handleExeption($e);

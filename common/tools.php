@@ -44,7 +44,7 @@ class Product
                 print("using rest API\n");
                 return $this->book = $this->api->getOrderBook($this, $depth_base, $depth_alt);
             } else {
-                throw $e;
+                return false;
             }
         }
 
