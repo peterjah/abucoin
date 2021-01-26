@@ -36,29 +36,20 @@ if (isset($options['alt'])) {
     $crypto = strtoupper($options['alt']);
 } else {
     $saved_data = json_decode(file_get_contents(FILE), true);
-    $btc_price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=EUR"), true);
     $balances = [];
+    $basePrices = getEurPrices($markets['binance']);
+    $tickers = $markets['binance']->api->refreshTickers([]);
     foreach ($markets as $market) {
-        $crypto_string = '';
-        $prices = [];
-        foreach ($market->api->balances as $alt => $bal) {
-            if ($bal > 0) {
-                if (strlen("{$crypto_string},{$alt}") < 300) {
-                    $crypto_string .= empty($crypto_string) ? "$alt" : ",{$alt}";
-                } else {
-                    $prices = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/pricemulti?fsyms={$crypto_string}&tsyms=BTC"), true);
-                    $crypto_string = "$alt";
-                }
-            }
-        }
-        $prices = array_merge(json_decode(file_get_contents("https://min-api.cryptocompare.com/data/pricemulti?fsyms={$crypto_string}&tsyms=BTC"), true));
-
         foreach ($market->api->balances as $alt => $bal) {
             if ($bal >0) {
                 @$balances[$alt]['bal'] += $bal;
-                if (isset($prices[$alt]['BTC'])) {
-                    $balances[$alt]['btc'] = $balances[$alt]['bal'] * $prices[$alt]['BTC'];
-                    $balances[$alt]['eur'] = $balances[$alt]['btc'] * $btc_price['EUR'];
+                if(isset($basePrices[$alt])) {
+                    $balances[$alt]['btc'] = $balances[$alt]['bal'] * $basePrices[$alt] / $basePrices["BTC"];
+                    $balances[$alt]['eur'] = $balances[$alt]['btc'] * $basePrices[$alt];
+                } elseif (isset($tickers[$alt .'-BTC'])) {
+                    $btcPrice = ($tickers[$alt .'-BTC']["bids"][0] + $tickers[$alt .'-BTC']["asks"][0])/2;
+                    $balances[$alt]['btc'] = $balances[$alt]['bal'] * $btcPrice;
+                    $balances[$alt]['eur'] = $balances[$alt]['btc'] * $btcPrice * $basePrices["BTC"];
                 } else {
                     $balances[$alt]['btc'] = -1;
                     $balances[$alt]['eur'] = -1;
