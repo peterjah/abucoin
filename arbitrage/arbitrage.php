@@ -23,7 +23,7 @@ if (!file_exists(GAINS_FILE)) {
 }
 
 @define('BUY_TRESHOLD', 0.03); //percent
-@define('LOOP_TIME_MS', 100);
+@define('LOOP_TIME_MS', 20);
 
 $market1 = new Market($argv[1]);
 $market2 = new Market($argv[2]);
