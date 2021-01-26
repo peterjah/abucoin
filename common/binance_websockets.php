@@ -3,7 +3,9 @@ use WebSocket\Client;
 
 require_once('../common/tools.php');
 require_once('../common/websockets_tools.php');
+
 @define('WSS_URL', 'wss://stream.binance.com:9443');
+@define('WRITE_FREQ_MS', 20);
 
 declare(ticks = 1);
 pcntl_signal(SIGINT, "sig_handler");
@@ -30,7 +32,6 @@ while (true) {
 function getOrderBook($products, $file)
 {
 
-    $orderbook = [];
     $subscribe_str = '/stream?streams=';
     $app_symbols = [];
     foreach ($products as $product) {
@@ -43,6 +44,8 @@ function getOrderBook($products, $file)
     $subscribe_str = substr($subscribe_str, 0, strlen($subscribe_str)-1);
     $client = new Client(WSS_URL . $subscribe_str, ['timeout' => 60]);
   
+    $orderbook = ['last_update' => 0];
+
     while (true) {
         try {
             $message = $client->receive();
@@ -56,14 +59,12 @@ function getOrderBook($products, $file)
                     //vol
                     $orderbook[$app_symbol]['bids'][1] = $msg['data']['B'];
                     $orderbook[$app_symbol]['asks'][1] = $msg['data']['A'];
-
-                    $orderbook['last_update'] = microtime(true);
-                    if (!file_exists($file)) {
-                        print_dbg('Restarting Binance websocket', true);
-                        break;
-                    }
-                    file_put_contents($file, json_encode($orderbook), LOCK_EX);
                 }
+            }
+            $now = microtime(true);
+            if(($now - $orderbook['last_update'])*1000 > WRITE_FREQ_MS) {
+                $orderbook['last_update'] = microtime(true);
+                file_put_contents($file, json_encode($orderbook), LOCK_EX);
             }
         } catch (Exception $e) {
             print_dbg('Binance websocket error:' . $e->getMessage(), true);

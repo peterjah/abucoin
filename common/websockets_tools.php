@@ -7,7 +7,7 @@ function handle_offers($stack, $offers, $side, $stackSize)
         $new_vol = $new_offer[1];
         $float_vol = floatval($new_vol);
         foreach ($stack as $key => $offer) {
-            if (isBetter(floatval($new_price), floatval($offer[0]), $side) && $float_vol > 0) {
+            if (isBetter($new_price, $offer[0], $side) && $float_vol > 0) {
                 array_splice($stack, $key, 0, [$new_offer]);
                 break;
             }
@@ -33,6 +33,8 @@ function handle_offers($stack, $offers, $side, $stackSize)
 
 function isBetter($price, $ref, $side)
 {
+    $price = floatval($price);
+    $ref = floatval($ref);
     if (isAsk($side)) {
         return $price < $ref;
     } else {

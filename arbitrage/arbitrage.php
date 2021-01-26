@@ -113,7 +113,7 @@ while (true) {
     print "~~~~Api call stats: {$market2->api->name}: {$market2->api->api_calls_rate}/min , {$market1->api->name}: {$market1->api->api_calls_rate}/min~~~~\n\n";
 
     //avoid useless cpu usage
-    $loop_time_ms = (microtime(true) - $loop_begin) / 1000;
+    $loop_time_ms = (microtime(true) - $loop_begin) * 1000;
     print "~~~~Loop time: {$loop_time_ms}ms ~~~~ {$loop_min}/min~~~~\n\n";
     if ($loop_time_ms < LOOP_TIME_MS) {
         $sleepTimeMs = LOOP_TIME_MS - $loop_time_ms;

@@ -6,6 +6,7 @@ require_once('../common/websockets_tools.php');
 
 @define('WSS_URL', 'wss://ws.kraken.com/:443');
 @define('DEPTH', 10);
+@define('WRITE_FREQ_MS', 20);
 
 declare(ticks = 1);
 pcntl_signal(SIGINT, "sig_handler");
@@ -54,7 +55,7 @@ function getOrderBook($products, $file)
     $date->add(new DateInterval('PT' . 5 . 'S'));
 
     $channel_ids = [];
-    $orderbook = [];
+    $orderbook = ['last_update' => 0];
     $frameIdx = null;
     while (true) {
         try {
@@ -83,6 +84,7 @@ function getOrderBook($products, $file)
                             if ($msg['status'] != 'online') {
                                 throw new \Exception("Kraken WS system is onfline");
                             }
+                            print("new systemStatus msg status: {$msg['status']}\n");
                             break;
                         case 'subscriptionStatus':
                             if ($msg['status'] === 'error') {
@@ -100,7 +102,7 @@ function getOrderBook($products, $file)
                                     "subscription" => ['name' => 'book']
                                 ]));
                             } else {
-                                print("new channel subscription id: $app_symbol {$msg['channelID']}\n");
+                                print("new channel subscription (status: {$msg['status']}) id: $app_symbol {$msg['channelID']}\n");
                                 $channel_ids[$msg['channelID']] = $app_symbol;
                             }
                             break;
@@ -147,14 +149,13 @@ function getOrderBook($products, $file)
                         }
                     }
                 } else {
-                    print_dbg("$file msg received", true);
+                    print_dbg("$file unknown msg received", true);
                     var_dump($msg);
                     break;
                 }
-                if (!file_exists($file)) {
-                    print_dbg('Restarting Kraken websocket', true);
-                    break;
-                }
+            }
+            $now = microtime(true);
+            if(($now - $orderbook['last_update'])*1000 > WRITE_FREQ_MS) {
                 $orderbook['last_update'] = microtime(true);
                 file_put_contents($file, json_encode($orderbook), LOCK_EX);
             }
