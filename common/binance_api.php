@@ -198,7 +198,10 @@ class BinanceApi
 
     public function refreshTickers($symbol_list)
     {
-        if (!isset($this->ticker)) {
+        if (file_exists(($this->orderbook_file))) {
+            $this->ticker = getWsOrderbook($this->orderbook_file);
+            return $this->ticker;
+        } else {
             $tickers = $this->wrappedRequest('GET', 'v3/ticker/bookTicker');
 
             foreach ($tickers as $ticker) {
@@ -214,9 +217,8 @@ class BinanceApi
                     $this->ticker[$product->symbol] = $book;
                 }
             }
+            return $this->ticker;
         }
-        $this->ticker = array_merge($this->ticker, getWsOrderbook($this->orderbook_file));
-        return $this->ticker;
     }
 
     public function getTickerOrderBook($product)

@@ -585,7 +585,6 @@ class KrakenApi
 
     public function refreshTickers($symbol_list)
     {
-
         if (file_exists(($this->orderbook_file))) {
             $this->ticker = getWsOrderbook($this->orderbook_file);
             return $this->ticker;

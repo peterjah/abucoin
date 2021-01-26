@@ -38,6 +38,7 @@ while (1) {
     if (@$autoSolve) {
         //init api
         $markets = [];
+        $prices = [];
         // Ordered by trade fee
         foreach (['binance', 'kraken'] as $name) {
             $i=0;
@@ -45,6 +46,9 @@ while (1) {
                 try {
                     $markets[$name] = new Market($name);
                     $markets[$name]->api->getBalance();
+                    if($name === 'binance') {
+                        $prices = getEurPrices($markets[$name]);
+                    }
                     break;
                 } catch (Exception $e) {
                     print "failed to get market $name: $e \n";
@@ -79,7 +83,7 @@ while (1) {
                     print "$side: size= {$size} price= {$traded[$side]['price']} mean_fee= {$traded[$side]['mean_fees']}\n";
                     if (@$autoSolve) {
                         try {
-                            do_solve($markets, $symbol, $side, $traded[$side]);
+                            do_solve($markets, $symbol, $side, $traded[$side], $prices);
                         } catch (Exception $e) {
                             print_dbg("failed to solve $side $symbol: {$e->getMessage()}", true);
                         }
@@ -96,7 +100,7 @@ while (1) {
     }
 }
 
-function do_solve($markets, $symbol, $side, $traded)
+function do_solve($markets, $symbol, $side, $traded, $prices)
 {
     print "trying to solve tx..\n";
     $bestGain = null;
@@ -145,8 +149,8 @@ function do_solve($markets, $symbol, $side, $traded)
         if ($size * $price < $product->min_order_size_base) {
             continue;
         }
-        $eurPrice = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$product->base}&tsyms=EUR"), true)['EUR'];
-        $gainEur = $eurPrice * $expected_gains['base'];
+
+        $gainEur = $prices[$product->base] * $expected_gains['base'];
         $takeProfit = $takeProfit || ($expected_gains['percent'] >= TAKE_PROFIT_PERCENT) || ($gainEur >= TAKE_PROFIT_EUR);
         $stopLoss = $stopLoss || ($expected_gains['percent'] <= STOP_LOSS_PERCENT) || ($gainEur <= STOP_LOSS_EUR);
 

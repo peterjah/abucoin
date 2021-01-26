@@ -130,16 +130,12 @@ function getOrderBook($products, $file)
                             $side_letter = substr($side, 0, 1);
                             if (isset($msg[1][$side_letter])) {
                                 $offers = $msg[1][$side_letter];
-                                $orderbook[$symbol][$side] =
-                          handle_offers($orderbook[$symbol], $offers, $side, DEPTH);
-                                if (isset($offers[3])) {
-                                    print_dbg("$file replica frame!!!", true);
-                                }
+                                $orderbook[$symbol][$side] = handle_offers($orderbook[$symbol], $offers, $side, DEPTH);
                             }
                         }
                         if (isset($msg[1]["c"])) {
                             if (!checkSumValid($orderbook[$symbol], $msg[1]["c"])) {
-                                print_dbg("$file $symbol invalid checksum. Restarting...", true);
+                                print("$file $symbol invalid checksum. Restarting...\n");
                                 $orderbook[$symbol]["restarting"] = true;
                                 $client->sendData(json_encode([
                                 "event" => "unsubscribe",

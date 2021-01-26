@@ -8,14 +8,9 @@ $options =  getopt('a', array(
  ));
 
 $gains = [];
-$nTx = [];
-$prices['EUR'] = 1;
-foreach (['BTC','ETH','USD','USDT','EUR','USDC','DAI', 'GBP', 'AUD'] as $base) {
-    $price = json_decode(file_get_contents("https://min-api.cryptocompare.com/data/price?fsym={$base}&tsyms=EUR"), true);
-    $prices[$base] = $price['EUR'];
-    $nTx[$base] = 0;
-}
-$prices['USD'] = $prices['USDC'] = $prices['USDT'];
+
+$binance = new Market("binance");
+$prices = getEurPrices($binance);
 
 $fp = fopen(GAINS_FILE, "r");
 flock($fp, LOCK_SH, $wouldblock);
@@ -51,12 +46,12 @@ foreach ($data['arbitrages'] as $arbitrage) {
         if (strpos($exchanges, $exchange) !== false) {
             @$gains[$exchange][$base] += floatval($gains_base);
             @$mean_percent_gains[$exchange][$base] += $real_percent_gains;
-            $nTx[$base]++;
+            @$nTx[$base]++;
         }
     } else {
         @$gains[$base] += floatval($gains_base);
         @$mean_percent_gains[$base] += $real_percent_gains;
-        $nTx[$base]++;
+        @$nTx[$base]++;
     }
 }
 
@@ -81,7 +76,7 @@ print("total: $total_gains_eur EUR\n");
 print "\n";
 
 $Cashroll = 0;
-foreach (['binance','kraken'/*,'cobinhood'*/] as $market_name) {
+foreach (['binance','kraken'] as $market_name) {
     $i=0;
     while ($i < 5) {
         try {

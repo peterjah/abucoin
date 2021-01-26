@@ -383,3 +383,18 @@ function applySellFee($price, $fee)
 {
     return $price * (1 - $fee/100);
 }
+
+function getEurPrices($binance)
+{
+    $tickers = $binance->api->refreshTickers([]);
+    $prices['EUR'] = 1;
+    $prices['BTC'] = ($tickers["BTC-EUR"]["bids"][0] + $tickers["BTC-EUR"]["asks"][0])/2;
+    $prices['ETH'] = ($tickers["ETH-EUR"]["bids"][0] + $tickers["ETH-EUR"]["asks"][0])/2;
+    $btcUsd = ($tickers["BTC-USDC"]["bids"][0] + $tickers["BTC-USDC"]["asks"][0])/2;
+    $prices['USD'] = $prices['USDT'] = $prices['USDC'] = $prices['DAI'] = $prices['BTC'] / $btcUsd;
+    $btcGbp = ($tickers["BTC-GBP"]["bids"][0] + $tickers["BTC-GBP"]["asks"][0])/2;
+    $prices['GBP'] = $prices['BTC'] / $btcGbp;
+    $btcAud = ($tickers["BTC-AUD"]["bids"][0] + $tickers["BTC-AUD"]["asks"][0])/2;
+    $prices['AUD'] = $prices['BTC'] / $btcAud;
+    return $prices;
+}
