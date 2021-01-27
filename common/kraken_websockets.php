@@ -64,10 +64,15 @@ function getOrderBook($products, $file)
             } else {
                 $message = $client->receive();
                 $frameIdx = 0;
-                $frame = $message[0]->getPayload();
+                if(isset($message[0])) {
+                    $frame = $message[0]->getPayload();
+                } else {
+                    var_dump($message);
+                    print_dbg("$file invalid frame received", true);
+                }
             }
             $frameIdx++;
-            if ($frame) {
+            if (isset($frame)) {
                 if ($date < DateTime::createFromFormat('U.u', microtime(true))) {
                     $client->sendData(json_encode(["event"=>"ping"]));
                     $date->add(new DateInterval('PT' . 5 . 'S'));
@@ -127,7 +132,7 @@ function getOrderBook($products, $file)
                             $side_letter = substr($side, 0, 1);
                             if (isset($msg[1][$side_letter])) {
                                 $offers = $msg[1][$side_letter];
-                                $orderbook[$symbol][$side] = handle_offers($orderbook[$symbol], $offers, $side, DEPTH);
+                                $orderbook[$symbol][$side] = handle_offers($orderbook[$symbol][$side], $offers, $side, DEPTH);
                             }
                         }
                         if (isset($msg[1]["c"])) {

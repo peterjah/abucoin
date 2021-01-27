@@ -1,7 +1,6 @@
 <?php
 function handle_offers($stack, $offers, $side, $stackSize)
 {
-    $stack = $stack[$side];
     foreach ($offers as $new_offer) {
         $new_price = $new_offer[0];
         $new_vol = $new_offer[1];
