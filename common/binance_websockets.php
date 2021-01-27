@@ -79,7 +79,7 @@ function sig_handler($sig)
         case SIGINT:
         case SIGTERM:
         case SIGKILL:
-          print_dbg("Kraken WS: signal $sig catched! Exiting...", true);
+          print_dbg("Binance WS: signal $sig catched! Exiting...", true);
           unlink($GLOBALS['file']);
           exit();
     }

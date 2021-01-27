@@ -1,6 +1,5 @@
 <?php
 use Wrench\Client;
-
 require_once('../common/tools.php');
 require_once('../common/websockets_tools.php');
 
@@ -34,7 +33,7 @@ function getOrderBook($products, $file)
 {
     $origin = exec('curl -s http://ipecho.net/plain');
 
-    $client = new Client(WSS_URL, "http://" . $origin);
+    $client = new Client(WSS_URL, "http://".$origin);
     $client->connect();
 
     $streams = [];

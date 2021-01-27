@@ -163,11 +163,11 @@ function async_arbitrage($symbol, $sell_market, $sell_price, $buy_market, $buy_p
             $op_price = $toSell ? $status[$opSide]['price'] : $status[$opSide]['price'];
             $new_price = $toSell ? $book['bids']['price'] : $book['asks']['price'];
             // use rest api after first try
-            if ($tout) {
+            // if ($tout) {
                 print_dbg("get book from rest api", true);
                 $book =  $product->api->getOrderBook($product, 0, $size);
                 $new_price = $toSell ? $book['bids']['price'] : $book['asks']['price'];
-            }
+            // }
             if (!$toSell) {
                 $base_bal = $market->api->balances[$base];
                 $size = min(truncate($base_bal / applyBuyFee($new_price, $product->fees), $product->size_decimals), $size);
