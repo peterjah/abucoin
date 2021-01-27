@@ -40,10 +40,9 @@ function getOrderBook($products, $file)
     $streams = [];
     $kraken_products = [];
     foreach ($products as $product) {
-        $alts = explode('-', $product);
-        $symbol = KrakenApi::translate2marketName($alts[0]) .'/'. KrakenApi::translate2marketName($alts[1]);
-        $streams[$symbol]['app_symbol'] = $product;
-        $kraken_products[] = $symbol;
+        $kraken_symbol = krakenPair($product);
+        $streams[$kraken_symbol]['app_symbol'] = $product;
+        $kraken_products[] = $kraken_symbol;
     }
     $client->sendData(json_encode([
         "event" => "subscribe",
@@ -149,33 +148,44 @@ function getOrderBook($products, $file)
                 $orderbook['last_update'] = microtime(true);
                 file_put_contents($file, json_encode($orderbook), LOCK_EX);
             }
-            if (time() - $last_update > 5/*sec*/) {
-                $symbols = array_flip($channel_ids);
-                foreach($orderbook as $symbol => $book) {
-                    if($symbol === "last_update") {
+            if (time() - $last_update > 4/*sec*/) {
+                $restarting = [];
+                $subscribing = [];
+                foreach ($orderbook as $symbol => $book) {
+                    if ($symbol === "last_update") {
                         continue;
                     }
-
-                    if($book["state"] === "restarting") {
-                        print("$symbol unsubscribing...\n");
-                        $client->sendData(json_encode([
-                            "event" => "unsubscribe",
-                            "channelID" => $symbols[$symbol],
-                        ]));
-                        $book["state"] = "unsubscribing";
-                        break;
+                    if ($book["state"] === "restarting") {
+                        $krakenPair = krakenPair($symbol);
+                        $restarting[] = $krakenPair;
+                    } elseif ($book["state"] === "subscribing") {
+                        $krakenPair = krakenPair($symbol);
+                        $subscribing[] = $krakenPair;
                     }
-                    if($book["state"] === "subscribing") {
-                        $alts = explode('-', $symbol);
-                        $kraken_symbol = KrakenApi::translate2marketName($alts[0]) .'/'. KrakenApi::translate2marketName($alts[1]);
-                        print("$symbol subscribing...\n");
-                        $client->sendData(json_encode([
-                            "event" => "subscribe",
-                            "pair" => [$kraken_symbol],
-                            "subscription" => ['name' => 'book']
-                        ]));
-                        $book["state"] = "starting";
-                        break;
+                }
+
+                if(count($subscribing)) {
+                    $client->sendData(json_encode([
+                        "event" => "subscribe",
+                        "pair" => $subscribing,
+                        "subscription" => ['name' => 'book']
+                    ]));
+                    foreach($subscribing as $kraken_symbol) {
+                        $symbol = $streams[$kraken_symbol]['app_symbol'];
+                        $orderbook[$symbol]["state"] = "starting";
+                        print("$symbol - subscription\n");
+                    }
+                } elseif (count($restarting)) {
+                    print("$symbol unsubscribing...\n");
+                    $client->sendData(json_encode([
+                        "event" => "unsubscribe",
+                        "pair" => $restarting,
+                        "subscription" => ['name' => 'book']
+                    ]));
+                    foreach($restarting as $kraken_symbol) {
+                        $symbol = $streams[$kraken_symbol]['app_symbol'];
+                        $orderbook[$symbol]["state"] = "unsubscribing";
+                        print("$symbol - unsubscribing\n");
                     }
                 }
                 $last_update = time();
@@ -195,6 +205,11 @@ function checkSumValid($book, $checksum) {
         }
     }
     return crc32($str) == $checksum;
+}
+
+function krakenPair($symbol) {
+    $alts = explode('-', $symbol);
+    return KrakenApi::translate2marketName($alts[0]) .'/'. KrakenApi::translate2marketName($alts[1]);
 }
 
 function sig_handler($sig)

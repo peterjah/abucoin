@@ -643,8 +643,9 @@ class KrakenApi
         if (!isset($this->ticker[$product->symbol], $this->ticker[$product->symbol]['asks'], $this->ticker[$product->symbol]['bids'])) {
             throw new KrakenAPIException("Unable to find {$product->symbol} ticker");
         }
-        if ($this->ticker[$product->symbol]["state"] !== 'up') {
-            throw new KrakenAPIException("{$product->symbol} ws stream down");
+        $state = $this->ticker[$product->symbol]["state"];
+        if ($state !== 'up') {
+            throw new KrakenAPIException("{$product->symbol} ws stream state: $state");
         }
         return $this->handleOrderBook($this->ticker[$product->symbol], $depth_base, $depth_alt);
     }
