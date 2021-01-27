@@ -41,15 +41,15 @@ if (isset($options['alt'])) {
     $tickers = $markets['binance']->api->refreshTickers([]);
     foreach ($markets as $market) {
         foreach ($market->api->balances as $alt => $bal) {
-            if ($bal >0) {
+            if ($bal > 0) {
                 @$balances[$alt]['bal'] += $bal;
                 if(isset($basePrices[$alt])) {
                     $balances[$alt]['btc'] = $balances[$alt]['bal'] * $basePrices[$alt] / $basePrices["BTC"];
-                    $balances[$alt]['eur'] = $balances[$alt]['btc'] * $basePrices[$alt];
+                    $balances[$alt]['eur'] = $balances[$alt]['btc'] * $basePrices["BTC"];
                 } elseif (isset($tickers[$alt .'-BTC'])) {
                     $btcPrice = ($tickers[$alt .'-BTC']["bids"][0] + $tickers[$alt .'-BTC']["asks"][0])/2;
                     $balances[$alt]['btc'] = $balances[$alt]['bal'] * $btcPrice;
-                    $balances[$alt]['eur'] = $balances[$alt]['btc'] * $btcPrice * $basePrices["BTC"];
+                    $balances[$alt]['eur'] = $balances[$alt]['btc'] * $basePrices["BTC"];
                 } else {
                     $balances[$alt]['btc'] = -1;
                     $balances[$alt]['eur'] = -1;
@@ -101,9 +101,9 @@ if (isset($options['alt'])) {
     print "total holdings: ".count($balances)." cryptos \n";
     if (isset($ref)) {
         $btc_change = (($total_btc - $ref['total_btc']) / $ref['total_btc'])*100;
-        $btc_change = $btc_change > 0 ? "+".number_format($btc_change, 3) : number_format($btc_change, 3);
+        $btc_change = ($btc_change > 0 ? "+" : "") . formatString($btc_change, 2);
         $eur_change = (($total_eur - $ref['total_eur']) / $ref['total_eur'])*100;
-        $eur_change = $eur_change > 0 ? "+".number_format($eur_change, 3) : number_format($eur_change, 3);
+        $eur_change = ($eur_change > 0 ? "+" : "") . formatString($eur_change, 2);
     }
     print "BTC value: $total_btc (".(isset($ref) ? $btc_change : '-')."%)\n";
     print "EUR value: $total_eur (".(isset($ref) ? $eur_change : '-')."%)\n";
