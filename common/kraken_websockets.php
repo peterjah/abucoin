@@ -55,6 +55,7 @@ function getOrderBook($products, $file)
     $date->add(new DateInterval('PT' . 5 . 'S'));
 
     $channel_ids = [];
+    $last_update = 0;
     $orderbook = ['last_update' => 0];
     $frameIdx = null;
     while (true) {
@@ -88,22 +89,19 @@ function getOrderBook($products, $file)
                             break;
                         case 'subscriptionStatus':
                             if ($msg['status'] === 'error') {
+                                if($msg['errorMessage'] === 'Exceeded msg rate') {
+                                    var_dump($msg);
+                                }
                                 throw new \Exception("Kraken WS subsscription failed: {$msg['errorMessage']}");
                             }
-                            $app_symbol = $streams[$msg['pair']]['app_symbol'];
+                            $symbol = $streams[$msg['pair']]['app_symbol'];
 
                             if ($msg['status'] === 'unsubscribed') {
-                                print("unsubscribed from: $app_symbol channelID: {$msg['channelID']}\n");
-                                $alts = explode('-', $app_symbol);
-                                $kraken_symbol = KrakenApi::translate2marketName($alts[0]) .'/'. KrakenApi::translate2marketName($alts[1]);
-                                $client->sendData(json_encode([
-                                    "event" => "subscribe",
-                                    "pair" => [$kraken_symbol],
-                                    "subscription" => ['name' => 'book']
-                                ]));
+                                print("unsubscribed from: $symbol channelID: {$msg['channelID']}\n");
+                                $orderbook[$symbol]["state"] = "subscribing";
                             } else {
-                                print("new channel subscription (status: {$msg['status']}) id: $app_symbol {$msg['channelID']}\n");
-                                $channel_ids[$msg['channelID']] = $app_symbol;
+                                print("new channel subscription (status: {$msg['status']}) id: $symbol {$msg['channelID']}\n");
+                                $channel_ids[$msg['channelID']] = $symbol;
                             }
                             break;
                         case 'pong':
@@ -122,10 +120,10 @@ function getOrderBook($products, $file)
                     if (count($msg[1]['bs'])) {
                         $orderbook[$symbol]['bids'] = $msg[1]['bs'];
                     }
-                    $orderbook[$symbol]["restarting"] = false;
+                    $orderbook[$symbol]["state"] = "up";
                 }  elseif (isset($msg[1]['a']) || isset($msg[1]['b'])) {
                     $symbol = $channel_ids[$msg[0]];
-                    if (!$orderbook[$symbol]["restarting"]) {
+                    if ($orderbook[$symbol]["state"] === 'up') {
                         foreach (['bids', 'asks'] as $side) {
                             $side_letter = substr($side, 0, 1);
                             if (isset($msg[1][$side_letter])) {
@@ -136,11 +134,7 @@ function getOrderBook($products, $file)
                         if (isset($msg[1]["c"])) {
                             if (!checkSumValid($orderbook[$symbol], $msg[1]["c"])) {
                                 print("$file $symbol invalid checksum. Restarting...\n");
-                                $orderbook[$symbol]["restarting"] = true;
-                                $client->sendData(json_encode([
-                                "event" => "unsubscribe",
-                                "channelID" => $msg[0],
-                            ]));
+                                $orderbook[$symbol]["state"] = "restarting";
                             }
                         }
                     }
@@ -154,6 +148,37 @@ function getOrderBook($products, $file)
             if(($now - $orderbook['last_update'])*1000 > WRITE_FREQ_MS) {
                 $orderbook['last_update'] = microtime(true);
                 file_put_contents($file, json_encode($orderbook), LOCK_EX);
+            }
+            if (time() - $last_update > 5/*sec*/) {
+                $symbols = array_flip($channel_ids);
+                foreach($orderbook as $symbol => $book) {
+                    if($symbol === "last_update") {
+                        continue;
+                    }
+
+                    if($book["state"] === "restarting") {
+                        print("$symbol unsubscribing...\n");
+                        $client->sendData(json_encode([
+                            "event" => "unsubscribe",
+                            "channelID" => $symbols[$symbol],
+                        ]));
+                        $book["state"] = "unsubscribing";
+                        break;
+                    }
+                    if($book["state"] === "subscribing") {
+                        $alts = explode('-', $symbol);
+                        $kraken_symbol = KrakenApi::translate2marketName($alts[0]) .'/'. KrakenApi::translate2marketName($alts[1]);
+                        print("$symbol subscribing...\n");
+                        $client->sendData(json_encode([
+                            "event" => "subscribe",
+                            "pair" => [$kraken_symbol],
+                            "subscription" => ['name' => 'book']
+                        ]));
+                        $book["state"] = "starting";
+                        break;
+                    }
+                }
+                $last_update = time();
             }
         } catch (Exception $e) {
             print_dbg("$file error:" . $e->getMessage(), true);
