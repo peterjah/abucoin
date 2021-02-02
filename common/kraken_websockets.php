@@ -50,15 +50,16 @@ function getOrderBook($products, $file)
     ]));
 
     $date = DateTime::createFromFormat('U.u', microtime(true));
-    $date->add(new DateInterval('PT' . 5 . 'S'));
+    $date->add(new DateInterval('PT' . 180 . 'S'));
 
     $channel_ids = [];
     $last_update = 0;
     $orderbook = ['last_update' => 0];
-    $frameIdx = null;
+    $frameIdx = 0;
+    $restart = false;
     while (true) {
         try {
-            if(isset($message[$frameIdx])) {
+            if(isset($message[++$frameIdx])) {
                 $frame = $message[$frameIdx]->getPayload();
             } else {
                 $message = $client->receive();
@@ -68,20 +69,11 @@ function getOrderBook($products, $file)
                 } else {
                     var_dump($message);
                     print_dbg("$file invalid frame received", true);
+                    $restart = true;
                 }
             }
-            $frameIdx++;
             if (isset($frame)) {
-                if ($date < DateTime::createFromFormat('U.u', microtime(true))) {
-                    $client->sendData(json_encode(["event"=>"ping"]));
-                    $date->add(new DateInterval('PT' . 5 . 'S'));
-                }
                 $msg = json_decode($frame, true);
-                if ($msg == null) {
-                    print_dbg("$file failed to decode json: \"{$frame}\"", true);
-                    continue;
-                }
-
                 if (isset($msg['event'])) {
                     switch ($msg['event']) {
                         case 'systemStatus':
@@ -101,11 +93,11 @@ function getOrderBook($products, $file)
 
                             if ($msg['status'] === 'unsubscribed') {
                                 print("unsubscribed from: $symbol channelID: {$msg['channelID']}\n");
-                                $orderbook[$symbol]["state"] = "subscribing";
                             } else {
                                 print("new channel subscription (status: {$msg['status']}) id: $symbol {$msg['channelID']}\n");
                                 $channel_ids[$msg['channelID']] = $symbol;
                             }
+                            $orderbook[$symbol]["state"] = "subscribing";
                             break;
                         case 'pong':
                         case 'heartbeat': break;
@@ -142,16 +134,16 @@ function getOrderBook($products, $file)
                         }
                     }
                 } else {
-                    print_dbg("$file unknown msg received", true);
+                    print_dbg("$file failed to decode json: \"{$frame}\"", true);
                     var_dump($msg);
-                    break;
+                }
+                $now = microtime(true);
+                if(($now - $orderbook['last_update'])*1000 > WRITE_FREQ_MS) {
+                    file_put_contents($file, json_encode($orderbook), LOCK_EX);
+                    $orderbook['last_update'] = microtime(true);
                 }
             }
-            $now = microtime(true);
-            if(($now - $orderbook['last_update'])*1000 > WRITE_FREQ_MS) {
-                $orderbook['last_update'] = microtime(true);
-                file_put_contents($file, json_encode($orderbook), LOCK_EX);
-            }
+
             if (time() - $last_update > 4/*sec*/) {
                 $restarting = [];
                 $subscribing = [];
@@ -159,7 +151,7 @@ function getOrderBook($products, $file)
                     if ($symbol === "last_update") {
                         continue;
                     }
-                    if ($book["state"] === "restarting") {
+                    if ($book["state"] === "restarting" || $restart) {
                         $krakenPair = krakenPair($symbol);
                         $restarting[] = $krakenPair;
                     } elseif ($book["state"] === "subscribing") {
@@ -191,8 +183,18 @@ function getOrderBook($products, $file)
                         $orderbook[$symbol]["state"] = "unsubscribing";
                         print("$symbol - unsubscribing\n");
                     }
+                    if($restart) {
+                        sleep(4);
+                        break;
+                    }
                 }
                 $last_update = time();
+
+                if ($date < DateTime::createFromFormat('U.u', microtime(true))) {
+                    print("ping\n");
+                    $client->sendData(json_encode(["event"=>"ping"]));
+                    $date->add(new DateInterval('PT' . 5 . 'S'));
+                }
             }
         } catch (Exception $e) {
             print_dbg("$file error:" . $e->getMessage(), true);

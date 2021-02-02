@@ -60,7 +60,7 @@ class KrakenApi
         $this->time = time();
 
         $this->orderbook_depth = 10;
-        $this->renewWebsocketToken();
+        // $this->renewWebsocketToken();
     }
 
     public function __destruct()
