@@ -275,6 +275,7 @@ class BinanceApi
     {
         $alt = $product->alt;
         $base = $product->base;
+        $timeout = 10;// sec
 
         $order = ['symbol' =>  self::crypto2binance($alt) . self::crypto2binance($base),
                 'quantity'=>  formatString($size, $product->size_decimals),
@@ -284,7 +285,7 @@ class BinanceApi
 
         if ($type == 'limit') {
             $order['price'] = formatString($price, $product->price_decimals);
-            $order['timeInForce'] = 'GTC';
+            $order['recvWindow'] = "$timeout";
         }
 
         $status = $this->jsonRequest('POST', 'v3/order', $order);
@@ -311,12 +312,12 @@ class BinanceApi
                 //give server some time to handle order
                 usleep(500000);// 0.5 sec
                 $status = [];
-                $timeout = 10;// sec
                 $begin = microtime(true);
                 while ((@$status['status'] != 'closed') && ((microtime(true) - $begin) < $timeout)) {
                     $status = $this->getOrderStatus($product, $id);
-                    usleep(1000000); // 1 sec
+                    sleep(1);
                 }
+
                 print_dbg("Check {$this->name} order $id status: {$status['status']} $side $alt filled:{$status['filled']}", true);
 
                 if (empty($status['status']) || $status['status'] == 'open') {
@@ -324,7 +325,7 @@ class BinanceApi
                     $begin = microtime(true);
                     while ((!$order_canceled || empty($status['status'])) && (microtime(true) - $begin) < $timeout) {
                         $status = $this->getOrderStatus($product, $id);
-                        usleep(1000000);
+                        sleep(1);
                     }
                 }
 
