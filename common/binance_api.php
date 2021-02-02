@@ -286,8 +286,8 @@ class BinanceApi
         if ($type == 'limit') {
             $order['price'] = formatString($price, $product->price_decimals);
             $order['recvWindow'] = $timeout*1000;
+            $order['timeInForce'] = 'GTC';
         }
-        $order['timeInForce'] = 'GTC';
 
         $status = $this->jsonRequest('POST', 'v3/order', $order);
         print "{$this->name} trade says:\n";
