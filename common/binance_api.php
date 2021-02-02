@@ -285,7 +285,7 @@ class BinanceApi
 
         if ($type == 'limit') {
             $order['price'] = formatString($price, $product->price_decimals);
-            $order['recvWindow'] = "$timeout";
+            $order['recvWindow'] = $timeout*1000;
         }
 
         $status = $this->jsonRequest('POST', 'v3/order', $order);
