@@ -70,6 +70,7 @@ function getOrderBook($products, $file)
                     var_dump($message);
                     print_dbg("$file invalid frame received", true);
                     $restart = true;
+                    usleep(100000);//0.1sec
                 }
             }
             if (isset($frame)) {
@@ -178,15 +179,19 @@ function getOrderBook($products, $file)
                         "pair" => $restarting,
                         "subscription" => ['name' => 'book']
                     ]));
+
+                    if($restart) {
+                        print_dbg("$file ***PANIC*** restarting", true);
+                        sleep(4);
+                        break;
+                    }
+
                     foreach($restarting as $kraken_symbol) {
                         $symbol = $streams[$kraken_symbol]['app_symbol'];
                         $orderbook[$symbol]["state"] = "unsubscribing";
                         print("$symbol - unsubscribing\n");
                     }
-                    if($restart) {
-                        sleep(4);
-                        break;
-                    }
+
                 }
                 $last_update = time();
 
