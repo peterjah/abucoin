@@ -114,10 +114,15 @@ class KrakenApi
         if (!is_array($result)) {
             throw new KrakenAPIException('JSON decode error');
         }
-        if (isset($result['error'][0]) && $result['error'][0] == 'EAPI:Rate limit exceeded') {
-            print_dbg("Kraken: api call limit reached", true);
-            sleep(15);
-            throw new KrakenAPIException($result['error'][0]);
+        if (isset($result['error'][0])) {
+            if ($result['error'][0] === 'EAPI:Invalid nonce') {
+                print_dbg("DEBUG: invalid nonce ${$request['nonce']}", true);
+            }
+            if ($result['error'][0] === 'EAPI:Rate limit exceeded') {
+                print_dbg("Kraken: api call limit reached", true);
+                sleep(15);
+                throw new KrakenAPIException($result['error'][0]);
+            }
         }
 
         return $result;
@@ -222,7 +227,7 @@ class KrakenApi
         $tradeVolume = $this->wrappedRequest('TradeVolume');
         $tradedVolume = $tradeVolume['result']['volume'];
         foreach ($products['result'] as $kraken_symbol => $product) {
-            if (strpos($kraken_symbol, ".") !== false ) {
+            if (strpos($kraken_symbol, ".") !== false) {
                 continue;
             }
 
@@ -299,7 +304,7 @@ class KrakenApi
                 $price_diff_pct = 0;
                 if ($side == 'buy') {
                     $new_price = $book['asks']['price'];
-                    if($new_price > $price) {
+                    if ($new_price > $price) {
                         $price_diff_pct =  (($new_price - $price)/$price)*100;
                     }
                 } else {
@@ -651,7 +656,8 @@ class KrakenApi
         return $this->handleOrderBook($this->ticker[$product->symbol], $depth_base, $depth_alt);
     }
 
-    public function handleOrderBook($book, $depth_base = 0, $depth_alt = 0) {
+    public function handleOrderBook($book, $depth_base = 0, $depth_alt = 0)
+    {
         foreach (['asks', 'bids'] as $side) {
             $best[$side]['price'] = $best[$side]['order_price'] = floatval($book[$side][0][0]);
             $best[$side]['size'] = floatval($book[$side][0][1]);
