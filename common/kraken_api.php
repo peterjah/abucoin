@@ -68,7 +68,7 @@ class KrakenApi
         curl_close($this->curl);
     }
 
-    public function jsonRequest($method, array $request = array())
+    public function jsonRequest($method, $request = [])
     {
         $this->api_calls++;
         $now = time();
@@ -116,8 +116,8 @@ class KrakenApi
         }
         if (isset($result['error'][0])) {
             if ($result['error'][0] === 'EAPI:Invalid nonce') {
-                print_dbg("DEBUG: invalid nonce ${$request['nonce']}", true);
-                print_dbg(var_export($request), true);
+                print_dbg("DEBUG: invalid nonce \"${$request['nonce']}\"", true);
+                print_dbg("DEBUG:" . var_export($request), true);
             }
             if ($result['error'][0] === 'EAPI:Rate limit exceeded') {
                 print_dbg("Kraken: api call limit reached", true);
