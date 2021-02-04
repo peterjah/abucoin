@@ -117,7 +117,7 @@ class KrakenApi
         if (isset($result['error'][0])) {
             if ($result['error'][0] === 'EAPI:Invalid nonce') {
                 print_dbg("DEBUG: invalid nonce \"${$request['nonce']}\"", true);
-                print_dbg("DEBUG:" . var_export($request), true);
+                print_dbg("DEBUG:" . var_export($request, true), true);
             }
             if ($result['error'][0] === 'EAPI:Rate limit exceeded') {
                 print_dbg("Kraken: api call limit reached", true);
