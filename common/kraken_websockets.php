@@ -180,18 +180,18 @@ function getOrderBook($products, $file)
                         "subscription" => ['name' => 'book']
                     ]));
 
-                    if($restart) {
-                        print_dbg("$file ***PANIC*** restarting", true);
-                        sleep(4);
-                        break;
-                    }
-
                     foreach($restarting as $kraken_symbol) {
                         $symbol = $streams[$kraken_symbol]['app_symbol'];
                         $orderbook[$symbol]["state"] = "unsubscribing";
                         print("$symbol - unsubscribing\n");
                     }
 
+                }
+
+                if($restart) {
+                    print_dbg("$file ***PANIC*** restarting", true);
+                    sleep(4);
+                    break;
                 }
                 $last_update = time();
 
