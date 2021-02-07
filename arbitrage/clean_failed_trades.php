@@ -15,7 +15,7 @@ require_once('../common/tools.php');
 @define('STOP_LOSS_EUR', '-5');
 @define('TAKE_PROFIT_PERCENT', '2');
 @define('TAKE_PROFIT_EUR', '5');
-@define('LOOP_TIME_MIN', '10');
+@define('LOOP_TIME_MIN', '5');
 
 if (@$argv[1] == '-solve' && isset($argv[2])) {
     $fp = fopen(TRADES_FILE, "r");
