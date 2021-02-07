@@ -34,28 +34,21 @@ if (@$argv[1] == '-auto-solve') {
     $autoSolve=true;
 }
 
+$markets = [];
+foreach (['binance', 'kraken'] as $name) {
+    $markets[$name] = new Market($name);
+}
 while (1) {
     if (@$autoSolve) {
         //init api
-        $markets = [];
         $prices = [];
         // Ordered by trade fee
         foreach (['binance', 'kraken'] as $name) {
-            $i=0;
-            while ($i<6) {
-                try {
-                    $markets[$name] = new Market($name);
-                    $markets[$name]->api->getBalance();
-                    if($name === 'binance') {
-                        $prices = getEurPrices($markets[$name]);
-                    }
-                    break;
-                } catch (Exception $e) {
-                    print "failed to get market $name: $e \n";
-                    usleep(500000);
-                    $i++;
-                }
+            $markets[$name]->api->getBalance();
+            if($name === 'binance') {
+                $prices = getEurPrices($markets[$name]);
             }
+            break;
         }
 
         $ledger = parseTradeFile();
@@ -204,7 +197,8 @@ function do_solve($markets, $symbol, $side, $traded, $prices)
             save_gain($arbitrage_log);
 
             $leftSize = $traded['size'] - $status['filled_size'];
-            if ($leftSize > 1E-8) {
+            $eurValue = $prices[$product->base] * $leftSize;
+            if ($eurValue > 0.01) { // 1cts
                 print_dbg("partial solved, creating tosolve trade", true);
                 save_trade("multi", $product->alt, $product->base, $side, $leftSize, $traded['price'], "partialSolve");
             }
