@@ -44,11 +44,16 @@ if (isset($options['alt'])) {
             if ($bal > 0) {
                 @$balances[$alt]['bal'] += $bal;
                 if(isset($basePrices[$alt])) {
-                    $balances[$alt]['btc'] = $balances[$alt]['bal'] * $basePrices[$alt] / $basePrices["BTC"];
-                    $balances[$alt]['eur'] = $balances[$alt]['btc'] * $basePrices["BTC"];
+                    $balances[$alt]['eur'] = $balances[$alt]['bal'] * $basePrices[$alt];
+                    $balances[$alt]['btc'] = $balances[$alt]['eur'] / $basePrices["BTC"];
                 } elseif (isset($tickers[$alt .'-BTC'])) {
                     $btcPrice = ($tickers[$alt .'-BTC']["bids"][0] + $tickers[$alt .'-BTC']["asks"][0])/2;
                     $balances[$alt]['btc'] = $balances[$alt]['bal'] * $btcPrice;
+                    $balances[$alt]['eur'] = $balances[$alt]['btc'] * $basePrices["BTC"];
+                } elseif (isset($tickers[$alt .'-BNB'])) {
+                    $bnbPrice = ($tickers[$alt .'-BNB']["bids"][0] + $tickers[$alt .'-BNB']["asks"][0])/2;
+                    $btcPrice = ($tickers['BNB-BTC']["bids"][0] + $tickers['BNB-BTC']["asks"][0])/2;
+                    $balances[$alt]['btc'] = $balances[$alt]['bal'] * $bnbPrice * $btcPrice;
                     $balances[$alt]['eur'] = $balances[$alt]['btc'] * $basePrices["BTC"];
                 } else {
                     $balances[$alt]['btc'] = -1;
