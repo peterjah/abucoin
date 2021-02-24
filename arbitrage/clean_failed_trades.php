@@ -43,12 +43,16 @@ while (1) {
         //init api
         $prices = [];
         // Ordered by trade fee
-        foreach (['binance', 'kraken'] as $name) {
-            $markets[$name]->api->getBalance();
-            if($name === 'binance') {
-                $prices = getEurPrices($markets[$name]);
-            }
-            break;
+        while (1) {
+            try {
+                foreach (['binance', 'kraken'] as $name) {
+                    $markets[$name]->api->getBalance(); // handle throw
+                    if ($name === 'binance') {
+                        $prices = getEurPrices($markets[$name]);
+                    }
+                }
+                break;
+            } catch (Exception $e) {}
         }
 
         $ledger = parseTradeFile();
