@@ -142,6 +142,7 @@ while (true) {
                 //     $market->api->renewWebsocketToken();
                 // }
             }
+            $symbol_list = getCommonProducts($market1, $market2);
         } catch (Exception $e) {
             handleExeption($e);
         }
