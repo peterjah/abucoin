@@ -486,6 +486,8 @@ class KrakenApi
                 'MANA' => 50,
                 'GRT' => 50,
                 'FLOW' => 1,
+                'OCEAN' => 10,
+                'EWT' => 1,
               ];
 
         if (array_key_exists($crypto, $table)) {
